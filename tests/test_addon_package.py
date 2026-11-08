@@ -68,6 +68,8 @@ def test_package_contains_plugin_bridge_manifest_and_translations():
         "sounds/callReaction.wav",
         "sounds/chatOpen.wav",
         "sounds/openChatMessage.wav",
+        "sounds/voiceNext.wav",
+        "sounds/voiceEnd.wav",
         "sounds/chatClose.wav",
         "locale/id/LC_MESSAGES/nvda.mo",
         "locale/id/manifest.ini",

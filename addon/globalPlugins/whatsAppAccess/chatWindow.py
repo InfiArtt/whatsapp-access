@@ -78,6 +78,8 @@ OPENED_TYPES = ("image", "video", "ptv", "document", "sticker")
 PLAYED_TYPES = ("ptt", "audio", "video", "ptv")
 # How long after the messages list moves to the next voice message its focus change may be kept quiet.
 QUIET_FOCUS_SECONDS = 1.0
+# The moment between one voice message of a run and the next, for the small sound between them.
+VOICE_NEXT_DELAY_MS = 350
 
 
 def withHint(message: str, hint: str) -> str:
@@ -190,6 +192,7 @@ class ChatWindow(wx.Dialog):
 		self._loadingEarlier = False
 		self._playingId: str | None = None
 		self._quietFocusUntil = 0.0
+		self._voiceRun = False
 
 		main = wx.BoxSizer(wx.VERTICAL)
 		self._archivedChats: list[dict] = []
@@ -1276,6 +1279,8 @@ class ChatWindow(wx.Dialog):
 			if self._playingId == message["id"]:
 				self._stopPlayback()
 				return
+			# Started by the user: a new run of voice messages, if more follow.
+			self._voiceRun = False
 			self._playVoice(message)
 		elif message.get("type") in OPENED_TYPES:
 			self._openFile(message)
@@ -1629,6 +1634,7 @@ class ChatWindow(wx.Dialog):
 		self._run(lambda: self.session.messageActions(message["id"]), ask)
 
 	def _stopPlayback(self) -> None:
+		self._voiceRun = False
 		if self._playingId is not None:
 			self._playingId = None
 			self._run(self.session.stopAudio)
@@ -3562,14 +3568,26 @@ class ChatWindow(wx.Dialog):
 		following = self._messages[index + 1] if 0 <= index < len(self._messages) - 1 else None
 		# Only a voice message straight after: a text, a document or anything else ends the run.
 		if following is None or self._messages[index].get("type") != "ptt" or following.get("type") != "ptt":
+			if self._voiceRun:
+				self._voiceRun = False
+				sounds.play(sounds.VOICE_END)
 			return
+		self._voiceRun = True
+		sounds.play(sounds.VOICE_NEXT)
 		if wx.Window.FindFocus() is self.messageList and self.messageList.GetSelection() == index:
 			# The cursor follows, as long as the user is still on the one that ended. NVDA reads the new
 			# message itself, unless the user asked for quiet.
 			if not config.conf[CONFIG_SECTION]["sayNextVoiceMessage"]:
 				self._quietFocusUntil = time.monotonic() + QUIET_FOCUS_SECONDS
 			self.messageList.SetSelection(index + 1)
-		self._playVoice(following)
+		# After the small sound, as WhatsApp leaves a moment between them. Enter meanwhile stops the run.
+		self._playingId = following["id"]
+
+		def start() -> None:
+			if self._playingId == following["id"]:
+				self._playVoice(following)
+
+		wx.CallLater(VOICE_NEXT_DELAY_MS, start)
 
 	def isQuietFocus(self, windowHandle: int) -> bool:
 		"""Whether NVDA should not read this focus change: the messages list following voice messages."""

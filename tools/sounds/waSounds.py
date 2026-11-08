@@ -221,6 +221,25 @@ def open_chat_message():
     return done(tr, 0.18, 0.9)
 
 
+def voice_next():
+    """The next voice message starts after one ends: a light step up, F#5 to A5, quick and small."""
+    seed(121)
+    tr = Track(0.5)
+    tr.add(darken(bell("F#5", 0.3, 0.16, 0.22), 3400), 0.0, -0.2, 0.2)
+    tr.add(darken(bell("A5", 0.35, 0.18, 0.22), 3600), 0.06, 0.2, 0.22)
+    return done(tr, 0.16, 0.8)
+
+
+def voice_end():
+    """A run of voice messages is over: A5 settling down to D5 over a quiet low D, the end of a story."""
+    seed(122)
+    tr = Track(1.0)
+    tr.add(darken(bell("A5", 0.4, 0.22, 0.22), 3400), 0.0, 0.15, 0.2)
+    tr.add(darken(bell("D5", 0.7, 0.35, 0.22), 2800), 0.1, -0.1, 0.24)
+    tr.add(darken(bell("D4", 0.6, 0.3, 0.22), 1800), 0.1, 0.0, 0.1)
+    return done(tr, 0.24, 1.2)
+
+
 SOUNDS = {
     "sent": sent,
     "received": received,
@@ -242,6 +261,8 @@ SOUNDS = {
     "chatOpen": chat_open,
     "chatClose": chat_close,
     "openChatMessage": open_chat_message,
+    "voiceNext": voice_next,
+    "voiceEnd": voice_end,
 }
 
 if __name__ == "__main__":

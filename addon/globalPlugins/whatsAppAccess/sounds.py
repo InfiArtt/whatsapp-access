@@ -36,6 +36,8 @@ CALL_REACTION = "callReaction"
 CHAT_OPEN = "chatOpen"
 CHAT_CLOSE = "chatClose"
 OPEN_CHAT_MESSAGE = "openChatMessage"
+VOICE_NEXT = "voiceNext"
+VOICE_END = "voiceEnd"
 
 # Which volume setting a sound follows: new messages and the ring, or everything else.
 NOTIFICATION = "notificationVolume"

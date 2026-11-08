@@ -8,7 +8,8 @@ notes the add-on shows before it installs an update.
 - Ctrl+/ lists every keyboard shortcut, by section and in WhatsApp's words, as WhatsApp does.
 - Voice messages play one after another, as in WhatsApp: when one ends, the voice message right after
   it plays, until a text or anything else comes between. In the messages list the cursor follows, and
-  NVDA reads the next one; a setting keeps NVDA quiet.
+  NVDA reads the next one; a setting keeps NVDA quiet. A small sound plays as the next one starts, and
+  another when the run is over.
 
 Fixed:
 
