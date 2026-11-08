@@ -1,0 +1,219 @@
+import time
+
+from whatsAppAccess import messageText
+
+NOW = time.mktime((2026, 11, 8, 10, 0, 0, 0, 0, -1))
+TODAY_0815 = time.mktime((2026, 11, 8, 8, 15, 0, 0, 0, -1))
+YESTERDAY_2130 = time.mktime((2026, 11, 7, 21, 30, 0, 0, 0, -1))
+
+
+def test_duration():
+    assert messageText.duration(8.4) == "8 sec"
+    assert messageText.duration(65) == "1 min 5 sec"
+
+
+def test_times():
+    assert messageText.timeText(TODAY_0815, NOW) == "08:15"
+    assert messageText.timeText(YESTERDAY_2130, NOW) == "yesterday 21:30"
+    assert messageText.timeText(time.mktime((2026, 10, 1, 9, 5, 0, 0, 0, -1)), NOW) == "01/10/2026 09:05"
+
+
+def test_personal_chat_message_names_the_contact():
+    message = {"type": "chat", "text": "Halo", "t": TODAY_0815, "sender": "Budi"}
+    assert messageText.messageLine(message, isGroup=False, now=NOW) == "Budi: Halo, 08:15"
+
+
+def test_own_message_says_you_and_its_state():
+    message = {"type": "chat", "text": "Siap", "t": TODAY_0815, "fromMe": True, "ack": 3}
+    assert messageText.messageLine(message, isGroup=False, now=NOW) == "You: Siap, 08:15, read"
+
+
+def test_group_voice_message_with_reply_and_forward():
+    message = {
+        "type": "ptt",
+        "duration": 8,
+        "sender": "Dimas",
+        "t": TODAY_0815,
+        "isForwarded": True,
+        "quoted": {"text": "Ada yang tahu cara pasang add-on?", "type": "chat", "sender": "Anas"},
+    }
+    assert messageText.messageLine(message, isGroup=True, now=NOW) == (
+        'Dimas: Voice message, 8 sec, quoting Anas: "Ada yang tahu cara pasang add-on?", forwarded, 08:15'
+    )
+
+
+def test_media_shows_caption_not_thumbnail():
+    assert messageText.content({"type": "image", "caption": "Pemandangan"}) == "Photo: Pemandangan"
+    assert messageText.content({"type": "document", "filename": "laporan.pdf"}) == "Document laporan.pdf"
+
+
+def test_chat_line():
+    chat = {
+        "title": "KartunetClub",
+        "isGroup": True,
+        "unread": 291,
+        "muted": True,
+        "last": {"type": "chat", "text": "Selamat pagi   semua", "sender": "Dimas", "t": TODAY_0815},
+    }
+    assert messageText.chatLine(chat, now=NOW) == (
+        "KartunetClub, 291 unread, muted, Dimas: Selamat pagi semua, 08:15"
+    )
+
+
+def test_long_previews_are_shortened():
+    chat = {"title": "A", "last": {"type": "chat", "text": "x" * 500, "t": 0}}
+    line = messageText.chatLine(chat, now=NOW)
+    assert len(line) < 140
+    assert line.endswith("…")
+
+
+def test_announcements():
+    message = {"type": "chat", "text": "Halo", "sender": "Budi"}
+    assert (
+        messageText.announcement(message, "Budi", isGroup=False, inOpenChat=False)
+        == "New message from Budi: Halo"
+    )
+    assert messageText.announcement(message, "Budi", isGroup=False, inOpenChat=True) == "Budi: Halo"
+    assert messageText.announcement(message, "Tim", isGroup=True, inOpenChat=True) == "Budi: Halo"
+    assert messageText.announcement(message, "Tim", isGroup=True, inOpenChat=False) == (
+        "New message in Tim from Budi: Halo"
+    )
+
+
+def test_reply_to_own_message_says_you():
+    message = {
+        "type": "chat",
+        "text": "Oke",
+        "sender": "Anas",
+        "t": TODAY_0815,
+        "quoted": {"text": "Jadi?", "fromMe": True},
+    }
+    assert messageText.messageLine(message, isGroup=True, now=NOW) == 'Anas: Oke, quoting You: "Jadi?", 08:15'
+
+
+def test_presence_of_a_person():
+    assert messageText.presenceText({"kind": "user", "state": "typing"}) == "typing…"
+    assert messageText.presenceText({"kind": "user", "state": "recording"}) == "recording audio…"
+    assert messageText.presenceText({"kind": "user", "state": "online"}) == "online"
+    seen = {"kind": "user", "state": "offline", "lastSeen": TODAY_0815}
+    assert messageText.presenceText(seen, now=NOW) == "last seen 08:15"
+    assert messageText.presenceText({"kind": "user", "state": "offline", "lastSeen": None}) == "no info"
+
+
+def test_presence_in_a_group():
+    group = {"kind": "group", "typing": ["Anas", "Budi"], "recording": ["Citra"]}
+    assert messageText.presenceText(group) == "Anas and Budi typing…, Citra recording audio…"
+    assert messageText.presenceText({"kind": "group", "typing": [], "recording": []}) == ""
+
+
+def test_only_typing_and_recording_are_read_out_as_they_happen():
+    assert messageText.isActivity({"kind": "user", "state": "typing"})
+    assert not messageText.isActivity({"kind": "user", "state": "online"})
+    assert messageText.isActivity({"kind": "group", "typing": ["Anas"], "recording": []})
+    assert not messageText.isActivity(None)
+
+
+def test_poll_in_the_message_list():
+    message = {"type": "poll_creation", "text": "Teknis relawan", "poll": {"options": 4, "votes": 22}}
+    assert messageText.content(message) == "Poll: Teknis relawan, 4 options, 22 voted"
+
+
+def test_file_kinds_follow_whatsapps_attach_menu():
+    assert messageText.fileKind(r"C:\foto\Liburan.JPG") == "photo"
+    assert messageText.fileKind("klip.mp4") == "video"
+    assert messageText.fileKind("lagu.mp3") == "audio"
+    for name in ("app.apk", "setup.exe", "laporan.pdf", "arsip.zip", "README"):
+        assert messageText.fileKind(name) == "document"
+
+
+def test_reactions_are_shown_with_the_users_own():
+    message = {
+        "type": "chat",
+        "text": "Oke",
+        "sender": "Anas",
+        "t": TODAY_0815,
+        "reactions": [
+            {"emoji": "\U0001f44d", "count": 2, "mine": True},
+            {"emoji": "\u2764\ufe0f", "count": 1},
+        ],
+    }
+    assert messageText.messageLine(message, isGroup=True, now=NOW) == (
+        "Anas: Oke, reactions: \U0001f44d 2, \u2764\ufe0f 1, yours \U0001f44d, 08:15"
+    )
+    message["reactions"] = [{"emoji": "\U0001f602", "count": 3}]
+    assert "reactions: \U0001f602 3, 08:15" in messageText.messageLine(message, isGroup=True, now=NOW)
+
+
+def test_links_in_a_message():
+    text = "Lihat https://infiartt.com/blog, dan www.nvaccess.org. Juga https://infiartt.com/blog lagi."
+    assert messageText.linksIn(text) == ["https://infiartt.com/blog", "www.nvaccess.org"]
+    assert messageText.linksIn("tanpa tautan") == []
+
+
+def test_message_info_in_a_group():
+    receipts = {
+        "t": TODAY_0815,
+        "read": [{"name": "Anas", "t": TODAY_0815}],
+        "delivered": [{"name": "Rexya", "t": TODAY_0815}],
+        "played": [],
+        "readRemaining": 6,
+        "deliveryRemaining": 1,
+    }
+    assert messageText.receiptLines(receipts, isGroup=True) == [
+        "Sent 08:15",
+        "Read by: Anas 08:15",
+        "Delivered to: Rexya 08:15",
+        "Not read yet by 6",
+        "Not delivered yet to 1",
+    ]
+
+
+def test_first_unread_message_skips_the_users_own():
+    messages = [
+        {"id": "a"},
+        {"id": "b"},
+        {"id": "mine", "fromMe": True},
+        {"id": "c"},
+        {"id": "d"},
+    ]
+    assert messageText.firstUnreadId(messages, 0) is None
+    assert messageText.firstUnreadId(messages, 2) == "c"
+    assert messageText.firstUnreadId(messages, 3) == "b"
+    assert messageText.firstUnreadId(messages, 50) == "a"
+
+
+def test_status_list_and_viewer():
+    person = {
+        "name": "moon",
+        "unread": 2,
+        "items": [
+            {"type": "video", "caption": "pantai", "t": TODAY_0815},
+            {"type": "chat", "text": "selamat pagi", "t": TODAY_0815},
+        ],
+    }
+    assert messageText.statusLine(person, now=NOW) == "moon, 2 new, 08:15"
+    assert messageText.statusItemText(person, 1, now=NOW) == "moon, 2 of 2, 08:15, selamat pagi"
+    assert messageText.statusItemText(person, 0, now=NOW) == "moon, 1 of 2, 08:15, Video: pantai"
+
+
+def test_recent_calls():
+    assert messageText.callLogLine({"name": "Rafli", "duration": 15, "t": TODAY_0815}, now=NOW) == (
+        "Rafli, incoming voice call, 15 sec, 08:15"
+    )
+    assert messageText.callLogLine(
+        {"name": "Qisti", "missed": True, "video": True, "t": TODAY_0815}, now=NOW
+    ) == ("Qisti, missed video call, 08:15")
+    assert messageText.callLogLine({"name": "Anas", "outgoing": True, "t": TODAY_0815}, now=NOW) == (
+        "Anas, outgoing voice call, 08:15"
+    )
+
+
+def test_several_messages_are_copied_as_whatsapp_does():
+    messages = [
+        {"type": "chat", "text": "Gimana?", "sender": "Rexya", "t": TODAY_0815},
+        {"type": "chat", "text": "Oke", "fromMe": True, "t": TODAY_0815},
+        {"type": "ptt", "duration": 8, "sender": "Rexya", "t": TODAY_0815},
+    ]
+    assert messageText.copiedText(messages) == (
+        "[08:15, 8/11/2026] Rexya: Gimana?\n[08:15, 8/11/2026] You: Oke\n[08:15, 8/11/2026] Rexya: Voice message, 8 sec"
+    )

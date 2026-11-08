@@ -1,0 +1,1242 @@
+# Indonesian translation of the WhatsApp Access add-on.
+# This file is covered by the GNU General Public License.
+msgid ""
+msgstr ""
+"Project-Id-Version: whatsAppAccess 0.1.0\n"
+"Language: id\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "WhatsApp Access"
+msgstr "WhatsApp Access"
+
+msgid "Opens the WhatsApp window, connecting to WhatsApp Web first if needed"
+msgstr "Membuka jendela WhatsApp, dan menyambung ke WhatsApp Web lebih dulu bila perlu"
+
+msgid "All chats that are not muted"
+msgstr "Semua chat yang tidak dibisukan"
+
+msgid "Personal chats only, not groups"
+msgstr "Hanya chat pribadi, bukan grup"
+
+msgid "Only the chat open in the WhatsApp window"
+msgstr "Hanya chat yang terbuka di jendela WhatsApp"
+
+msgid "None"
+msgstr "Tidak ada"
+
+msgid "Read out new &messages from:"
+msgstr "Bacakan &pesan baru dari:"
+
+msgid "Browser default"
+msgstr "Bawaan browser"
+
+msgid "Micro&phone for voice notes and calls:"
+msgstr "Mi&krofon untuk voice note dan panggilan:"
+
+msgid "Voice note &quality, in kilobits per second:"
+msgstr "Kualitas &voice note, dalam kilobit per detik:"
+
+msgid "Still connecting to WhatsApp Web"
+msgstr "Masih menyambung ke WhatsApp Web"
+
+msgid ""
+"Connecting to WhatsApp Web in {browser}. If {browser} asks whether to allow remote debugging, choose "
+"Allow: press Shift+Tab, then Enter."
+msgstr ""
+"Menyambung ke WhatsApp Web di {browser}. Kalau {browser} bertanya apakah mengizinkan remote debugging, "
+"pilih Allow: tekan Shift+Tab, lalu Enter."
+
+msgid "Record voice notes in &stereo when the microphone has two channels"
+msgstr "Rekam voice note dalam &stereo bila mikrofon punya dua kanal"
+
+msgid "Use the microphone's own sound: no echo cancellation, noise suppression or automatic volume"
+msgstr "Pakai suara asli mikrofon: tanpa peredam gema, peredam bising, atau volume otomatis"
+
+msgid "Connect with NVDA+Shift+W to choose from all your microphones."
+msgstr "Sambungkan dengan NVDA+Shift+W untuk memilih dari semua mikrofon Anda."
+
+msgid "Something went wrong. Details are in NVDA's log."
+msgstr "Terjadi kesalahan. Rinciannya ada di log NVDA."
+
+msgid ""
+"Remote debugging is not turned on in your browser. In Brave, open a new tab, go to "
+"brave://inspect/#remote-debugging and check Allow remote debugging for this browser instance. Then press "
+"NVDA+Shift+W again."
+msgstr ""
+"Remote debugging belum dinyalakan di browser Anda. Di Brave, buka tab baru, buka "
+"brave://inspect/#remote-debugging lalu centang Allow remote debugging for this browser instance. Setelah "
+"itu tekan NVDA+Shift+W lagi."
+
+msgid "WhatsApp Web is still loading. Try again in a moment."
+msgstr "WhatsApp Web masih memuat. Coba lagi sebentar lagi."
+
+msgid "The connection to WhatsApp Web was lost. Press NVDA+Shift+W to connect again."
+msgstr "Sambungan ke WhatsApp Web terputus. Tekan NVDA+Shift+W untuk menyambung lagi."
+
+msgid "This chat is no longer in WhatsApp."
+msgstr "Chat ini sudah tidak ada di WhatsApp."
+
+msgid "Nothing was recorded."
+msgstr "Tidak ada yang terekam."
+
+msgid "This voice message cannot be downloaded any more. Listen to it in WhatsApp on your phone."
+msgstr "Pesan suara ini sudah tidak bisa diunduh. Dengarkan di WhatsApp di ponsel Anda."
+
+msgid "{browser} did not allow the connection. Press NVDA+Shift+W to try again, and choose Allow."
+msgstr "{browser} tidak mengizinkan sambungan. Tekan NVDA+Shift+W untuk mencoba lagi, lalu pilih Allow."
+
+msgid "{browser}'s question was not answered. Press NVDA+Shift+W to try again."
+msgstr "Pertanyaan {browser} tidak dijawab. Tekan NVDA+Shift+W untuk mencoba lagi."
+
+msgid "WhatsApp Web is not open in {browser}. Open web.whatsapp.com, log in, then try again."
+msgstr "WhatsApp Web belum terbuka di {browser}. Buka web.whatsapp.com, masuk, lalu coba lagi."
+
+msgid ""
+"The microphone could not be used ({reason}). Check that WhatsApp Web may use the microphone in {browser}, "
+"and that no other program is holding it."
+msgstr ""
+"Mikrofon tidak bisa dipakai ({reason}). Pastikan WhatsApp Web boleh memakai mikrofon di {browser}, dan "
+"tidak ada program lain yang sedang memakainya."
+
+msgid "WhatsApp did not send it ({reason})."
+msgstr "WhatsApp tidak mengirimnya ({reason})."
+
+msgid "WhatsApp"
+msgstr "WhatsApp"
+
+
+msgid "&Open chat"
+msgstr "&Buka chat"
+
+msgid "Close"
+msgstr "Tutup"
+
+msgid "&Send"
+msgstr "&Kirim"
+
+
+
+
+
+msgid "&Back to chats"
+msgstr "Kembali ke daftar c&hat"
+
+msgid "No earlier messages"
+msgstr "Tidak ada pesan sebelumnya"
+
+msgid "Sent"
+msgstr "Terkirim"
+
+
+
+msgid "stereo"
+msgstr "stereo"
+
+msgid "mono"
+msgstr "mono"
+
+msgid "Voice note discarded"
+msgstr "Voice note dibuang"
+
+msgid "Voice note sent"
+msgstr "Voice note terkirim"
+
+msgid "&Search chats:"
+msgstr "&Cari chat:"
+
+msgid "&Chats:"
+msgstr "Daftar c&hat:"
+
+msgid "&Messages:"
+msgstr "&Pesan:"
+
+msgid "{count} earlier messages"
+msgstr "{count} pesan sebelumnya"
+
+
+msgid "played"
+msgstr "diputar"
+
+msgid "You"
+msgstr "Anda"
+
+msgid "Unknown"
+msgstr "Tidak diketahui"
+
+msgid "delivered"
+msgstr "terkirim ke ponsel"
+
+msgid "read"
+msgstr "dibaca"
+
+msgid "{seconds} sec"
+msgstr "{seconds} detik"
+
+msgid "forwarded"
+msgstr "diteruskan"
+
+msgid "starred"
+msgstr "berbintang"
+
+msgid "pinned"
+msgstr "disematkan"
+
+msgid "muted"
+msgstr "dibisukan"
+
+msgid "{minutes} min {seconds} sec"
+msgstr "{minutes} menit {seconds} detik"
+
+msgid "Voice message, {duration}"
+msgstr "Pesan suara, {duration}"
+
+msgid "Photo"
+msgstr "Foto"
+
+msgid "yesterday {time}"
+msgstr "kemarin {time}"
+
+msgid "Audio, {duration}"
+msgstr "Audio, {duration}"
+
+msgid "Video"
+msgstr "Video"
+
+msgid "quoting {sender}: \"{text}\""
+msgstr "mengutip {sender}: \"{text}\""
+
+msgid "{count} unread"
+msgstr "{count} belum dibaca"
+
+msgid "Sticker"
+msgstr "Stiker"
+
+msgid "Location"
+msgstr "Lokasi"
+
+msgid "Document {name}"
+msgstr "Dokumen {name}"
+
+msgid "This message was deleted"
+msgstr "Pesan ini telah dihapus"
+
+msgid "Call"
+msgstr "Panggilan"
+
+msgid "Contact {name}"
+msgstr "Kontak {name}"
+
+
+msgid "Message of type {type}"
+msgstr "Pesan jenis {type}"
+
+
+msgid "Cancel reply"
+msgstr "Batalkan balasan"
+
+msgid "Replying to {message}"
+msgstr "Membalas {message}"
+
+
+msgid "Reply cancelled"
+msgstr "Balasan dibatalkan"
+
+msgid "&Play"
+msgstr "&Putar"
+
+msgid "&Reply\tAlt+R"
+msgstr "&Balas\tAlt+R"
+
+msgid "Remove my reaction"
+msgstr "Hapus reaksi saya"
+
+msgid "R&eact\tAlt+Y"
+msgstr "&Reaksi\tAlt+Y"
+
+msgid "&Copy"
+msgstr "&Salin"
+
+msgid "Un&star"
+msgstr "&Hapus bintang"
+
+msgid "&Star"
+msgstr "Beri bin&tang"
+
+msgid "E&dit"
+msgstr "&Edit"
+
+msgid "Delete for &me"
+msgstr "Hapus untuk sa&ya"
+
+msgid "Delete for &everyone"
+msgstr "Hapus untuk se&mua orang"
+
+msgid "Reacted {emoji}"
+msgstr "Bereaksi {emoji}"
+
+msgid "Reaction removed"
+msgstr "Reaksi dihapus"
+
+msgid "Copied"
+msgstr "Disalin"
+
+msgid "Starred"
+msgstr "Diberi bintang"
+
+msgid "Unstarred"
+msgstr "Bintang dihapus"
+
+msgid "Edit message:"
+msgstr "Edit pesan:"
+
+msgid "Edit message"
+msgstr "Edit pesan"
+
+msgid "Edited"
+msgstr "Diedit"
+
+msgid "Delete this message for everyone?\n\n{message}"
+msgstr "Hapus pesan ini untuk semua orang?\n\n{message}"
+
+msgid "Delete this message for you?\n\n{message}"
+msgstr "Hapus pesan ini untuk Anda?\n\n{message}"
+
+msgid "Delete message"
+msgstr "Hapus pesan"
+
+msgid "Deleted"
+msgstr "Dihapus"
+
+msgid "&Open"
+msgstr "&Buka"
+
+msgid "Un&archive chat"
+msgstr "Keluarkan dari &arsip"
+
+msgid "&Archive chat"
+msgstr "&Arsipkan chat"
+
+msgid "Unarchived"
+msgstr "Dikeluarkan dari arsip"
+
+msgid "Archived"
+msgstr "Diarsipkan"
+
+msgid "Un&mute notifications"
+msgstr "Bunyikan &notifikasi"
+
+msgid "&Mute notifications"
+msgstr "Bisukan &notifikasi"
+
+msgid "8 hours"
+msgstr "8 jam"
+
+msgid "1 week"
+msgstr "1 minggu"
+
+msgid "Always"
+msgstr "Selalu"
+
+msgid "Muted"
+msgstr "Dibisukan"
+
+msgid "Unmuted"
+msgstr "Notifikasi dibunyikan"
+
+msgid "Un&pin chat"
+msgstr "Lepas &sematan"
+
+msgid "&Pin chat"
+msgstr "&Sematkan chat"
+
+msgid "Unpinned"
+msgstr "Sematan dilepas"
+
+msgid "Pinned"
+msgstr "Disematkan"
+
+msgid "Mark as &read"
+msgstr "Tandai sudah &dibaca"
+
+msgid "Mark as &unread"
+msgstr "Tandai belum &dibaca"
+
+msgid "Marked as read"
+msgstr "Ditandai sudah dibaca"
+
+msgid "Marked as unread"
+msgstr "Ditandai belum dibaca"
+
+msgid "Typ&e a message:"
+msgstr "K&etik pesan:"
+
+msgid "Record voice note (Ctrl+R)"
+msgstr "Rekam voice note (Ctrl+R)"
+
+msgid "Stop and listen (Ctrl+R)"
+msgstr "Berhenti dan dengarkan (Ctrl+R)"
+
+msgid "Pause (Ctrl+Shift+D)"
+msgstr "Jeda (Ctrl+Shift+D)"
+
+msgid "Resume (Ctrl+Shift+D)"
+msgstr "Lanjutkan (Ctrl+Shift+D)"
+
+msgid "Send voice note (Ctrl+Shift+R)"
+msgstr "Kirim voice note (Ctrl+Shift+R)"
+
+msgid "Listen (Ctrl+R)"
+msgstr "Dengarkan (Ctrl+R)"
+
+msgid "Discard (Ctrl+D)"
+msgstr "Buang (Ctrl+D)"
+
+msgid "Paused"
+msgstr "Dijeda"
+
+msgid "Recording"
+msgstr "Merekam"
+
+
+
+msgid "{first} and {last}"
+msgstr "{first} dan {last}"
+
+msgid "{names} typing…"
+msgstr "{names} sedang mengetik…"
+
+msgid "{names} recording audio…"
+msgstr "{names} sedang merekam audio…"
+
+msgid "typing…"
+msgstr "sedang mengetik…"
+
+msgid "recording audio…"
+msgstr "sedang merekam audio…"
+
+msgid "online"
+msgstr "online"
+
+msgid "last seen {time}"
+msgstr "terakhir dilihat {time}"
+
+msgid "no info"
+msgstr "tidak ada info"
+
+msgid "New message from {sender}: {message}"
+msgstr "Pesan baru dari {sender}: {message}"
+
+msgid "New message in {chat} from {sender}: {message}"
+msgstr "Pesan baru di {chat} dari {sender}: {message}"
+
+msgid "Play the add-on's so&unds"
+msgstr "Putar s&uara add-on"
+
+msgid "Read out new messages &instead of WhatsApp's notifications and sound"
+msgstr "Bacakan pesan baru sebagai &ganti notifikasi dan suara WhatsApp"
+
+msgid "Suggestions closed"
+msgstr "Saran ditutup"
+
+
+msgid "{name} mentioned"
+msgstr "{name} disebut"
+
+msgid "{name}, {position} of {count}"
+msgstr "{name}, {position} dari {count}"
+
+msgid "Ctrl+R stops and plays it, Ctrl+Shift+R sends it, Ctrl+D throws it away"
+msgstr "Ctrl+R berhenti dan memutarnya, Ctrl+Shift+R mengirimnya, Ctrl+D membuangnya"
+
+msgid "Ctrl+Shift+D resumes"
+msgstr "Ctrl+Shift+D melanjutkan"
+
+msgid "Ctrl+Shift+R sends it, Ctrl+D throws it away"
+msgstr "Ctrl+Shift+R mengirimnya, Ctrl+D membuangnya"
+
+msgid "Escape cancels the reply"
+msgstr "Escape membatalkan balasan"
+
+msgid "Up and Down Arrow to choose, Enter to add"
+msgstr "Panah Atas dan Bawah untuk memilih, Enter untuk menambahkan"
+
+msgid "Use &hints, such as which keys send or throw away a voice note"
+msgstr "Pakai pe&tunjuk, seperti tombol untuk mengirim atau membuang voice note"
+
+msgid "Voice message pla&yback speed (Ctrl+S in a chat):"
+msgstr "Ke&cepatan putar pesan suara (Ctrl+S di chat):"
+
+msgid "Voice note, {duration}, {channels}"
+msgstr "Voice note, {duration}, {channels}"
+
+msgid "{count} people"
+msgstr "{count} orang"
+
+msgid "{speed}x"
+msgstr "{speed}x"
+
+msgid "&Details:"
+msgstr "&Rincian:"
+
+msgid "&Groups in common ({count}):"
+msgstr "&Grup yang sama ({count}):"
+
+msgid "&Participants ({count}):"
+msgstr "&Peserta ({count}):"
+
+msgid "About: {text}"
+msgstr "Info: {text}"
+
+msgid "Blocked"
+msgstr "Diblokir"
+
+msgid "Business account"
+msgstr "Akun bisnis"
+
+msgid "Contact info"
+msgstr "Info kontak"
+
+msgid "Created by {name} on {date}"
+msgstr "Dibuat oleh {name} pada {date}"
+
+msgid "Created on {date}"
+msgstr "Dibuat pada {date}"
+
+msgid "Description: {text}"
+msgstr "Deskripsi: {text}"
+
+msgid "Group info"
+msgstr "Info grup"
+
+msgid "Phone: {number}"
+msgstr "Telepon: {number}"
+
+msgid "WhatsApp name: {name}"
+msgstr "Nama WhatsApp: {name}"
+
+msgid "{name}, admin"
+msgstr "{name}, admin"
+
+msgid "&Options:"
+msgstr "&Pilihan:"
+
+msgid "&View poll and vote"
+msgstr "&Lihat polling dan pilih"
+
+msgid "&Vote"
+msgstr "&Kirim pilihan"
+
+msgid "Voted &by:"
+msgstr "Dipilih &oleh:"
+
+msgid "Nobody yet"
+msgstr "Belum ada"
+
+msgid "Poll"
+msgstr "Polling"
+
+msgid "Poll: {question}, {options} options, {votes} voted"
+msgstr "Polling: {question}, {options} pilihan, {votes} orang memilih"
+
+msgid "Select one"
+msgstr "Pilih satu"
+
+msgid "Select one or more"
+msgstr "Pilih satu atau lebih"
+
+msgid "Vote removed"
+msgstr "Pilihan ditarik"
+
+msgid "Voted"
+msgstr "Pilihan terkirim"
+
+msgid "{option}, {count} votes"
+msgstr "{option}, {count} suara"
+
+msgid "{question}. {howMany}. {count} voted."
+msgstr "{question}. {howMany}. {count} orang memilih."
+
+msgid "&Attach"
+msgstr "L&ampirkan"
+
+msgid "Attach files"
+msgstr "Lampirkan file"
+
+msgid "Attachments removed"
+msgstr "Lampiran dihapus"
+
+msgid "Sending {count}…"
+msgstr "Mengirim {count}…"
+
+msgid "This file is larger than {size} MB. Send it from WhatsApp on your phone."
+msgstr "File ini lebih besar dari {size} MB. Kirim dari WhatsApp di ponsel Anda."
+
+msgid "Type a caption if you like. Enter sends, Escape removes the files"
+msgstr "Ketik keterangan bila mau. Enter mengirim, Escape menghapus file"
+
+msgid "audio"
+msgstr "audio"
+
+msgid "document"
+msgstr "dokumen"
+
+msgid "photo"
+msgstr "foto"
+
+msgid "video"
+msgstr "video"
+
+msgid "{count} attached: {files}"
+msgstr "{count} terlampir: {files}"
+
+msgid "{count} sent"
+msgstr "{count} terkirim"
+
+msgid "&Download\tAlt+D"
+msgstr "&Unduh\tAlt+D"
+
+msgid "Cancel"
+msgstr "Batal"
+
+msgid "Delete this message?\n\n{message}"
+msgstr "Hapus pesan ini?\n\n{message}"
+
+msgid "Message from {sender}"
+msgstr "Pesan dari {sender}"
+
+msgid "Opening…"
+msgstr "Membuka…"
+
+msgid "Save file"
+msgstr "Simpan file"
+
+msgid "Saved {name} in {folder}"
+msgstr "{name} disimpan di {folder}"
+
+msgid "Saving…"
+msgstr "Menyimpan…"
+
+msgid "This message has no file"
+msgstr "Pesan ini tidak berisi file"
+
+msgid "This message has no text"
+msgstr "Pesan ini tidak berisi teks"
+
+msgid "Windows has no program to open {name}"
+msgstr "Windows tidak punya program untuk membuka {name}"
+
+msgid "{reaction} (yours)"
+msgstr "{reaction} (milik Anda)"
+
+msgid "reactions: {counts}, yours {mine}"
+msgstr "reaksi: {counts}, milik Anda {mine}"
+
+msgid "reactions: {counts}"
+msgstr "reaksi: {counts}"
+
+msgid "&Chats (Space checks):"
+msgstr "&Chat (Spasi mencentang):"
+
+msgid "&Filter (Alt+1 to Alt+4):"
+msgstr "&Saring (Alt+1 sampai Alt+4):"
+
+msgid "&Forward"
+msgstr "&Teruskan"
+
+msgid "&Go to message"
+msgstr "&Ke pesan"
+
+msgid "All"
+msgstr "Semua"
+
+msgid "Delivered to"
+msgstr "Terkirim ke"
+
+msgid "Describing photo…"
+msgstr "Mendeskripsikan foto…"
+
+msgid "Favorites"
+msgstr "Favorit"
+
+msgid "Find messages containing:"
+msgstr "Cari pesan yang berisi:"
+
+msgid "Forward to"
+msgstr "Teruskan ke"
+
+msgid "Forwarded to {chats}"
+msgstr "Diteruskan ke {chats}"
+
+msgid "Groups"
+msgstr "Grup"
+
+msgid "Install the AI Content Describer add-on to describe photos"
+msgstr "Pasang add-on AI Content Describer untuk mendeskripsikan foto"
+
+msgid "Message info"
+msgstr "Info pesan"
+
+msgid "Message info is only for your own messages"
+msgstr "Info pesan hanya untuk pesan Anda sendiri"
+
+msgid "New chat"
+msgstr "Chat baru"
+
+msgid "No links in this message"
+msgstr "Tidak ada tautan di pesan ini"
+
+msgid "No messages contain {text}"
+msgstr "Tidak ada pesan yang berisi {text}"
+
+msgid "No unread chats"
+msgstr "Tidak ada chat yang belum dibaca"
+
+msgid "Not delivered yet to {count}"
+msgstr "Belum terkirim ke {count}"
+
+msgid "Not read yet by {count}"
+msgstr "Belum dibaca oleh {count}"
+
+msgid "Opening {link}"
+msgstr "Membuka {link}"
+
+msgid "Phone number, with country code, such as +62 812 3456 7890:"
+msgstr "Nomor telepon, dengan kode negara, misalnya +62 812 3456 7890:"
+
+msgid "Played by"
+msgstr "Diputar oleh"
+
+msgid "Read by"
+msgstr "Dibaca oleh"
+
+msgid "Search messages"
+msgstr "Cari pesan"
+
+msgid "Searching…"
+msgstr "Mencari…"
+
+msgid "Sent {time}"
+msgstr "Dikirim {time}"
+
+msgid "This message has no photo"
+msgstr "Pesan ini tidak berisi foto"
+
+msgid "Unread"
+msgstr "Belum dibaca"
+
+msgid "draft: {text}"
+msgstr "draf: {text}"
+
+msgid "{count} messages found"
+msgstr "{count} pesan ditemukan"
+
+msgid "{filter}, {count} chats"
+msgstr "{filter}, {count} chat"
+
+msgid "This number is not on WhatsApp."
+msgstr "Nomor ini tidak terdaftar di WhatsApp."
+
+msgid "Type a phone number with its country code, such as +62 812 3456 7890."
+msgstr "Ketik nomor telepon dengan kode negaranya, misalnya +62 812 3456 7890."
+
+msgid "No unread messages"
+msgstr "Tidak ada pesan belum dibaca"
+
+msgid "{count} unread messages"
+msgstr "{count} pesan belum dibaca"
+
+msgid "&Browser for the hidden mode:"
+msgstr "&Browser untuk mode tersembunyi:"
+
+msgid "&Connect to WhatsApp through:"
+msgstr "&Hubungkan ke WhatsApp lewat:"
+
+msgid "&Copy code"
+msgstr "&Salin kode"
+
+msgid "&Get code"
+msgstr "&Minta kode"
+
+msgid "&Hidden browser. Needs Brave, Google Chrome or another Chromium browser, version 120 or newer. None was found on this computer."
+msgstr "Browser &tersembunyi. Butuh Brave, Google Chrome, atau browser Chromium lain, versi 120 atau lebih baru. Tidak ada yang ditemukan di komputer ini."
+
+msgid "&Hidden {browser} (recommended). WhatsApp runs in its own hidden browser, with no window. You link it once with a code on your phone. It uses about 400 to 600 MB of memory."
+msgstr "{browser} &tersembunyi (disarankan). WhatsApp berjalan di browser tersembunyinya sendiri, tanpa jendela. Anda menautkannya sekali dengan kode di ponsel. Memakai sekitar 400 sampai 600 MB memori."
+
+msgid "&New code"
+msgstr "Kode &baru"
+
+msgid "&Start WhatsApp when NVDA starts, so new messages are read out"
+msgstr "&Jalankan WhatsApp saat NVDA menyala, agar pesan baru dibacakan"
+
+msgid "Unlin&k this computer and remove its WhatsApp data…"
+msgstr "Putuskan tautan komputer ini dan hapus data &WhatsApp-nya…"
+
+msgid "&WhatsApp Web in your own browser. Uses the WhatsApp Web tab you have open in Brave or Chrome. Your browser asks for permission each time it starts."
+msgstr "&WhatsApp Web di browser Anda sendiri. Memakai tab WhatsApp Web yang terbuka di Brave atau Chrome. Browser Anda meminta izin setiap kali dibuka."
+
+msgid "A hidden browser of the add-on's own"
+msgstr "Browser tersembunyi milik add-on"
+
+msgid "Automatic (Brave first)"
+msgstr "Otomatis (Brave lebih dulu)"
+
+msgid "C&ode to type on your phone:"
+msgstr "K&ode untuk diketik di ponsel:"
+
+msgid "Code copied"
+msgstr "Kode disalin"
+
+msgid "Code: {code}. Type it on your phone. Waiting for your phone…"
+msgstr "Kode: {code}. Ketik di ponsel Anda. Menunggu ponsel Anda…"
+
+msgid "Getting a code…"
+msgstr "Meminta kode…"
+
+msgid "Link WhatsApp"
+msgstr "Tautkan WhatsApp"
+
+msgid "Linked. Loading your chats…"
+msgstr "Tertaut. Memuat chat Anda…"
+
+msgid "Log out of WhatsApp on this computer and remove the chats it keeps here? Your phone and your other linked devices keep everything. To use the hidden browser again, you link it again."
+msgstr "Keluar dari WhatsApp di komputer ini dan hapus chat yang disimpan di sini? Ponsel dan perangkat tertaut Anda yang lain tetap menyimpan semuanya. Untuk memakai browser tersembunyi lagi, tautkan lagi."
+
+msgid "No browser on this computer can run WhatsApp hidden. Install Brave or Google Chrome, version 120 or newer, or choose WhatsApp Web in your own browser in NVDA's settings, WhatsApp Access."
+msgstr "Tidak ada browser di komputer ini yang bisa menjalankan WhatsApp tersembunyi. Pasang Brave atau Google Chrome, versi 120 atau lebih baru, atau pilih WhatsApp Web di browser Anda sendiri di pengaturan NVDA, WhatsApp Access."
+
+msgid "On your phone, open WhatsApp, then Settings, Linked devices, Link a device. Choose Link with phone number instead, and type the code. Your phone may also show a notification asking for it."
+msgstr "Di ponsel, buka WhatsApp, lalu Setelan, Perangkat tertaut, Tautkan perangkat. Pilih Tautkan dengan nomor telepon saja, lalu ketik kodenya. Ponsel Anda mungkin juga menampilkan notifikasi yang memintanya."
+
+msgid "Set up WhatsApp Access"
+msgstr "Atur WhatsApp Access"
+
+msgid "Start WhatsApp &when NVDA starts (hidden browser only)"
+msgstr "Jalankan WhatsApp saat NVDA &menyala (hanya browser tersembunyi)"
+
+msgid "Starting WhatsApp…"
+msgstr "Menjalankan WhatsApp…"
+
+msgid "The code expired. Press New code to get another one."
+msgstr "Kode kedaluwarsa. Tekan Kode baru untuk meminta yang lain."
+
+msgid "This computer was unlinked from WhatsApp, and its data was removed."
+msgstr "Tautan komputer ini ke WhatsApp sudah diputus, dan datanya sudah dihapus."
+
+msgid "Unlink WhatsApp"
+msgstr "Putuskan tautan WhatsApp"
+
+msgid "WhatsApp Web in your own browser"
+msgstr "WhatsApp Web di browser Anda sendiri"
+
+msgid "WhatsApp Web is not logged in in {browser}. Log in there, then try again."
+msgstr "WhatsApp Web belum masuk di {browser}. Masuk di sana, lalu coba lagi."
+
+msgid "WhatsApp keeps stopping. Press NVDA+Shift+W to start it again."
+msgstr "WhatsApp terus berhenti. Tekan NVDA+Shift+W untuk menjalankannya lagi."
+
+msgid "WhatsApp stopped. Starting it again…"
+msgstr "WhatsApp berhenti. Menjalankannya lagi…"
+
+msgid "Your &phone number, with country code, such as +62 812 3456 7890:"
+msgstr "Nomor &telepon Anda, dengan kode negara, misalnya +62 812 3456 7890:"
+
+msgid "&Answer (NVDA+Alt+A)"
+msgstr "&Angkat (NVDA+Alt+A)"
+
+msgid "&Decline (NVDA+Alt+H)"
+msgstr "&Tolak (NVDA+Alt+H)"
+
+msgid "&End call (NVDA+Alt+H)"
+msgstr "A&khiri panggilan (NVDA+Alt+H)"
+
+msgid "&Mute (Ctrl+M)"
+msgstr "&Bisukan mikrofon (Ctrl+M)"
+
+msgid "Un&mute (Ctrl+M)"
+msgstr "&Nyalakan mikrofon (Ctrl+M)"
+
+
+msgid "Answers a WhatsApp call, or shows the window of the call in progress"
+msgstr "Mengangkat panggilan WhatsApp, atau menampilkan jendela panggilan yang sedang berlangsung"
+
+msgid "Declines a ringing WhatsApp call, or ends the call in progress"
+msgstr "Menolak panggilan WhatsApp yang berdering, atau mengakhiri panggilan yang sedang berlangsung"
+
+msgid "Call ended"
+msgstr "Panggilan berakhir"
+
+msgid "Call ended, {duration}"
+msgstr "Panggilan berakhir, {duration}"
+
+msgid "Calling {name}…"
+msgstr "Menelepon {name}…"
+
+msgid "Connected"
+msgstr "Tersambung"
+
+msgid "Group calls are not supported yet"
+msgstr "Panggilan grup belum didukung"
+
+msgid "Incoming {kind} from {name}"
+msgstr "{kind} masuk dari {name}"
+
+msgid "Microphone off"
+msgstr "Mikrofon mati"
+
+msgid "Microphone on"
+msgstr "Mikrofon menyala"
+
+msgid "NVDA+Alt+A answers, NVDA+Alt+H declines"
+msgstr "NVDA+Alt+A mengangkat, NVDA+Alt+H menolak"
+
+msgid "No WhatsApp call"
+msgstr "Tidak ada panggilan WhatsApp"
+
+msgid "No answer"
+msgstr "Tidak diangkat"
+
+msgid "The call did not respond. {detail}"
+msgstr "Panggilan tidak merespons. {detail}"
+
+msgid "WhatsApp call"
+msgstr "Panggilan WhatsApp"
+
+msgid "WhatsApp did not start the call. Try calling once from WhatsApp on your phone or in a browser."
+msgstr "WhatsApp tidak memulai panggilan. Coba menelepon sekali dari WhatsApp di ponsel atau di browser."
+
+msgid "calling"
+msgstr "menelepon"
+
+msgid "ended"
+msgstr "berakhir"
+
+msgid "ringing"
+msgstr "berdering"
+
+msgid "video call"
+msgstr "Panggilan video"
+
+msgid "voice call"
+msgstr "Panggilan suara"
+
+msgid "Declined"
+msgstr "Ditolak"
+
+msgid "Sound processing in ca&lls:"
+msgstr "Pengolahan suara saat pangg&ilan:"
+
+msgid "WhatsApp's own: echo cancellation and noise suppression (safest with speakers)"
+msgstr "Bawaan WhatsApp: peredam gema dan peredam bising (paling aman dengan speaker)"
+
+msgid "Echo cancellation only: more natural, still fine with speakers"
+msgstr "Hanya peredam gema: lebih alami, tetap aman dengan speaker"
+
+msgid "None: clearest, for headphones only"
+msgstr "Tanpa pengolahan: paling jernih, hanya untuk headset"
+
+msgid "&Archived chats:"
+msgstr "Chat yang &diarsipkan:"
+
+msgid "&Call back"
+msgstr "&Telepon balik"
+
+msgid "&Choose WAV file…"
+msgstr "Pilih file &WAV…"
+
+msgid "&Like"
+msgstr "&Suka"
+
+msgid "&Notifications for this chat…"
+msgstr "&Notifikasi untuk chat ini…"
+
+msgid "&Play, stop or describe"
+msgstr "&Putar, hentikan, atau deskripsikan"
+
+msgid "&Play sound"
+msgstr "&Putar suara"
+
+msgid "&Recent calls (Enter calls back):"
+msgstr "Panggilan &terbaru (Enter menelepon balik):"
+
+msgid "&Reply"
+msgstr "&Balas"
+
+msgid "&What to say:"
+msgstr "Yang &diucapkan:"
+
+msgid "&Sound:"
+msgstr "S&uara:"
+
+msgid "&Status updates:"
+msgstr "Pembaruan &status:"
+
+msgid "A WAV file of your own"
+msgstr "File WAV milik Anda"
+
+msgid "Always, even when the chat is muted"
+msgstr "Selalu, walaupun chatnya dibisukan"
+
+msgid "Archived (Ctrl+4)"
+msgstr "Diarsipkan (Ctrl+4)"
+
+msgid "Arrows: next and previous. Ctrl+arrows: next and previous person. Voice and video statuses play by themselves; Enter stops or plays again, and describes a photo. Alt+Y: like. Alt+R: reply. Alt+D: download. Escape: close."
+msgstr "Panah: berikutnya dan sebelumnya. Ctrl+panah: orang berikutnya dan sebelumnya. Status suara dan video diputar sendiri; Enter menghentikan atau memutar lagi, dan mendeskripsikan foto. Alt+Y: suka. Alt+R: balas. Alt+D: unduh. Escape: tutup."
+
+msgid "As in the general settings"
+msgstr "Sesuai pengaturan umum"
+
+msgid "Bell"
+msgstr "Lonceng"
+
+msgid "Calls (Ctrl+3)"
+msgstr "Panggilan (Ctrl+3)"
+
+msgid "Chats (Ctrl+1)"
+msgstr "Chat (Ctrl+1)"
+
+msgid "Choose a WAV file"
+msgstr "Pilih file WAV"
+
+msgid "Classic"
+msgstr "Klasik"
+
+msgid "Flute"
+msgstr "Seruling"
+
+msgid "Kalimba"
+msgstr "Kalimba"
+
+msgid "Liked"
+msgstr "Disukai"
+
+msgid "Never"
+msgstr "Tidak pernah"
+
+msgid "New message from {sender}"
+msgstr "Pesan baru dari {sender}"
+
+msgid "New message in {chat} from {sender}"
+msgstr "Pesan baru di {chat} dari {sender}"
+
+msgid "No more status updates"
+msgstr "Tidak ada pembaruan status lagi"
+
+msgid "Notifications for {chat}"
+msgstr "Notifikasi untuk {chat}"
+
+msgid "Only who it is from"
+msgstr "Hanya pengirimnya"
+
+msgid "Read out new &messages:"
+msgstr "Bacakan pesan &baru:"
+
+msgid "Read out what new messages say, not only who they are &from"
+msgstr "&Lengkap: bacakan isi pesan baru, bukan hanya pengirimnya"
+
+msgid "Reply to status"
+msgstr "Balas status"
+
+msgid "Reply to {name}'s status:"
+msgstr "Balas status {name}:"
+
+msgid "Saved"
+msgstr "Disimpan"
+
+msgid "Sound for new messages in &groups:"
+msgstr "Suara pesan b&aru di grup:"
+
+msgid "Sound for new messages in pe&rsonal chats:"
+msgstr "Suara pesan baru di chat p&ribadi:"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Status (Ctrl+2)"
+msgstr "Status (Ctrl+2)"
+
+msgid "Who it is from and what it says"
+msgstr "Pengirim dan isinya"
+
+msgid "incoming {kind}"
+msgstr "{kind} masuk"
+
+msgid "missed {kind}"
+msgstr "{kind} tak terjawab"
+
+msgid "outgoing {kind}"
+msgstr "{kind} keluar"
+
+msgid "{count} new"
+msgstr "{count} baru"
+
+msgid "{count} seen"
+msgstr "{count} sudah dilihat"
+
+msgid "{position} of {count}"
+msgstr "{position} dari {count}"
+
+msgid "&Delete\tDelete"
+msgstr "&Hapus\tDelete"
+
+msgid "&Delete chats\tDelete"
+msgstr "&Hapus chat\tDelete"
+
+msgid "&Forward\tAlt+F"
+msgstr "&Teruskan\tAlt+F"
+
+msgid "C&lear selection\tEscape"
+msgstr "&Batalkan pilihan\tEscape"
+
+msgid "Delete chats"
+msgstr "Hapus chat"
+
+msgid "Delete {count} chats? Their messages are removed from this device.\n\n{names}"
+msgstr "Hapus {count} chat? Pesannya dihapus dari perangkat ini.\n\n{names}"
+
+msgid "Not selected, {count} selected"
+msgstr "Tidak dipilih, {count} dipilih"
+
+msgid "Selected, {count} selected"
+msgstr "Dipilih, {count} dipilih"
+
+msgid "Selection cleared"
+msgstr "Pilihan dibatalkan"
+
+msgid "{count} chats selected"
+msgstr "{count} chat dipilih"
+
+msgid "{count} deleted"
+msgstr "{count} dihapus"
+
+msgid "{count} groups were kept: exit a group before deleting it"
+msgstr "{count} grup tidak dihapus: keluar dari grup sebelum menghapusnya"
+
+msgid "{count} messages selected"
+msgstr "{count} pesan dipilih"
+
+msgid "{count} selected messages"
+msgstr "{count} pesan terpilih"
+
+msgid "Voice call (Ctrl+Shift+C)"
+msgstr "Panggilan suara (Ctrl+Shift+C)"
+
+msgid "More options"
+msgstr "Opsi lainnya"
+
+msgid "&Group info"
+msgstr "Info &grup"
+
+msgid "&Contact info"
+msgstr "Info &kontak"
+
+msgid "&Search in chat\tCtrl+F"
+msgstr "&Cari di chat\tCtrl+F"
+
+msgid "Se&lect messages"
+msgstr "&Pilih pesan"
+
+msgid "Cl&ose chat"
+msgstr "&Tutup chat"
+
+msgid "Space selects a message, Shift+arrows select as you move, Escape clears the selection"
+msgstr "Spasi memilih pesan, Shift+panah memilih sambil bergerak, Escape membatalkan pilihan"
+
+msgid "Sections (Enter opens):"
+msgstr "Bagian (Enter membuka):"
+
+msgid "{section}, current"
+msgstr "{section}, sekarang"
+
+msgid "&Download"
+msgstr "&Unduh"
+
+msgid "This status is only text"
+msgstr "Status ini hanya teks"
+
+msgid "Volume of new message sounds and the ring, in percent:"
+msgstr "Volume suara pesan baru dan nada dering, dalam persen:"
+
+msgid "Volume of other sounds (sent, recording, selecting), in percent:"
+msgstr "Volume suara lainnya (terkirim, merekam, memilih), dalam persen:"
+
+msgid "Volume of voice notes and videos in chats, in percent:"
+msgstr "Volume voice note dan video di chat, dalam persen:"
+
+msgid "Volume of statuses, in percent:"
+msgstr "Volume status, dalam persen:"
+
+msgid "Volume of the other person in calls, in percent:"
+msgstr "Volume lawan bicara di panggilan, dalam persen:"
+
+msgid "Sound effects"
+msgstr "Efek suara"
+
+msgid "Notifications"
+msgstr "Notifikasi"
+
+msgid "Voice notes"
+msgstr "Voice note"
+
+msgid "Statuses"
+msgstr "Status"
+
+msgid "In call"
+msgstr "Panggilan"
+
+msgid "{name} volume, {value} percent"
+msgstr "Volume {name}, {value} persen"
+
+msgid "{value} percent"
+msgstr "{value} persen"
+
+msgid "Sections:"
+msgstr "Bagian:"
+
+msgid "&Recent calls:"
+msgstr "Panggilan &terbaru:"
+
+msgid "Check for new versions on GitHub once a day"
+msgstr "Periksa versi baru di GitHub sehari sekali"
+
+msgid "Check for updates now"
+msgstr "Periksa pembaruan sekarang"
+
+msgid "Checking for updates…"
+msgstr "Memeriksa pembaruan…"
+
+msgid "You have the newest version, {version}"
+msgstr "Anda sudah memakai versi terbaru, {version}"
+
+msgid "No version has been published on GitHub yet."
+msgstr "Belum ada versi yang diterbitkan di GitHub."
+
+msgid "Could not check for updates. Check your internet connection and try again."
+msgstr "Tidak bisa memeriksa pembaruan. Periksa koneksi internet Anda lalu coba lagi."
+
+msgid "Downloading version {version}…"
+msgstr "Mengunduh versi {version}…"
+
+msgid "The new version could not be downloaded. Try again later."
+msgstr "Versi baru tidak bisa diunduh. Coba lagi nanti."
+
+msgid "WhatsApp Access update"
+msgstr "Pembaruan WhatsApp Access"
+
+msgid "Version {new} is available. You have version {current}."
+msgstr "Versi {new} sudah tersedia. Anda memakai versi {current}."
+
+msgid "&What's new:"
+msgstr "&Yang baru:"
+
+msgid "No description."
+msgstr "Tidak ada keterangan."
+
+msgid "&Download and install"
+msgstr "&Unduh dan pasang"
+
+msgid "&Not now"
+msgstr "&Nanti saja"

@@ -1,0 +1,156 @@
+# WhatsApp Access add-on
+# Copyright (C) 2026 InfiArtt
+# This file is covered by the GNU General Public License.
+
+"""Asking about a new version from GitHub, and installing it with NVDA's own add-on installer."""
+
+import os
+import tempfile
+import threading
+import time
+
+import addonHandler
+import config
+import gui
+import ui
+import wx
+from gui import addonGui
+from logHandler import log
+
+from . import updates
+from .configSpec import CONFIG_SECTION
+
+addonHandler.initTranslation()
+
+# Checked by itself at most once a day, a while after NVDA starts.
+AUTO_CHECK_DELAY_MS = 30000
+AUTO_CHECK_EVERY_SECONDS = 24 * 3600
+
+_checking = False
+
+
+def currentVersion() -> str:
+	return addonHandler.getCodeAddon().version
+
+
+def scheduleAutoCheck() -> None:
+	settings = config.conf[CONFIG_SECTION]
+	if settings["checkUpdates"] and time.time() - int(settings["lastUpdateCheck"]) > AUTO_CHECK_EVERY_SECONDS:
+		wx.CallLater(AUTO_CHECK_DELAY_MS, check, False)
+
+
+def check(manual: bool) -> None:
+	"""Look for a newer release. manual says whether the user asked: only then is "no update" said."""
+	global _checking
+	if _checking:
+		return
+	_checking = True
+	if manual:
+		# Translators: Said while the add-on looks for a new version.
+		ui.message(_("Checking for updates…"))
+
+	def work() -> None:
+		global _checking
+		try:
+			release = updates.latestRelease()
+		except updates.UpdateError as e:
+			log.info(f"WhatsApp Access: update check: {e}")
+			if manual:
+				wx.CallAfter(_failed, str(e))
+			return
+		finally:
+			_checking = False
+		config.conf[CONFIG_SECTION]["lastUpdateCheck"] = int(time.time())
+		if updates.isNewer(release.version, currentVersion()):
+			wx.CallAfter(_offer, release)
+		elif manual:
+			# Translators: Said when the user checked for a new version and has the newest one.
+			wx.CallAfter(
+				ui.message, _("You have the newest version, {version}").format(version=currentVersion())
+			)
+
+	threading.Thread(target=work, name="whatsAppAccess.updates", daemon=True).start()
+
+
+def _failed(error: str) -> None:
+	if error == "noRelease":
+		# Translators: Said when the add-on's GitHub page has no published version yet.
+		message = _("No version has been published on GitHub yet.")
+	else:
+		# Translators: Said when looking for a new version failed, such as with no internet connection.
+		message = _("Could not check for updates. Check your internet connection and try again.")
+	ui.message(message)
+
+
+def _offer(release: updates.Release) -> None:
+	dialog = UpdateDialog(gui.mainFrame, release)
+	gui.mainFrame.prePopup()
+	try:
+		answer = dialog.ShowModal()
+	finally:
+		dialog.Destroy()
+		gui.mainFrame.postPopup()
+	if answer == wx.ID_OK:
+		_download(release)
+
+
+def _download(release: updates.Release) -> None:
+	# Translators: Said while a new version of the add-on downloads.
+	ui.message(_("Downloading version {version}…").format(version=release.version))
+	path = os.path.join(tempfile.gettempdir(), release.fileName)
+
+	def work() -> None:
+		try:
+			updates.download(release, path)
+		except updates.UpdateError as e:
+			log.info(f"WhatsApp Access: update download: {e}")
+			wx.CallAfter(
+				ui.message,
+				# Translators: Said when the new version could not be downloaded or was damaged.
+				_("The new version could not be downloaded. Try again later."),
+			)
+			return
+		wx.CallAfter(_install, path)
+
+	threading.Thread(target=work, name="whatsAppAccess.updateDownload", daemon=True).start()
+
+
+def _install(path: str) -> None:
+	# NVDA's own installer checks the file, asks about compatibility, and replaces the add-on at restart.
+	if addonGui.installAddon(gui.mainFrame, path):
+		addonGui.promptUserForRestart()
+
+
+class UpdateDialog(wx.Dialog):
+	"""A new version, what changed in it, and whether to install it now."""
+
+	def __init__(self, parent: wx.Window, release: updates.Release) -> None:
+		# Translators: The title of the window that offers a new version of the add-on.
+		super().__init__(parent, title=_("WhatsApp Access update"))
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		intro = _(
+			# Translators: The top of the window that offers a new version, with both version numbers.
+			"Version {new} is available. You have version {current}."
+		).format(new=release.version, current=currentVersion())
+		sizer.Add(wx.StaticText(self, label=intro), 0, wx.ALL, 8)
+		# Translators: The label of the text that says what changed in the new version.
+		sizer.Add(wx.StaticText(self, label=_("&What's new:")), 0, wx.LEFT | wx.RIGHT, 8)
+		notes = wx.TextCtrl(
+			self,
+			# Translators: Shown when a new version has no description of its changes.
+			value=release.notes or _("No description."),
+			style=wx.TE_MULTILINE | wx.TE_READONLY,
+			size=(520, 220),
+		)
+		sizer.Add(notes, 1, wx.EXPAND | wx.ALL, 8)
+		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: A button that downloads and installs the new version.
+		install = wx.Button(self, wx.ID_OK, label=_("&Download and install"))
+		install.SetDefault()
+		buttons.Add(install, 0, wx.RIGHT, 6)
+		# Translators: A button that closes the update window; the add-on asks again another day.
+		buttons.Add(wx.Button(self, wx.ID_CANCEL, label=_("&Not now")))
+		sizer.Add(buttons, 0, wx.ALL, 8)
+		self.SetSizerAndFit(sizer)
+		self.CentreOnScreen()
+		notes.SetFocus()
