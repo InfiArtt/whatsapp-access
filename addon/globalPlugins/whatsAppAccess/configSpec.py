@@ -31,6 +31,10 @@ CONFIG_SPEC = {
 	"hints": "boolean(default=True)",
 	# When voice messages play one after another, the messages list moves to the next; NVDA reads it too.
 	"sayNextVoiceMessage": "boolean(default=True)",
+	# Ctrl+T translates a message into this language (Google Translate's code), or NVDA's when empty,
+	# and what the user writes into the other one.
+	"translateMessagesTo": 'string(default="")',
+	"translateMyTextTo": 'string(default="en")',
 	# How fast voice messages play: 1, 1.5 or 2 times, as in WhatsApp.
 	"playbackSpeed": 'option("1", "1.5", "2", default="1")',
 	# The sound of a new message in a personal chat and in a group, unless a chat has its own.

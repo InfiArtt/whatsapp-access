@@ -3,6 +3,13 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.4.0]
+
+- Translate, only when you ask. Ctrl+T on a message reads it in your language; twice shows the
+  translation to read line by line. Ctrl+T in the message box puts what you wrote into the language you
+  chose, such as English, to check before sending; Ctrl+T again gives back your own words. Both
+  languages are chosen in the settings. The text goes to Google Translate only when you press Ctrl+T.
+
 ## [0.3.2]
 
 - Ctrl+/ lists every keyboard shortcut, by section and in WhatsApp's words, as WhatsApp does.

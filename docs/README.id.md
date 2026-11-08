@@ -143,6 +143,11 @@ pesan baru dan panggilan.
   **Ctrl+V** di kotak pesan. Foto dan video dikirim sebagai foto dan video, audio sebagai audio,
   selain itu sebagai dokumen. Yang Anda ketik menjadi keterangannya.
 - Selama Anda menulis, lawan bicara melihat "mengetik…", seperti di WhatsApp.
+- **Menerjemahkan**, hanya saat Anda minta: **Ctrl+T** di sebuah pesan membacakannya dalam bahasa Anda
+  (tekan dua kali untuk menampilkan terjemahannya dan membacanya baris demi baris). **Ctrl+T** di kotak
+  pesan mengganti tulisan Anda dengan terjemahannya ke bahasa yang Anda pilih, misalnya Inggris, untuk
+  dicek sebelum menekan Enter; Ctrl+T lagi mengembalikan kata-kata Anda. Pilih kedua bahasanya di
+  pengaturan add-on. Terjemahan memakai Google Translate dan butuh internet.
 
 ### Voice note
 
@@ -329,7 +334,9 @@ lunak: itu add-on ini.
 ## Privasi
 
 Add-on hanya berbicara dengan browser di komputer Anda sendiri, dan memeriksa bahwa program yang
-diajak bicara memang browser itu. Add-on tidak mengirim pesan Anda ke mana pun.
+diajak bicara memang browser itu. Add-on tidak mengirim pesan Anda ke mana pun, kecuali satu hal yang
+Anda pilih setiap kali: Ctrl+T mengirim teks yang diterjemahkan ke Google Translate. Tidak ada yang
+diterjemahkan dengan sendirinya.
 
 WhatsApp tidak menyediakan akses seperti ini secara resmi. Add-on memakai WhatsApp Web seperti Anda
 memakainya, dari akun Anda sendiri, tetapi ketentuan WhatsApp tidak mengizinkan mengubah cara kerja

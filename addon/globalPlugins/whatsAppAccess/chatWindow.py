@@ -20,6 +20,7 @@ import wx
 from logHandler import log
 
 from . import messageText, notifications, shortcuts, sounds, volumes
+from . import translate as translator
 from .configSpec import CONFIG_SECTION
 from .moreDialogs import (
 	CreateEventDialog,
@@ -80,6 +81,28 @@ PLAYED_TYPES = ("ptt", "audio", "video", "ptv")
 QUIET_FOCUS_SECONDS = 1.0
 # The moment between one voice message of a run and the next, for the small sound between them.
 VOICE_NEXT_DELAY_MS = 350
+# Ctrl+T pressed again on the same message within this long shows the translation to read by line.
+TRANSLATION_REPEAT_SECONDS = 1.5
+
+
+def languageName(code: str) -> str:
+	"""A language's name in NVDA's language, from its Google Translate code such as "id" or "zh-CN"."""
+	import languageHandler
+
+	return languageHandler.getLanguageDescription(code.replace("-", "_")) or code
+
+
+def messagesLanguage() -> str:
+	"""The language Ctrl+T translates messages into: the one chosen, or NVDA's own."""
+	chosen = config.conf[CONFIG_SECTION]["translateMessagesTo"]
+	if chosen:
+		return chosen
+	import languageHandler
+
+	language = languageHandler.getLanguage()
+	if language.startswith("zh"):
+		return "zh-TW" if language in ("zh_TW", "zh_HK") else "zh-CN"
+	return language.split("_")[0]
 
 
 def withHint(message: str, hint: str) -> str:
@@ -193,6 +216,13 @@ class ChatWindow(wx.Dialog):
 		self._playingId: str | None = None
 		self._quietFocusUntil = 0.0
 		self._voiceRun = False
+		# The last message Ctrl+T translated: its id, when, and the translation, for Ctrl+T twice.
+		self._lastTranslation: tuple[str, float, str] | None = None
+		self._translatingId: str | None = None
+		self._showWhenTranslated = False
+		# What the user wrote before Ctrl+T translated it in the message box, and the translation.
+		self._beforeTranslation: str | None = None
+		self._translatedText = ""
 
 		main = wx.BoxSizer(wx.VERTICAL)
 		self._archivedChats: list[dict] = []
@@ -1535,6 +1565,119 @@ class ChatWindow(wx.Dialog):
 			dialog.ShowModal()
 		finally:
 			dialog.Destroy()
+
+	# Translating, only when the user presses Ctrl+T -------------------------------------------------------
+
+	def _translateMessage(self) -> None:
+		"""Ctrl+T on a message: read it in the user's language. Twice quickly: show it to read by line."""
+		message = self._selectedMessage()
+		if message is None:
+			return
+		text = message.get("text") or message.get("caption") or ""
+		if not text.strip():
+			# Translators: Reported when the selected message has no text to read, such as a sticker.
+			ui.message(_("This message has no text"))
+			return
+		last = self._lastTranslation
+		if last and last[0] == message["id"] and time.monotonic() - last[1] < TRANSLATION_REPEAT_SECONDS:
+			self._showTranslation(message, last[2])
+			return
+		if self._translatingId == message["id"]:
+			# Pressed again before Google answered: show the translation as soon as it comes.
+			self._showWhenTranslated = True
+			return
+		target = messagesLanguage()
+		self._translatingId, self._showWhenTranslated = message["id"], False
+
+		def done(result: tuple[str, str]) -> None:
+			translation, source = result
+			self._translatingId = None
+			self._lastTranslation = (message["id"], time.monotonic(), translation)
+			if self._showWhenTranslated:
+				self._showTranslation(message, translation)
+			elif source and source.split("-")[0] == target.split("-")[0]:
+				# Translators: Said when Ctrl+T finds the message already in the user's language.
+				ui.message(_("Already in {language}").format(language=languageName(target)))
+			else:
+				# Translators: A message translated with Ctrl+T, with the language it was in.
+				ui.message(
+					_("From {language}: {text}").format(language=languageName(source), text=translation)
+				)
+
+		self._translate(text, target, done)
+
+	def _showTranslation(self, message: dict, translation: str) -> None:
+		title = _(
+			# Translators: The title of the window showing a message translated into the user's language.
+			"Translation of a message from {sender}"
+		).format(sender=messageText.sender(message))
+		dialog = TextDialog(self, "", translation, title=title)
+		try:
+			dialog.ShowModal()
+		finally:
+			dialog.Destroy()
+
+	def _translateMyText(self) -> None:
+		"""Ctrl+T in the message box: put what the user wrote into their chosen language, to check before
+		sending. Ctrl+T again gives back what they wrote."""
+		box = self.composeBox
+		text = box.GetValue()
+		if self._beforeTranslation is not None and text == self._translatedText:
+			self._setComposeText(self._beforeTranslation)
+			self._beforeTranslation = None
+			# Translators: Said when Ctrl+T in the message box puts back what the user wrote before translating.
+			ui.message(_("Your own words back: {text}").format(text=box.GetValue()))
+			return
+		if not text.strip():
+			# Translators: Said when Ctrl+T is pressed in an empty message box.
+			ui.message(_("Write the message first, then Ctrl+T translates it"))
+			return
+		target = config.conf[CONFIG_SECTION]["translateMyTextTo"] or "en"
+
+		def done(result: tuple[str, str]) -> None:
+			translation, source = result
+			if box.GetValue() != text:
+				return
+			if source and source.split("-")[0] == target.split("-")[0]:
+				ui.message(_("Already in {language}").format(language=languageName(target)))
+				return
+			self._beforeTranslation = text
+			self._translatedText = translation
+			self._setComposeText(translation)
+			# Translators: Said after Ctrl+T translated the user's message; Enter sends it, Ctrl+T undoes it.
+			ui.message(
+				withHint(
+					_("In {language}: {text}").format(language=languageName(target), text=translation),
+					# Translators: A hint after the user's message was translated.
+					_("Enter sends it, Ctrl+T gives back your own words"),
+				)
+			)
+
+		self._translate(text, target, done)
+
+	def _setComposeText(self, text: str) -> None:
+		self.composeBox.ChangeValue(text)
+		self.composeBox.SetInsertionPointEnd()
+		self._updateButtons()
+
+	def _translate(self, text: str, target: str, done: Callable[[tuple[str, str]], None]) -> None:
+		def failed(error: Exception) -> None:
+			self._translatingId = None
+			log.debugWarning(f"WhatsApp Access: translating: {error}")
+			# Translators: Said when Ctrl+T could not reach Google Translate.
+			ui.message(_("Could not translate. Check the internet connection and try again"))
+
+		def work() -> None:
+			try:
+				result = translator.translate(text, target)
+			except translator.TranslationError as e:
+				wx.CallAfter(failed, e)
+				return
+			wx.CallAfter(self._done, done, result)
+
+		# Translators: Said while a message is being translated.
+		ui.message(_("Translating"))
+		threading.Thread(target=work, name="whatsAppAccess.translate", daemon=True).start()
 
 	def _readText(self) -> None:
 		"""Alt+C: the message's text alone, in a box to read by character, word or line."""
@@ -3964,6 +4107,13 @@ class ChatWindow(wx.Dialog):
 		if inConversation and focus is self.composeBox and (modifiers, key) in _FORMAT_KEYS:
 			self._format(*_FORMAT_KEYS[(modifiers, key)])
 			return
+		if inConversation and modifiers == wx.MOD_CONTROL and key == ord("T"):
+			if focus is self.composeBox:
+				self._translateMyText()
+				return
+			if focus is self.messageList:
+				self._translateMessage()
+				return
 		if modifiers == wx.MOD_CONTROL and key in (ord("/"), wx.WXK_NUMPAD_DIVIDE, wx.WXK_DIVIDE):
 			self._showShortcuts()
 			return

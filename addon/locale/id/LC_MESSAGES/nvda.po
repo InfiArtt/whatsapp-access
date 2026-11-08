@@ -2540,3 +2540,59 @@ msgstr "Suka"
 #. the messages list moves to the next one; this says whether NVDA reads it out too.
 msgid "Read out the next voice message when voice messages play one after another"
 msgstr "Bacakan pesan suara berikutnya saat pesan suara diputar beruntun"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Translate what you wrote; again, your own words back"
+msgstr "Terjemahkan tulisan Anda; tekan lagi, kata-kata Anda kembali"
+
+#. Translators: Said when Ctrl+T in the message box puts back what the user wrote before translating.
+msgid "Your own words back: {text}"
+msgstr "Kata-kata Anda kembali: {text}"
+
+#. Translators: The label of a choice in this add-on's settings: Ctrl+T on a message translates it into this language.
+msgid "&Translate messages into (Ctrl+T):"
+msgstr "Ter&jemahkan pesan ke (Ctrl+T):"
+
+#. Translators: Said when Ctrl+T is pressed in an empty message box.
+msgid "Write the message first, then Ctrl+T translates it"
+msgstr "Tulis pesannya dulu, lalu Ctrl+T menerjemahkannya"
+
+#. Translators: The label of a choice in this add-on's settings: Ctrl+T in the message box translates what the user wrote into this language.
+msgid "Translate what I write into (Ctrl+T in the message box):"
+msgstr "Terjemahkan tulisan saya ke (Ctrl+T di kotak pesan):"
+
+#. Translators: Said while a message is being translated.
+msgid "Translating"
+msgstr "Menerjemahkan"
+
+#. Translators: Said when Ctrl+T finds the message already in the user's language.
+msgid "Already in {language}"
+msgstr "Sudah dalam {language}"
+
+#. Translators: A message translated with Ctrl+T, with the language it was in.
+msgid "From {language}: {text}"
+msgstr "Dari {language}: {text}"
+
+#. Translators: The first choice of language to translate messages into: NVDA's own.
+msgid "NVDA's language"
+msgstr "Bahasa NVDA"
+
+#. Translators: Said after Ctrl+T translated the user's message; Enter sends it, Ctrl+T undoes it.
+msgid "In {language}: {text}"
+msgstr "Dalam {language}: {text}"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Translate into your language; twice, show the translation"
+msgstr "Terjemahkan ke bahasa Anda; dua kali, tampilkan terjemahannya"
+
+#. Translators: The title of the window showing a message translated into the user's language.
+msgid "Translation of a message from {sender}"
+msgstr "Terjemahan pesan dari {sender}"
+
+#. Translators: A hint after the user's message was translated.
+msgid "Enter sends it, Ctrl+T gives back your own words"
+msgstr "Enter mengirimnya, Ctrl+T mengembalikan kata-kata Anda"
+
+#. Translators: Said when Ctrl+T could not reach Google Translate.
+msgid "Could not translate. Check the internet connection and try again"
+msgstr "Tidak bisa menerjemahkan. Periksa koneksi internet lalu coba lagi"

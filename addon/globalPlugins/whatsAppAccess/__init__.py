@@ -919,6 +919,39 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			)
 		)
 		self.sayNextVoiceBox.SetValue(settings["sayNextVoiceMessage"])
+		# Ctrl+T in a chat: messages into the user's language, what they write into the other one.
+		from .chatWindow import languageName
+		from .translate import LANGUAGES
+
+		languages = sorted(LANGUAGES, key=lambda code: languageName(code).lower())
+		self.messagesLanguages = ["", *languages]
+		self.messagesLanguageChoice = helper.addLabeledControl(
+			# Translators: The label of a choice in this add-on's settings: Ctrl+T on a message translates it
+			# into this language.
+			_("&Translate messages into (Ctrl+T):"),
+			wx.Choice,
+			choices=[
+				# Translators: The first choice of language to translate messages into: NVDA's own.
+				_("NVDA's language"),
+				*(languageName(code) for code in languages),
+			],
+		)
+		chosen = settings["translateMessagesTo"]
+		self.messagesLanguageChoice.SetSelection(
+			self.messagesLanguages.index(chosen) if chosen in self.messagesLanguages else 0
+		)
+		self.myLanguages = languages
+		self.myLanguageChoice = helper.addLabeledControl(
+			# Translators: The label of a choice in this add-on's settings: Ctrl+T in the message box translates
+			# what the user wrote into this language.
+			_("Translate what I write into (Ctrl+T in the message box):"),
+			wx.Choice,
+			choices=[languageName(code) for code in languages],
+		)
+		mine = settings["translateMyTextTo"]
+		self.myLanguageChoice.SetSelection(
+			languages.index(mine) if mine in languages else languages.index("en")
+		)
 		speedLabels = ("1x", "1.5x", "2x")
 		self.speedChoice = helper.addLabeledControl(
 			# Translators: The label of a choice in this add-on's settings: how fast voice messages play.
@@ -1022,6 +1055,8 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		settings["readContent"] = self.contentBox.GetValue()
 		settings["hints"] = self.hintsBox.GetValue()
 		settings["sayNextVoiceMessage"] = self.sayNextVoiceBox.GetValue()
+		settings["translateMessagesTo"] = self.messagesLanguages[self.messagesLanguageChoice.GetSelection()]
+		settings["translateMyTextTo"] = self.myLanguages[self.myLanguageChoice.GetSelection()]
 		settings["playbackSpeed"] = ("1", "1.5", "2")[self.speedChoice.GetSelection()]
 		replace = self.replaceBox.GetValue()
 		settings["replaceNotifications"] = replace

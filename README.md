@@ -135,6 +135,11 @@ background for new messages and calls.
   the message box. Photos and videos go as photos and videos, audio as audio, anything else as a
   document. What you type becomes the caption.
 - While you write, the other person sees "typing…", as in WhatsApp.
+- **Translating**, only when you ask: **Ctrl+T** on a message reads it in your language (press it twice
+  to show the translation to read line by line). **Ctrl+T** in the message box puts what you wrote
+  into the language you chose, such as English, to check before you press Enter; Ctrl+T again gives
+  back your own words. Choose both languages in the add-on's settings. Translation uses Google
+  Translate and needs the internet.
 
 ### Voice notes
 
@@ -310,7 +315,8 @@ that is this add-on.
 ## Privacy
 
 The add-on talks only to the browser on your own computer, and checks that the program it talks to
-really is that browser. It does not send your messages anywhere else.
+really is that browser. It does not send your messages anywhere else, with one exception you choose
+each time: Ctrl+T sends the text it translates to Google Translate. Nothing is translated by itself.
 
 WhatsApp does not offer this kind of access officially. The add-on uses WhatsApp Web the way you do,
 from your own account, but WhatsApp's terms do not allow changing how its apps work. Use it at your

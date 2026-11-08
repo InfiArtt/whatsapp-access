@@ -114,6 +114,8 @@ def sections() -> list[tuple[str, list[tuple[str, str]]]]:
 				# Translators: In the keyboard shortcuts list: typing : and part of an emoji's name.
 				(_(":name"), _("Emoji: Left and Right Arrow choose, Enter adds")),
 				# Translators: In the keyboard shortcuts list.
+				("Ctrl+T", _("Translate what you wrote; again, your own words back")),
+				# Translators: In the keyboard shortcuts list.
 				("Ctrl+V", _("Paste; files copied in File Explorer are attached")),
 				# Translators: In the keyboard shortcuts list.
 				("Escape", _("Cancel reply or edit")),
@@ -133,6 +135,8 @@ def sections() -> list[tuple[str, list[tuple[str, str]]]]:
 				("Alt+Y", _("React")),
 				# Translators: In the keyboard shortcuts list.
 				("Alt+F", _("Forward")),
+				# Translators: In the keyboard shortcuts list.
+				("Ctrl+T", _("Translate into your language; twice, show the translation")),
 				# Translators: In the keyboard shortcuts list.
 				("Alt+C", _("Read the message's text")),
 				# Translators: In the keyboard shortcuts list.
