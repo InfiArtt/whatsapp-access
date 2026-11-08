@@ -210,9 +210,109 @@ def launchArguments(browser: InstalledBrowser, profileDir: str) -> list[str]:
 		"--disable-renderer-backgrounding",
 		"--disable-backgrounding-occluded-windows",
 		"--autoplay-policy=no-user-gesture-required",
+		# Less memory. The browser only ever shows WhatsApp Web, so one renderer process is enough, and
+		# drawing needs no GPU process. Browser services nobody uses here are left off.
+		"--renderer-process-limit=1",
+		"--disable-site-isolation-trials",
+		(
+			"--disable-features=IsolateOrigins,site-per-process,Translate,OptimizationHints,MediaRouter,"
+			"BackForwardCache,AutofillServerCommunication,CalculateNativeWinOcclusion"
+		),
+		"--in-process-gpu",
+		"--disable-background-networking",
+		"--disable-component-update",
+		"--disable-default-apps",
+		"--disable-domain-reliability",
+		"--no-pings",
+		# A small page: fewer chats and pictures are laid out at once.
+		"--window-size=800,600",
+		"--force-device-scale-factor=1",
 		f"--user-agent={chromeUserAgent(browser.major)}",
 		"about:blank",
 	]
+
+
+def profileInUse(profileDir: str) -> bool:
+	"""Whether a browser still runs with this profile: Chromium keeps its lockfile open while it does."""
+	lock = Path(profileDir) / "lockfile"
+	if not lock.exists():
+		return False
+	try:
+		lock.unlink()
+	except PermissionError:
+		return True
+	except OSError:
+		pass
+	return False
+
+
+# The process id of the hidden browser, kept in its profile, so one left running can be closed later.
+PID_FILE = "whatsAppAccess.pid"
+
+
+def _quiet(arguments: list[str], timeout: float) -> None:
+	subprocess.run(
+		arguments,
+		# All three: NVDA has no console, and handles it would pass on can be invalid.
+		stdin=subprocess.DEVNULL,
+		stdout=subprocess.DEVNULL,
+		stderr=subprocess.DEVNULL,
+		creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+		timeout=timeout,
+		check=False,
+	)
+
+
+def _waitUntilFree(profileDir: str, seconds: float) -> bool:
+	deadline = time.monotonic() + seconds
+	while profileInUse(profileDir):
+		if time.monotonic() > deadline:
+			return False
+		time.sleep(0.2)
+	return True
+
+
+def closeLeftovers(profileDir: str, executable: str) -> str:
+	"""Close a hidden browser left running with this profile, for example when NVDA could not close it.
+
+	Otherwise a new one hands over to it and closes at once (exit code 21), and WhatsApp never starts.
+	Returns why it could not be closed, or "" when the profile is free.
+	"""
+	if sys.platform != "win32" or not profileInUse(profileDir):
+		return ""
+	system = os.environ.get("SystemRoot", r"C:\Windows")
+	problems = []
+	try:
+		pid = int((Path(profileDir) / PID_FILE).read_text(encoding="ascii").strip())
+	except (OSError, ValueError):
+		pid = 0
+	if pid:
+		# The image name filter makes sure a reused process id of another program is left alone.
+		taskkill = os.path.join(system, "System32", "taskkill.exe")
+		try:
+			_quiet(
+				[taskkill, "/F", "/T", "/FI", f"PID eq {pid}", "/FI", f"IMAGENAME eq {executable}"],
+				timeout=15,
+			)
+		except (OSError, subprocess.SubprocessError) as e:
+			problems.append(f"taskkill: {e}")
+		if _waitUntilFree(profileDir, 5):
+			return ""
+	# Started by an older version, or its id was lost: find it by its profile in its command line.
+	powershell = os.path.join(system, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+	pattern = f"*--user-data-dir={profileDir}*".replace("'", "''")
+	script = (
+		f"Get-CimInstance Win32_Process -Filter \"Name='{executable}'\" | "
+		f"Where-Object {{ $_.CommandLine -like '{pattern}' }} | "
+		"ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+	)
+	try:
+		_quiet([powershell, "-NoProfile", "-NonInteractive", "-Command", script], timeout=30)
+	except (OSError, subprocess.SubprocessError) as e:
+		problems.append(f"PowerShell: {e}")
+	if _waitUntilFree(profileDir, 5):
+		return ""
+	return "; ".join(problems) or "it is still running"
 
 
 class HiddenBrowser:
@@ -233,6 +333,7 @@ class HiddenBrowser:
 			os.makedirs(self.profileDir, exist_ok=True)
 			portFile = Path(self.profileDir) / "DevToolsActivePort"
 			if not self.running:
+				leftover = closeLeftovers(self.profileDir, os.path.basename(self.browser.path))
 				try:
 					portFile.unlink()
 				except OSError:
@@ -245,12 +346,21 @@ class HiddenBrowser:
 					stderr=subprocess.DEVNULL,
 					creationflags=flags,
 				)
+				try:
+					(Path(self.profileDir) / PID_FILE).write_text(str(self.process.pid), encoding="ascii")
+				except OSError:
+					pass
+			else:
+				leftover = ""
 			deadline = time.monotonic() + START_TIMEOUT_SECONDS
 			while time.monotonic() < deadline:
 				if self.process.poll() is not None:
-					raise OSError(
+					reason = (
 						f"{self.browser.name} closed while starting (exit code {self.process.returncode})"
 					)
+					if leftover:
+						reason += f"; the last hidden browser could not be closed: {leftover}"
+					raise OSError(reason)
 				active = cdp.readActivePort(portFile)
 				executable = os.path.basename(self.browser.path)
 				if active is not None and cdp.portBelongsTo(active[0], executable):
@@ -268,13 +378,18 @@ class HiddenBrowser:
 			return
 		if sys.platform == "win32":
 			flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-			subprocess.run(
-				["taskkill", "/PID", str(process.pid), "/T", "/F"],
-				stdout=subprocess.DEVNULL,
-				stderr=subprocess.DEVNULL,
-				creationflags=flags,
-				check=False,
-			)
+			try:
+				subprocess.run(
+					["taskkill", "/PID", str(process.pid), "/T", "/F"],
+					# All three: NVDA has no console, and while it closes, handles it would pass on are invalid.
+					stdin=subprocess.DEVNULL,
+					stdout=subprocess.DEVNULL,
+					stderr=subprocess.DEVNULL,
+					creationflags=flags,
+					check=False,
+				)
+			except OSError:
+				process.kill()
 		else:
 			process.terminate()
 		try:

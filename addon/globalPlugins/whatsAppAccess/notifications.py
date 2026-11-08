@@ -13,6 +13,8 @@ from dataclasses import dataclass
 
 # The add-on's sounds that suit a new message; "custom" rules name a WAV file instead.
 NOTIFICATION_SOUNDS = ("received", "notifyBell", "notifyKalimba", "notifyFlute")
+# A message in the chat the user has open: a softer sound of its own, as WhatsApp's conversation tone.
+OPEN_CHAT_SOUND = "openChatMessage"
 ANNOUNCE_CHOICES = ("default", "always", "never")
 CONTENT_CHOICES = ("default", "full", "nameOnly")
 
@@ -99,7 +101,11 @@ def decide(
 		announce = True
 	if not announce:
 		return Decision(False, None, False)
-	if rule.sound == "default":
+	if rule.sound == "none":
+		sound = "none"
+	elif inOpenChat:
+		sound = OPEN_CHAT_SOUND
+	elif rule.sound == "default":
 		sound = groupSound if isGroup else personalSound
 	else:
 		sound = rule.sound

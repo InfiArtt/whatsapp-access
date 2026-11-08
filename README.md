@@ -31,7 +31,7 @@ Press **NVDA+Shift+W**. The add-on asks how to reach WhatsApp:
 
 - **A hidden browser of the add-on's own** (recommended). WhatsApp Web runs with no window, in its
   own profile, so your own browser and its tabs are never touched. It can start with NVDA, so new
-  messages and calls reach you at any time. It uses about 400 to 600 MB of memory.
+  messages and calls reach you at any time. It uses about 1 GB of memory, as much as WhatsApp Web in a browser tab.
 - **WhatsApp Web in your own browser**, if you already keep it open there. See
   [Using your own browser](#using-your-own-browser).
 
@@ -58,20 +58,23 @@ phone for about 14 days, as for every linked device.
 | Ctrl+R | In a chat | Record a voice note; Ctrl+Shift+R sends it. |
 | Applications | On a message or chat | Its menu: reply, react, forward, delete and more. |
 | Alt+T | In a chat | Hear whether the person is online or when they were last seen. |
+| Ctrl+Tab | In a chat | The next chat in the list; Ctrl+Shift+Tab the previous one. |
+| Up arrow | Empty message box | Edit your last message, as in WhatsApp: Enter saves, Escape cancels. |
 | Ctrl+1 to Ctrl+8 | Window | Chats, Status, Calls, Archived, Starred, Channels, Communities, Settings. |
 | NVDA+Alt+A | Anywhere | Answer a call, or go back to the call window. |
 | NVDA+Alt+H | Anywhere | Decline a call, or end it. |
 | NVDA+Alt+M | Anywhere | Microphone off or on during a call. |
 | Escape | Window | Back to the chat list, or close the window. WhatsApp keeps running. |
 
-Every key can be changed in NVDA's Input Gestures dialog, category WhatsApp Access.
+The four keys that work anywhere (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H and NVDA+Alt+M) can be changed in
+NVDA's Input Gestures dialog, category WhatsApp Access. The keys inside the WhatsApp window can't be changed.
 
 ## The window
 
 The window has sections, like WhatsApp's sidebar: **Chats** (Ctrl+1), **Status** (Ctrl+2),
 **Calls** (Ctrl+3), **Archived** (Ctrl+4), **Starred** (Ctrl+5), **Channels** (Ctrl+6),
 **Communities** (Ctrl+7) and **Settings** (Ctrl+8). Ctrl+Tab and Ctrl+Shift+Tab move to the next and
-previous one. They are not tabs: press Tab past a section's controls to reach the **Sections** list,
+previous one; in a chat they move to the next and previous chat instead. They are not tabs: press Tab past a section's controls to reach the **Sections** list,
 which says which one is current; choose another with the arrows and press Enter.
 
 While the window is in front, you are online for your contacts, as with WhatsApp Web. When you switch
@@ -121,7 +124,11 @@ background for new messages and calls.
 ### Writing and sending
 
 - Write in **Type a message** (Alt+E) and press **Enter** to send. Type @ in a group to mention
-  someone: Up and Down Arrow choose, Enter picks.
+  someone: Up and Down Arrow choose, Enter picks. Type : and part of an emoji's English name, such as
+  :grin or :fire, for emoji: Left and Right Arrow choose, Enter picks.
+- **Shift+Enter** starts a new line. **Ctrl+B**, **Ctrl+I** and **Ctrl+Shift+X** make the selected text
+  bold, italic or struck through, as in WhatsApp; pressed again, they take it off. Messages are read
+  without the formatting marks; Alt+C shows them as written.
 - To answer one message, select it and press **Alt+R**; Escape cancels the reply.
 - To send files, press **Alt+A** to choose them, or copy them in File Explorer and press **Ctrl+V** in
   the message box. Photos and videos go as photos and videos, audio as audio, anything else as a
@@ -186,7 +193,7 @@ video**, and **My status**, which says who saw each of your statuses and can del
 
 ## Calls
 
-When someone calls, the add-on plays a ring and says who it is, wherever you are. **NVDA+Alt+A**
+When someone calls, the add-on rings until you answer or decline and says who it is, wherever you are. **NVDA+Alt+A**
 answers and **NVDA+Alt+H** declines. The call window shows the call without taking your focus.
 
 During a call:
@@ -211,7 +218,9 @@ In a group call, the call window also has:
 NVDA says who joins, who leaves, who raises a hand and who reacts, each with its own small sound.
 
 Calls are answered with your microphone and without your camera. In the add-on's settings you choose
-the microphone and how much sound processing calls use.
+the microphone, the speaker and how much sound processing calls use. To switch during a call, for
+example from your headset to the laptop's speaker, press **Microphone and speaker** in the call
+window: the call moves over at once. Voice notes and statuses play on the same speaker.
 
 ## Starred, Channels and Communities
 
@@ -250,8 +259,14 @@ NVDA menu, Preferences, Settings, **WhatsApp Access**:
 
 - how WhatsApp is reached (the hidden browser or your own), which browser, and starting with NVDA;
 - **Unlink this computer**: logs out of WhatsApp here and removes what the hidden browser kept;
-- which new messages are read out, their sounds, and whether to hear what they say;
-- the microphone, and its sound processing in calls;
+- which new messages are read out, and whether to hear what they say;
+- the sounds for personal chats and for groups (different at first, so you can tell them apart) and the
+  ringtone: the add-on's own, one of Windows' ringtones, none, or a WAV file of yours. Moving through a
+  list plays each sound, and **Play** plays the chosen one again or stops it;
+- **Open the folder for your own sounds**: a WAV file you put there named as one of the add-on's sounds,
+  such as sent.wav or openChatMessage.wav (a message in the chat you have open), plays instead of it.
+  The folder lists the names;
+- the microphone and the speaker, and the sound processing in calls;
 - voice notes: stereo, the microphone's own sound, quality;
 - playback speed, the five volumes, the add-on's sounds, and hints (which keys to press next);
 - checking for new versions.

@@ -23,6 +23,11 @@ def test_personal_chat_message_names_the_contact():
     assert messageText.messageLine(message, isGroup=False, now=NOW) == "Budi: Halo, 08:15"
 
 
+def test_an_edited_message_says_so():
+    message = {"type": "chat", "text": "Halo semua", "t": TODAY_0815, "sender": "Budi", "edited": True}
+    assert messageText.messageLine(message, isGroup=False, now=NOW) == "Budi: Halo semua, edited, 08:15"
+
+
 def test_own_message_says_you_and_its_state():
     message = {"type": "chat", "text": "Siap", "t": TODAY_0815, "fromMe": True, "ack": 3}
     assert messageText.messageLine(message, isGroup=False, now=NOW) == "You: Siap, 08:15, read"
@@ -151,10 +156,12 @@ def test_links_in_a_message():
 
 
 def test_message_info_in_a_group():
+    # receiptLines compares with the real clock, so this message was sent today.
+    today = time.mktime(time.localtime()[:3] + (8, 15, 0, 0, 0, -1))
     receipts = {
-        "t": TODAY_0815,
-        "read": [{"name": "Anas", "t": TODAY_0815}],
-        "delivered": [{"name": "Rexya", "t": TODAY_0815}],
+        "t": today,
+        "read": [{"name": "Anas", "t": today}],
+        "delivered": [{"name": "Rexya", "t": today}],
         "played": [],
         "readRemaining": 6,
         "deliveryRemaining": 1,
@@ -295,3 +302,34 @@ def test_ongoing_group_calls_offer_to_join():
         "Relawan, call in progress, you are in it"
     )
     assert messageText.chatLine({"title": "Relawan", "ongoingCall": True}) == "Relawan, call in progress"
+
+
+def test_replies_say_what_they_quote():
+    reply = {
+        "type": "chat",
+        "text": "hello",
+        "fromMe": True,
+        "t": TODAY_0815,
+        "quoted": {"type": "chat", "text": "a", "fromMe": True},
+    }
+    assert 'quoting You: "a"' in messageText.messageLine(reply, False, now=NOW)
+
+
+def test_formatting_marks_are_not_read():
+    assert messageText.plainText("*PENTING* besok _jam 8_") == "PENTING besok jam 8"
+    assert messageText.plainText("~salah~ benar, ```kode```, `x = 1`") == "salah benar, kode, x = 1"
+    assert messageText.plainText("*_tebal miring_*") == "tebal miring"
+
+
+def test_marks_that_are_not_formatting_stay():
+    for text in ("2*3*4", "snake_case_name", "a * b * c", "harga 5*", "* poin", "_ awal", "**", "a__b"):
+        assert messageText.plainText(text) == text
+
+
+def test_formatting_ends_at_the_line():
+    assert messageText.plainText("*satu\ndua*") == "*satu\ndua*"
+
+
+def test_a_formatted_message_is_read_without_marks():
+    message = {"type": "chat", "text": "*Rapat* jam 9", "t": TODAY_0815, "sender": "Budi"}
+    assert messageText.messageLine(message, isGroup=False, now=NOW) == "Budi: Rapat jam 9, 08:15"

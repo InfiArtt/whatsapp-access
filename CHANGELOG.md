@@ -3,6 +3,54 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.3.0]
+
+Writing as in WhatsApp, your own choice of sounds, and the speaker you want for calls.
+
+Writing messages:
+
+- Messages can have several lines: Shift+Enter starts a new one. Pasting puts in plain text only.
+- Ctrl+B, Ctrl+I and Ctrl+Shift+X make text bold, italic or struck through, as in WhatsApp. Formatted
+  messages are read without their marks: *Meeting* is read as "Meeting".
+- Emoji by name: type : and part of a name, such as :grin, then Left and Right Arrow choose and Enter
+  adds. Your recent emoji come first.
+- Editing works as in WhatsApp: the message's text goes into the message box, where Enter saves and
+  Escape cancels. Up Arrow in the empty message box edits your last message. A message that can no
+  longer be edited says why. Edited messages say "edited", also when someone edits one while you read.
+- Ctrl+Tab and Ctrl+Shift+Tab in a chat open the next and previous chat of the list. A voice note being
+  recorded or not sent yet must be sent or thrown away first, so it never goes to the wrong chat.
+
+Sounds:
+
+- The ring repeats until you answer or decline, as a phone rings, and stops at once when you do.
+- Choose the ringtone: the add-on's own, one of Windows' ringtones, none, or a WAV file of yours.
+  Personal chats and groups can have WAV files of yours too. Moving through the sounds plays each one,
+  and Play plays the chosen one again or stops it.
+- Group messages have their own sound at first (Kalimba), so they can be told from personal chats.
+- A message in the chat you have open has its own softer sound, as WhatsApp's conversation tone.
+- Opening and closing a chat have their own small sounds.
+- Your own sounds: WAV files in a folder of yours, named as the add-on's sounds, play instead of them.
+  Open the folder from the settings; it lists the names.
+
+Calls and the hidden browser:
+
+- Choose the speaker as well as the microphone, in the settings or with Microphone and speaker in the
+  call window. A change takes effect at once, during a call too. Voice notes and statuses play on the
+  same speaker.
+- The hidden browser uses less memory: two fewer processes, and browser services it doesn't need are
+  off. Through long sessions, such as a call all night, it gives memory back every few minutes when
+  WhatsApp holds too much, and at the end of every call.
+
+Fixed:
+
+- After NVDA restarted, WhatsApp could fail with "Something went wrong" because the last hidden browser
+  was still running; it is now closed first.
+- Replies show the message they quote again.
+- Volumes changed with F7 and F8 are saved at once, and pressing OK in the add-on's settings no longer
+  puts back volumes that F7 and F8 changed while they were open.
+- A microphone chosen in the settings is used at once, not only after saving them a second time.
+- Alt+R with no message chosen says to choose one in the messages list first.
+
 ## [0.2.0]
 
 Almost everything WhatsApp Web does, now in the add-on.

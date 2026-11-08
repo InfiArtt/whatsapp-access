@@ -43,6 +43,29 @@ TYPING_REPEAT_SECONDS = 8
 TYPING_PAUSE_MS = 5000
 # "@" at the start or after a space, then what the user has typed of the name so far.
 _MENTION_PATTERN = re.compile(r"(?:^|\s)@([^\s@]*)$")
+# ":" and at least two letters of an emoji's name, at the start or after a space, as in WhatsApp; so
+# times such as 10:30 and links do not offer emoji.
+_EMOJI_PATTERN = re.compile(r"(?:^|\s):([a-zA-Z0-9_+\-]{2,})$")
+EMOJI_SUGGESTIONS = 20
+# Ctrl+B, Ctrl+I and Ctrl+Shift+X in the message box, as in WhatsApp: the mark and which formatting.
+_FORMAT_KEYS = {
+	(wx.MOD_CONTROL, ord("B")): ("*", "bold"),
+	(wx.MOD_CONTROL, ord("I")): ("_", "italic"),
+	(wx.MOD_CONTROL | wx.MOD_SHIFT, ord("X")): ("~", "strikethrough"),
+}
+
+
+def _formatName(kind: str) -> str:
+	return {
+		# Translators: Said when the user makes text bold in the message box (Ctrl+B).
+		"bold": _("bold"),
+		# Translators: Said when the user makes text italic in the message box (Ctrl+I).
+		"italic": _("italic"),
+		# Translators: Said when the user strikes text through in the message box (Ctrl+Shift+X).
+		"strikethrough": _("strikethrough"),
+	}[kind]
+
+
 # Delivered, read and played are read out for messages sent this long ago at most.
 ACK_ANNOUNCE_SECONDS = 15 * 60
 
@@ -801,18 +824,26 @@ class ChatWindow(wx.Dialog):
 		# Translators: The label of the box where the user writes a message. Enter sends it.
 		self.composeLabel = wx.StaticText(panel, label=_("Typ&e a message:"))
 		sizer.Add(self.composeLabel)
-		self.composeBox = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER)
+		# Several lines, as in WhatsApp: Enter sends, Shift+Enter starts a new line. Rich, so that positions
+		# in the text are the same as in what GetValue returns, which the @ and : suggestions rely on.
+		self.composeBox = wx.TextCtrl(
+			panel, style=wx.TE_MULTILINE | wx.TE_PROCESS_ENTER | wx.TE_RICH2, size=(-1, 54)
+		)
 		self.composeBox.Bind(wx.EVT_TEXT_ENTER, lambda evt: self._sendText())
 		self.composeBox.Bind(wx.EVT_TEXT, self._onComposeText)
 		self._participants: list[dict] = []
 		self._mentionMatches: list[dict] = []
+		self._emojiMatches: list[str] = []
+		self._emojiIndex = -1
 		self._mentionIndex = -1
 		self._mentions: dict[str, str] = {}
 		sizer.Add(self.composeBox, 0, wx.EXPAND | wx.BOTTOM, 6)
 		buttons = wx.BoxSizer(wx.HORIZONTAL)
 		# Translators: A button that stops replying to a message; the message is then sent on its own.
 		self.cancelReplyButton = wx.Button(panel, label=_("Cancel reply"))
-		self.cancelReplyButton.Bind(wx.EVT_BUTTON, lambda evt: self._cancelReply())
+		self.cancelReplyButton.Bind(
+			wx.EVT_BUTTON, lambda evt: self._cancelEdit() if self._editing else self._cancelReply()
+		)
 		# Translators: A button that opens a file picker to send photos, videos, audio or documents.
 		self.attachButton = wx.Button(panel, label=_("&Attach"))
 		self.attachButton.Bind(wx.EVT_BUTTON, lambda evt: self._chooseFiles())
@@ -854,6 +885,10 @@ class ChatWindow(wx.Dialog):
 		self.buttonSizer = buttons
 		panel.SetSizer(sizer)
 		self._replyTo: dict | None = None
+		# The message being changed in the message box, its text then, and what the box held before.
+		self._editing: dict | None = None
+		self._editOriginal = ""
+		self._draftBeforeEdit = ""
 		self._updateButtons()
 
 	# Background work ------------------------------------------------------------------------------------
@@ -1023,6 +1058,35 @@ class ChatWindow(wx.Dialog):
 			return
 		evt.Skip()
 
+	def _switchChat(self, step: int) -> None:
+		"""Ctrl+Tab and Ctrl+Shift+Tab in a chat: open the next or previous chat of the list it came from."""
+		if not self.chat:
+			return
+		if self._recording or self._hasRecording:
+			# Moving on would leave the voice note behind, or send it to the wrong chat.
+			sounds.play(sounds.DISCARD)
+			# Translators: Read out when Ctrl+Tab is pressed while a voice note is recorded or not sent yet.
+			ui.message(_("Send the voice note with Ctrl+Shift+R or throw it away with Ctrl+D first"))
+			return
+		archived = self.tabs.GetSelection() == self.TAB_ARCHIVED
+		chats, listBox = (
+			(self._archivedChats, self.archivedList) if archived else (self._shownChats, self.chatList)
+		)
+		ids = [c["id"] for c in chats]
+		if self.chat["id"] in ids:
+			index = (ids.index(self.chat["id"]) + step) % len(ids)
+		elif chats:
+			index = 0 if step > 0 else len(chats) - 1
+		else:
+			index = -1
+		if index < 0 or chats[index]["id"] == self.chat["id"]:
+			# Translators: Read out when Ctrl+Tab finds no other chat to move to.
+			ui.message(_("No other chat"))
+			return
+		listBox.SetSelection(index)
+		self.openChat(chats[index])
+		ui.message(chats[index].get("title", ""))
+
 	def _openSelectedChat(self) -> None:
 		chat = self._selectedChat()
 		if chat is not None:
@@ -1047,6 +1111,8 @@ class ChatWindow(wx.Dialog):
 	def _keepDraft(self) -> None:
 		if not self.chat:
 			return
+		# An unfinished edit is dropped; what the box held before it is the draft.
+		self._cancelEdit(announce=False)
 		# Leaving the chat: whatever arrived while it was open has been read.
 		if self._seenTimer is not None:
 			self._seenTimer.Stop()
@@ -1065,6 +1131,7 @@ class ChatWindow(wx.Dialog):
 			self._discardRecording()
 		self._stopPlayback()
 		if self.chat is not None:
+			sounds.play(sounds.CHAT_CLOSE)
 			self._run(lambda: self.session.watchPresence(""))
 		self.chat = None
 		self._messages = []
@@ -1081,7 +1148,11 @@ class ChatWindow(wx.Dialog):
 		self._keepDraft()
 		if self.chat is not None and self.chat["id"] != chat["id"]:
 			self._stopPlayback()
+			# A voice note belongs to the chat it was recorded in; never carry it to another one.
+			if self._recording or self._hasRecording:
+				self._discardRecording()
 		self.chat = chat
+		sounds.play(sounds.CHAT_OPEN)
 		self.chatButton.SetLabel(self._headerLabel(chat, ""))
 		# Channels have no calls, and only their admins post in them.
 		isChannel = bool(chat.get("isChannel"))
@@ -1104,6 +1175,7 @@ class ChatWindow(wx.Dialog):
 			self.composeBox.ChangeValue(draft)
 			self.composeBox.SetInsertionPointEnd()
 		self._closeMentions()
+		self._closeEmoji()
 		self.tabs.Hide()
 		self.sectionsPanel.Hide()
 		self.conversationPanel.Show()
@@ -1592,6 +1664,12 @@ class ChatWindow(wx.Dialog):
 		if self._mentionIndex >= 0:
 			self._insertMention()
 			return
+		if self._emojiIndex >= 0:
+			self._insertEmoji()
+			return
+		if self._editing is not None:
+			self._saveEdit()
+			return
 		if self._attachments:
 			self._sendAttachments()
 			return
@@ -1714,6 +1792,7 @@ class ChatWindow(wx.Dialog):
 	def _onComposeText(self, evt: wx.CommandEvent) -> None:
 		self._updateButtons()
 		self._updateMentions()
+		self._updateEmoji()
 		self._typing()
 
 	def _typing(self) -> None:
@@ -1764,6 +1843,69 @@ class ChatWindow(wx.Dialog):
 				)
 			)
 
+	def _updateEmoji(self) -> None:
+		"""After ":" and part of an emoji's name, such as ":grin", offer the emoji, as WhatsApp does."""
+		before = self.composeBox.GetValue()[: self.composeBox.GetInsertionPoint()]
+		match = _EMOJI_PATTERN.search(before)
+		if not match or self._mentionMatches:
+			self._closeEmoji()
+			return
+		typed = match.group(1).lower()
+
+		def found(emoji: list[str]) -> None:
+			# Only if the user has not typed on since.
+			now = _EMOJI_PATTERN.search(self.composeBox.GetValue()[: self.composeBox.GetInsertionPoint()])
+			if not now or now.group(1).lower() != typed:
+				return
+			hadMatches = bool(self._emojiMatches)
+			self._emojiMatches = emoji
+			self._emojiIndex = -1
+			if emoji and not hadMatches:
+				ui.message(
+					withHint(
+						# Translators: Read out when the user types ":" and part of an emoji's name.
+						_("{count} emoji").format(count=len(emoji)),
+						# Translators: A hint after the number of emoji offered for what the user typed.
+						_("Left and Right Arrow to choose, Enter to add"),
+					)
+				)
+
+		self._run(
+			lambda: self.session.emojiSuggestions(typed.replace("_", " "), EMOJI_SUGGESTIONS),
+			found,
+			onError=lambda e: None,
+		)
+
+	def _closeEmoji(self) -> None:
+		self._emojiMatches = []
+		self._emojiIndex = -1
+
+	def _moveEmoji(self, step: int) -> None:
+		count = len(self._emojiMatches)
+		self._emojiIndex = (
+			(self._emojiIndex + step) % count if self._emojiIndex >= 0 else (0 if step > 0 else count - 1)
+		)
+		# NVDA says the emoji's name itself.
+		ui.message(
+			# Translators: One emoji offered for what the user typed, then its position, such as "😁, 2 of 8".
+			_("{emoji}, {position} of {count}").format(
+				emoji=self._emojiMatches[self._emojiIndex], position=self._emojiIndex + 1, count=count
+			)
+		)
+
+	def _insertEmoji(self) -> None:
+		emoji = self._emojiMatches[self._emojiIndex]
+		text = self.composeBox.GetValue()
+		position = self.composeBox.GetInsertionPoint()
+		before, after = text[:position], text[position:]
+		match = _EMOJI_PATTERN.search(before)
+		start = match.end() - len(match.group(1)) - 1 if match else position
+		self._closeEmoji()
+		self.composeBox.ChangeValue(before[:start] + emoji + after)
+		self.composeBox.SetInsertionPoint(start + len(emoji))
+		self._updateButtons()
+		ui.message(emoji)
+
 	def _closeMentions(self) -> None:
 		self._mentionMatches = []
 		self._mentionIndex = -1
@@ -1797,12 +1939,59 @@ class ChatWindow(wx.Dialog):
 		# Translators: Read out after the user chose a person to mention.
 		ui.message(_("{name} mentioned").format(name=person["name"]))
 
+	# Formatting, as in WhatsApp: *bold*, _italic_ and ~strikethrough~ ------------------------------------
+
+	def _format(self, mark: str, kind: str) -> None:
+		"""Ctrl+B, Ctrl+I and Ctrl+Shift+X: put the selected text between the marks, or take them away
+		if it has them already. With nothing selected, the marks go in with the caret between them."""
+		box = self.composeBox
+		start, end = box.GetSelection()
+		selected = box.GetValue()[start:end]
+		name = _formatName(kind)
+		if len(selected) > 2 and selected.startswith(mark) and selected.endswith(mark):
+			inner = selected[1:-1]
+			box.Replace(start, end, inner)
+			box.SetSelection(start, start + len(inner))
+			# Translators: Said when formatting such as bold is taken off the selected text.
+			ui.message(_("{format} off").format(format=name))
+			return
+		core = selected.strip()
+		if not core:
+			box.WriteText(mark * 2)
+			box.SetInsertionPoint(box.GetInsertionPoint() - 1)
+			ui.message(name)
+			return
+		# WhatsApp formats only when the marks touch the text, so spaces around it stay outside.
+		lead = len(selected) - len(selected.lstrip())
+		formatted = mark + core + mark
+		box.Replace(start, end, selected[:lead] + formatted + selected[lead + len(core) :])
+		box.SetSelection(start + lead, start + lead + len(formatted))
+		ui.message(name)
+
+	def _pasteText(self) -> bool:
+		"""Ctrl+V in the message box: plain text only, without the colours, fonts or pictures it may carry."""
+		clipboard = wx.TheClipboard
+		data = wx.TextDataObject()
+		if clipboard.Open():
+			try:
+				has = clipboard.IsSupported(wx.DataFormat(wx.DF_UNICODETEXT)) and clipboard.GetData(data)
+			finally:
+				clipboard.Close()
+			if has:
+				self.composeBox.WriteText(data.GetText().replace("\r\n", "\n").replace("\r", "\n"))
+		return True
+
 	# Replying to one message ----------------------------------------------------------------------------
 
 	def _startReply(self, message: dict | None = None) -> None:
 		message = message or self._selectedMessage()
-		if message is None or not self.chat:
+		if not self.chat:
 			return
+		if message is None:
+			# Translators: Said when the user presses Alt+R but no message is selected in the chat.
+			ui.message(_("Select the message to reply to in the messages list first"))
+			return
+		self._cancelEdit(announce=False)
 		self._replyTo = message
 		summary = self._replySummary(message)
 		# Translators: Shown above the message box while the user replies to one message.
@@ -1855,7 +2044,7 @@ class ChatWindow(wx.Dialog):
 		)
 		shown = {
 			self.pauseButton: self._recording,
-			self.cancelReplyButton: self._replyTo is not None,
+			self.cancelReplyButton: self._replyTo is not None or self._editing is not None,
 			self.sendButton: (hasText or bool(self._attachments))
 			and not self._recording
 			and not self._hasRecording,
@@ -1873,7 +2062,11 @@ class ChatWindow(wx.Dialog):
 			if button.IsShown() != show:
 				button.Show(show)
 				changed = True
-		self.replyingText.Show(self._replyTo is not None)
+		self.cancelReplyButton.SetLabel(
+			# Translators: A button that stops editing a message; it stays as it was.
+			_("Cancel edit") if self._editing is not None else _("Cancel reply")
+		)
+		self.replyingText.Show(self._replyTo is not None or self._editing is not None)
 		if changed:
 			self.conversationPanel.Layout()
 
@@ -2084,7 +2277,7 @@ class ChatWindow(wx.Dialog):
 				add(menu, _("&Star"), lambda: self._star(message, True))
 		if actions.get("edit"):
 			# Translators: An item in a message's menu, like WhatsApp's: changes a message the user sent.
-			add(menu, _("E&dit"), lambda: self._edit(message, actions.get("text", "")))
+			add(menu, _("E&dit"), lambda: self._edit(message, actions))
 		if message.get("pinned"):
 			# Translators: An item in a message's menu, like WhatsApp's.
 			add(menu, _("Un&pin"), lambda: self._pin(message, None))
@@ -2168,25 +2361,109 @@ class ChatWindow(wx.Dialog):
 
 		self._run(lambda: self.session.star(message["id"], starred), done)
 
-	def _edit(self, message: dict, text: str) -> None:
-		# Translators: The title of the dialog for changing a message the user sent.
-		dialog = wx.TextEntryDialog(self, _("Edit message:"), _("Edit message"), value=text)
-		try:
-			if dialog.ShowModal() != wx.ID_OK:
-				return
-			newText = dialog.GetValue()
-		finally:
-			dialog.Destroy()
-		if not newText.strip() or newText == text:
+	# Editing a message the user sent, in the message box as in WhatsApp ---------------------------------
+
+	def _editLastMessage(self) -> None:
+		"""Up arrow in the empty message box: edit the user's last message, as in WhatsApp."""
+		mine = [m for m in self._messages if m.get("fromMe") and m.get("type") not in ("revoked", "call_log")]
+		if not mine:
+			# Translators: Said when Up arrow in the empty message box finds no message of the user's.
+			ui.message(_("No message of yours to edit here"))
+			return
+		message = mine[-1]
+		self._run(
+			lambda: self.session.messageActions(message["id"]), lambda actions: self._edit(message, actions)
+		)
+
+	def _edit(self, message: dict, actions: dict) -> None:
+		if not actions.get("edit"):
+			reason = actions.get("editBlocked")
+			if reason == "notMine":
+				# Translators: Said when the user tries to edit someone else's message.
+				text = _("Only your own messages can be edited")
+			elif reason == "notText":
+				# Translators: Said when the user tries to edit a photo, voice message or other non-text message.
+				text = _("Only text messages can be edited")
+			else:
+				# Translators: Said when the user tries to edit a message sent too long ago.
+				text = _(
+					"This message can't be edited any more: WhatsApp allows edits for 15 minutes after sending"
+				)
+			ui.message(text)
+			return
+		if self._recording or self._hasRecording:
+			ui.message(_("Send the voice note with Ctrl+Shift+R or throw it away with Ctrl+D first"))
+			return
+		self._cancelReply(announce=False)
+		if self._editing is None:
+			self._draftBeforeEdit = self.composeBox.GetValue()
+		self._editing = message
+		self._editOriginal = actions.get("text", "")
+		self.composeBox.ChangeValue(self._editOriginal)
+		self.composeBox.SetInsertionPointEnd()
+		# Translators: Shown above the message box while the user changes a message they sent.
+		self.replyingText.SetLabel(_("Editing your message"))
+		self._updateButtons()
+		self.composeBox.SetFocus()
+		ui.message(
+			withHint(
+				# Translators: Said when the user starts changing a message they sent, with its text.
+				_("Editing: {text}").format(text=self._editOriginal),
+				# Translators: A hint after the user starts editing a message.
+				_("Enter saves, Escape cancels"),
+			)
+		)
+
+	def _saveEdit(self) -> None:
+		message, text = self._editing, self.composeBox.GetValue()
+		if message is None:
+			return
+		if not text.strip():
+			# Translators: Said when the user tries to save an edited message with no text.
+			ui.message(_("Write the new text, or press Escape to leave the message as it is"))
+			return
+		if text == self._editOriginal:
+			self._cancelEdit(announce=False)
+			# Translators: Said when the user saves an edit without changing the text.
+			ui.message(_("Not changed"))
 			return
 
 		def done(result: Any) -> None:
-			message["text"] = newText
+			message["text"] = text
+			message["edited"] = True
 			self._refreshMessageLine(message)
+			if self._editing is message:
+				self._cancelEdit(announce=False)
+			sounds.play(sounds.SENT)
 			# Translators: Reported after a message was changed.
 			ui.message(_("Edited"))
 
-		self._run(lambda: self.session.editText(message["id"], newText), done)
+		self._run(lambda: self.session.editText(message["id"], text), done)
+
+	def _cancelEdit(self, announce: bool = True) -> None:
+		"""Stop editing; the message box gets back what it held before."""
+		if self._editing is None:
+			return
+		self._editing = None
+		self.composeBox.ChangeValue(self._draftBeforeEdit)
+		self.composeBox.SetInsertionPointEnd()
+		self._draftBeforeEdit = ""
+		self._editOriginal = ""
+		self.replyingText.SetLabel("")
+		self._updateButtons()
+		if announce:
+			sounds.play(sounds.DISCARD)
+			# Translators: Reported when the user stops editing a message; it stays as it was.
+			ui.message(_("Editing cancelled"))
+			self.composeBox.SetFocus()
+
+	def onEdited(self, info: dict) -> None:
+		"""A message was edited, here or on the phone or by its sender: show its new text."""
+		for message in self._messages:
+			if message.get("id") == info.get("id"):
+				message.update(info)
+				self._refreshMessageLine(message)
+				return
 
 	def _delete(self, message: dict, forEveryone: bool) -> None:
 		question = (
@@ -3544,14 +3821,17 @@ class ChatWindow(wx.Dialog):
 				self._clearSelection(focus)
 			elif inConversation and self._attachments:
 				self._clearAttachments()
-			elif self._mentionMatches:
+			elif self._mentionMatches or self._emojiMatches:
 				self._closeMentions()
+				self._closeEmoji()
 				# Translators: Read out when the user closes the list of people to mention.
 				ui.message(_("Suggestions closed"))
 			elif self._playingId is not None:
 				self._stopPlayback()
 			elif self._recording:
 				self._discardRecording()
+			elif inConversation and self._editing is not None:
+				self._cancelEdit()
 			elif inConversation and self._replyTo is not None:
 				self._cancelReply()
 			elif inConversation:
@@ -3567,6 +3847,34 @@ class ChatWindow(wx.Dialog):
 		):
 			self._moveMention(-1 if key == wx.WXK_UP else 1)
 			return
+		if (
+			key in (wx.WXK_LEFT, wx.WXK_RIGHT)
+			and not evt.HasAnyModifiers()
+			and self._emojiMatches
+			and focus is self.composeBox
+		):
+			self._moveEmoji(-1 if key == wx.WXK_LEFT else 1)
+			return
+		if (
+			key == wx.WXK_UP
+			and not evt.HasAnyModifiers()
+			and inConversation
+			and focus is self.composeBox
+			and not self.composeBox.GetValue()
+			and self._editing is None
+			and not self._attachments
+			and not self._recording
+			and not self._hasRecording
+		):
+			self._editLastMessage()
+			return
+		if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and focus is self.composeBox:
+			if evt.GetModifiers() == wx.MOD_SHIFT:
+				self.composeBox.WriteText("\n")
+				return
+			if not evt.HasAnyModifiers():
+				self._sendText()
+				return
 		if key in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and not evt.HasAnyModifiers():
 			# The dialog would take Enter for its default button before the lists see it.
 			focus = wx.Window.FindFocus()
@@ -3598,6 +3906,9 @@ class ChatWindow(wx.Dialog):
 				self._openSetting()
 				return
 		modifiers = evt.GetModifiers()
+		if inConversation and focus is self.composeBox and (modifiers, key) in _FORMAT_KEYS:
+			self._format(*_FORMAT_KEYS[(modifiers, key)])
+			return
 		if modifiers == wx.MOD_CONTROL and ord("1") <= key <= ord("8"):
 			self.showTab(key - ord("1"))
 			return
@@ -3609,6 +3920,13 @@ class ChatWindow(wx.Dialog):
 			# Ctrl+Tab and Ctrl+Shift+Tab: the next or previous section, as they moved between tabs before.
 			step = -1 if modifiers & wx.MOD_SHIFT else 1
 			self.showTab((self.tabs.GetSelection() + step) % self.tabs.GetPageCount())
+			return
+		if (
+			inConversation
+			and key == wx.WXK_TAB
+			and modifiers in (wx.MOD_CONTROL, wx.MOD_CONTROL | wx.MOD_SHIFT)
+		):
+			self._switchChat(-1 if modifiers & wx.MOD_SHIFT else 1)
 			return
 		if modifiers == wx.MOD_ALT and ord("1") <= key <= ord("4"):
 			self._setFilter(key - ord("1"))
@@ -3657,7 +3975,7 @@ class ChatWindow(wx.Dialog):
 			and key == ord("V")
 			and evt.GetModifiers() == wx.MOD_CONTROL
 			and wx.Window.FindFocus() is self.composeBox
-			and self._pasteFiles()
+			and (self._pasteFiles() or self._pasteText())
 		):
 			return
 		if inConversation and evt.GetModifiers() == wx.MOD_ALT and key in (ord("C"), ord("Y")):

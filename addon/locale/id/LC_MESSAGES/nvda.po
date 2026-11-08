@@ -2044,3 +2044,174 @@ msgstr "{name}, panggilan sedang berlangsung, gabung"
 
 msgid "Joining…"
 msgstr "Bergabung…"
+
+msgid "Select the message to reply to in the messages list first"
+msgstr "Pilih dulu pesan yang mau dibalas di daftar pesan"
+
+#. Translators: Read out when Ctrl+Tab finds no other chat to move to.
+msgid "No other chat"
+msgstr "Tidak ada chat lain"
+
+#. Translators: Read out when Ctrl+Tab is pressed while a voice note is recorded or not sent yet.
+msgid "Send the voice note with Ctrl+Shift+R or throw it away with Ctrl+D first"
+msgstr "Kirim dulu pesan suaranya dengan Ctrl+Shift+R atau buang dengan Ctrl+D"
+
+#. Translators: A button in a call: choose the microphone and the speaker or headphones.
+msgid "Microphone and &speaker…"
+msgstr "Mikrofon dan &speaker…"
+
+#. Translators: The title of the dialog that chooses the microphone and speaker.
+msgid "Microphone and speaker"
+msgstr "Mikrofon dan speaker"
+
+#. Translators: The label of the list of microphones in the call's device dialog.
+msgid "&Microphone:"
+msgstr "&Mikrofon:"
+
+#. Translators: The label of the list of speakers in the call's device dialog.
+msgid "&Speaker:"
+msgstr "&Speaker:"
+
+#. Translators: Reported when the microphone or speaker could not be changed.
+msgid "Could not change the device. {detail}"
+msgstr "Perangkat tidak bisa diganti. {detail}"
+
+#. Translators: The first choice in the list of speakers: the one Windows uses.
+msgid "Windows default"
+msgstr "Bawaan Windows"
+
+#. Translators: The label of the list of speakers and headphones in this add-on's settings.
+msgid "Sp&eaker for calls, voice notes and statuses:"
+msgstr "Sp&eaker untuk panggilan, voice note, dan status:"
+
+#. Translators: Said when Up arrow in the empty message box finds no message of the user's.
+msgid "No message of yours to edit here"
+msgstr "Belum ada pesan Anda di sini yang bisa diedit"
+
+#. Translators: Said when the user tries to edit someone else's message.
+msgid "Only your own messages can be edited"
+msgstr "Hanya pesan Anda sendiri yang bisa diedit"
+
+#. Translators: Said when the user tries to edit a photo, voice message or other non-text message.
+msgid "Only text messages can be edited"
+msgstr "Hanya pesan teks yang bisa diedit"
+
+#. Translators: Said when the user tries to edit a message sent too long ago.
+msgid "This message can't be edited any more: WhatsApp allows edits for 15 minutes after sending"
+msgstr "Pesan ini sudah tidak bisa diedit: WhatsApp hanya mengizinkan edit 15 menit setelah dikirim"
+
+#. Translators: Shown above the message box while the user changes a message they sent.
+msgid "Editing your message"
+msgstr "Mengedit pesan Anda"
+
+#. Translators: Said when the user starts changing a message they sent, with its text.
+msgid "Editing: {text}"
+msgstr "Mengedit: {text}"
+
+#. Translators: A hint after the user starts editing a message.
+msgid "Enter saves, Escape cancels"
+msgstr "Enter menyimpan, Escape membatalkan"
+
+#. Translators: Said when the user tries to save an edited message with no text.
+msgid "Write the new text, or press Escape to leave the message as it is"
+msgstr "Tulis teks barunya, atau tekan Escape untuk membiarkan pesannya seperti semula"
+
+#. Translators: Said when the user saves an edit without changing the text.
+msgid "Not changed"
+msgstr "Tidak ada yang berubah"
+
+#. Translators: Reported when the user stops editing a message; it stays as it was.
+msgid "Editing cancelled"
+msgstr "Edit dibatalkan"
+
+#. Translators: A button that stops editing a message; it stays as it was.
+msgid "Cancel edit"
+msgstr "Batalkan edit"
+
+#. Translators: Said after a message its sender changed after sending it, as WhatsApp shows "Edited".
+msgid "edited"
+msgstr "diedit"
+
+#. Translators: Read out when the user types ":" and part of an emoji's name.
+msgid "{count} emoji"
+msgstr "{count} emoji"
+
+#. Translators: A hint after the number of emoji offered for what the user typed.
+msgid "Left and Right Arrow to choose, Enter to add"
+msgstr "Panah Kiri dan Kanan untuk memilih, Enter untuk menambahkan"
+
+#. Translators: One emoji offered for what the user typed, then its position, such as "😁, 2 of 8".
+msgid "{emoji}, {position} of {count}"
+msgstr "{emoji}, {position} dari {count}"
+
+#. Translators: Said when the user makes text bold in the message box (Ctrl+B).
+msgid "bold"
+msgstr "tebal"
+
+#. Translators: Said when the user makes text italic in the message box (Ctrl+I).
+msgid "italic"
+msgstr "miring"
+
+#. Translators: Said when the user strikes text through in the message box (Ctrl+Shift+X).
+msgid "strikethrough"
+msgstr "coret"
+
+#. Translators: Said when formatting such as bold is taken off the selected text.
+msgid "{format} off"
+msgstr "{format} dimatikan"
+
+#. Translators: A button after the choice of sound for personal chats.
+msgid "Choose a WAV file for personal chats…"
+msgstr "Pilih file WAV untuk chat pribadi…"
+
+#. Translators: A button after the choice of sound for groups.
+msgid "Choose a WAV file for groups…"
+msgstr "Pilih file WAV untuk grup…"
+
+#. Translators: A button after the choice of ringtone.
+msgid "Choose a WAV file for the ringtone…"
+msgstr "Pilih file WAV untuk nada dering…"
+
+#. Translators: The label of the choice of ringtone for incoming calls.
+msgid "Ri&ngtone for calls:"
+msgstr "&Nada dering panggilan:"
+
+#. Translators: The add-on's own ringtone.
+msgid "Ring"
+msgstr "Dering"
+
+#. Translators: No ringtone: NVDA only says who is calling.
+msgid "None, NVDA only says who calls"
+msgstr "Tidak ada, NVDA hanya menyebut siapa yang menelepon"
+
+#. Translators: In a choice of sounds: the WAV file the user picked, by its name.
+msgid "Your file: {name}"
+msgstr "File Anda: {name}"
+
+#. Translators: One of Windows' own ringtones in the choice of ringtone, such as "Windows: Ring 01".
+msgid "Windows: {name}"
+msgstr "Windows: {name}"
+
+#. Translators: A button after a choice of sound: plays it, or stops it if it is playing.
+msgid "Play"
+msgstr "Putar"
+
+#. Translators: Said when the user stops a sound playing in the settings.
+msgid "Stopped"
+msgstr "Dihentikan"
+
+#. Translators: Said when the user presses Play while no sound is chosen.
+msgid "No sound chosen"
+msgstr "Tidak ada suara yang dipilih"
+
+#. Translators: A button in this add-on's settings: opens the folder for the user's own sounds.
+msgid "&Open the folder for your own sounds"
+msgstr "Buka &folder suara Anda sendiri"
+
+#. Translators: The text file in the folder for the user's own sounds.
+msgid "Put WAV files here named as the add-on's sounds below, such as sent.wav. Each one plays instead of the add-on's sound; the others stay as they are."
+msgstr "Taruh file WAV di sini dengan nama suara add-on di bawah, misalnya sent.wav. Setiap file diputar menggantikan suara add-on; yang lain tetap seperti semula."
+
+#. Translators: Said when the folder for the user's own sounds could not be opened.
+msgid "The folder for your own sounds could not be opened"
+msgstr "Folder suara Anda sendiri tidak bisa dibuka"

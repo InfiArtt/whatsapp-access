@@ -237,6 +237,9 @@
 		if (m.isViewOnce) {
 			info.viewOnce = true;
 		}
+		if (m.latestEditMsgKey) {
+			info.edited = true;
+		}
 		try {
 			const pin = req("WAWebPinInChatCollection").PinInChatCollection.getByParentMsgKey(m.id);
 			info.pinned = !!(pin && req("WAWebPinInChatCollection").isPinValid(pin));
@@ -257,12 +260,15 @@
 		}
 		if (m.quotedMsg) {
 			try {
+				// The quote is plain data without an id; who wrote it is in quotedParticipant.
 				const q = m.quotedMsg;
+				const author = m.quotedParticipant ? String(m.quotedParticipant) : "";
+				const fromMe = q.id ? !!q.id.fromMe : !!author && myIdSet().has(author);
 				info.quoted = {
 					text: q.type === "chat" ? q.body || "" : q.caption || "",
 					type: q.type,
-					sender: senderName(q),
-					fromMe: !!q.id.fromMe,
+					sender: fromMe ? null : author ? contactName(author) : remoteTitle(m),
+					fromMe: fromMe,
 				};
 			} catch (e) {
 				// A quote that cannot be read is left out.
@@ -410,6 +416,27 @@
 			})
 			.filter((p) => !p.isMe)
 			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	// Emoji by name, for ":grin" in the message box: WhatsApp's own emoji search, which puts the user's
+	// recent emoji first. Its names are English; WhatsApp has none in Indonesian.
+	const EMOJI_DICTIONARY = "WAWebLocalesCldrEmojiSuggestionEn";
+	let emojiTrie = null;
+
+	async function emojiSuggestions(query, limit) {
+		if (!emojiTrie) {
+			let dictionary;
+			try {
+				dictionary = req(EMOJI_DICTIONARY);
+			} catch (e) {
+				// WhatsApp loads it the first time its emoji panel is searched.
+				dictionary = await req("JSResource")(EMOJI_DICTIONARY).load();
+			}
+			emojiTrie = await req("WAWebEmojiSearch").emojiLocaleDictsToTrie([dictionary.default || dictionary]);
+		}
+		return req("WAWebEmojiSearch")
+			.emojiSearch(String(query || ""), emojiTrie)
+			.slice(0, limit || 20);
 	}
 
 	async function sendText(chatId, text, quotedId, mentions) {
@@ -648,6 +675,8 @@
 			star: check("canStarMsg"),
 			starred: !!m.star,
 			edit: !!m.id.fromMe && m.type === "chat" && check("canEditText"),
+			// Why it cannot be edited: not the user's, not text, or too late, as WhatsApp allows a while only.
+			editBlocked: !m.id.fromMe ? "notMine" : m.type !== "chat" ? "notText" : check("canEditText") ? "" : "tooLate",
 			deleteForMe: true,
 			deleteForEveryone: check("canSenderRevokeMsg") || check("canAdminRevokeMsg"),
 			react: m.type !== "revoked" && m.type !== "call_log",
@@ -2105,6 +2134,11 @@
 		player.preservesPitch = true;
 		player.playbackRate = playbackRate;
 		player.volume = playbackVolume;
+		// Voice notes and statuses play on the speaker chosen for calls too.
+		const sink = callAudio.speaker ? await deviceIdFor("audiooutput", callAudio.speaker) : null;
+		if (sink && player.setSinkId) {
+			await player.setSinkId(sink).catch(() => {});
+		}
 		player.onended = () => emit({ type: "playbackEnded", messageId: messageId || null });
 		await player.play();
 		return true;
@@ -2405,16 +2439,82 @@
 
 	// The microphone and sound processing WhatsApp gets when it asks for the microphone for a call.
 	// The add-on's own voice note recording asks separately and is left alone.
-	let callAudio = { microphone: "", processing: "whatsapp" };
+	let callAudio = { microphone: "", processing: "whatsapp", speaker: "" };
 	let ownMicrophoneRequest = false;
 	let originalGetUserMedia = null;
+	// The speaker WhatsApp was last told to use; null until it is told once.
+	let appliedSpeaker = null;
 
-	function setCallAudio(options) {
-		callAudio = { microphone: (options && options.microphone) || "", processing: (options && options.processing) || "whatsapp" };
-		if (options && options.volume !== undefined) {
+	// A device's id from its name; "default" (the browser's, which follows Windows) for an empty name.
+	async function deviceIdFor(kind, label) {
+		if (!label) {
+			return "default";
+		}
+		const devices = await navigator.mediaDevices.enumerateDevices();
+		const device = devices.find((d) => d.kind === kind && d.label === label);
+		return device ? device.deviceId : null;
+	}
+
+	// The microphones and speakers, by name, without the browser's "Default" and "Communications" copies.
+	async function audioDevices() {
+		const devices = await navigator.mediaDevices.enumerateDevices();
+		const named = (kind) =>
+			devices
+				.filter((d) => d.kind === kind && d.deviceId !== "default" && d.deviceId !== "communications")
+				.map((d) => d.label);
+		return { microphones: named("audioinput"), speakers: named("audiooutput") };
+	}
+
+	function callInProgress() {
+		try {
+			return !!req("WAWebCallCollection").activeCall;
+		} catch (e) {
+			return false;
+		}
+	}
+
+	// Changes take effect at once: during a call through WhatsApp's own device switching, as when the
+	// user picks another device in WhatsApp's call screen; otherwise for the next call.
+	async function setCallAudio(options) {
+		options = options || {};
+		const before = callAudio;
+		callAudio = {
+			microphone: options.microphone || "",
+			processing: options.processing || "whatsapp",
+			speaker: options.speaker || "",
+		};
+		if (options.volume !== undefined) {
 			setCallVolume(options.volume);
 		}
-		return true;
+		const result = { speaker: false, microphone: false };
+		const devices = req("WAWebVoipAudioCaptureAndPlayback");
+		if (callAudio.speaker !== appliedSpeaker) {
+			const id = await deviceIdFor("audiooutput", callAudio.speaker);
+			if (id) {
+				try {
+					// With no call, WhatsApp keeps it as its choice for the next one.
+					await devices.switchAudioOutputDevice(id);
+					appliedSpeaker = callAudio.speaker;
+					result.speaker = true;
+				} catch (e) {
+					// The browser's speaker stays.
+				}
+				if (player && player.setSinkId) {
+					player.setSinkId(id).catch(() => {});
+				}
+			}
+		}
+		if (callAudio.microphone !== before.microphone && callInProgress()) {
+			const id = await deviceIdFor("audioinput", callAudio.microphone);
+			if (id) {
+				try {
+					result.microphone = !!(await devices.switchAudioInputDevice(id));
+				} catch (e) {
+					// The call keeps its microphone.
+				}
+			}
+		}
+		return result;
 	}
 
 	// How loud the other person is in a call, from 0 to 1. WhatsApp plays call audio either through an
@@ -2937,6 +3037,14 @@
 				chat: { id: chat.id._serialized, title: chatTitle(chat), isGroup: isGroupChat(chat), muted: !!(chat.mute && chat.mute.isMuted) },
 			});
 		});
+		// A message edited after it was sent, by its sender: on this computer, the phone, or someone else's.
+		const edited = (m) => {
+			if (m.latestEditMsgKey && m.id && m.id.remote) {
+				emit({ type: "edited", chatId: m.id.remote._serialized, message: messageInfo(m) });
+			}
+		};
+		on(C.Msg, "change:latestEditMsgKey", edited);
+		on(C.Msg, "change:body", edited);
 		on(C.Msg, "change:ack", (m) => {
 			if (m.id.fromMe) {
 				emit({ type: "ack", messageId: msgId(m), chatId: m.id.remote._serialized, ack: m.ack });
@@ -3062,6 +3170,8 @@
 		uploadCancel: uploadCancel,
 		sendFile: sendFile,
 		playRecording: playRecording,
+		audioDevices: audioDevices,
+		emojiSuggestions: emojiSuggestions,
 		playMessage: playMessage,
 		messageActions: messageActions,
 		setTyping: setTyping,

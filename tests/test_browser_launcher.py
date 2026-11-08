@@ -53,6 +53,18 @@ def test_the_hidden_browser_says_it_is_chrome_not_headless():
     agent = next(a for a in arguments if a.startswith("--user-agent="))
     assert "Chrome/157.0.0.0" in agent
     assert "Headless" not in agent
+    assert "--renderer-process-limit=1" in arguments
+    assert arguments[-1] == "about:blank"
     metadata = browserLauncher.chromeUserAgentMetadata((157, 1, 99, 55))
     assert [b["brand"] for b in metadata["brands"]] == ["Chromium", "Google Chrome", "Not=A?Brand"]
     assert metadata["fullVersionList"][1]["version"] == "157.0.0.0"
+
+
+def test_a_profile_is_in_use_while_its_lockfile_is_open(tmp_path):
+    assert not browserLauncher.profileInUse(str(tmp_path))
+    lock = tmp_path / "lockfile"
+    with open(lock, "w"):
+        assert browserLauncher.profileInUse(str(tmp_path))
+    # Once the browser is gone the stale lockfile is cleared.
+    assert not browserLauncher.profileInUse(str(tmp_path))
+    assert not lock.exists()

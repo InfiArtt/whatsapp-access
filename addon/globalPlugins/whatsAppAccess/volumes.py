@@ -25,6 +25,31 @@ STEP = 5
 
 # The volume F7 and F8 change, kept while NVDA runs.
 _kind = KINDS[0]
+# Saving waits until the keys have rested, so holding F7 does not write the file at every step.
+SAVE_DELAY_MS = 2000
+_saveTimer = None
+
+
+def _save() -> None:
+	global _saveTimer
+	_saveTimer = None
+	# Only when NVDA would save on exit anyway: whoever turned that off saves their settings themselves.
+	if not config.conf["general"]["saveConfigurationOnExit"]:
+		return
+	try:
+		config.conf.save()
+	except Exception as e:  # noqa: BLE001 - kept until NVDA exits
+		log.debugWarning(f"WhatsApp Access: saving the volume: {e}")
+
+
+def saveSoon() -> None:
+	"""Keep a changed volume at once, so it is not lost if NVDA does not exit normally."""
+	import wx
+
+	global _saveTimer
+	if _saveTimer is not None:
+		_saveTimer.Stop()
+	_saveTimer = wx.CallLater(SAVE_DELAY_MS, _save)
 
 
 def kindName(kind: str) -> str:
@@ -56,6 +81,7 @@ def change(step: int, session: "WhatsAppSession | None") -> None:
 	settings = config.conf[CONFIG_SECTION]
 	value = max(0, min(100, int(settings[_kind]) + step))
 	settings[_kind] = value
+	saveSoon()
 	# Translators: Said after F7 or F8 changes a volume, such as "75 percent".
 	ui.message(_("{value} percent").format(value=value))
 	if _kind == "effectsVolume":

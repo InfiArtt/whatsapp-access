@@ -141,6 +141,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		return found[0] if found else 0
 
 	def terminate(self) -> None:
+		sounds.stopRing()
 		if WhatsAppSettingsPanel in NVDASettingsDialog.categoryClasses:
 			NVDASettingsDialog.categoryClasses.remove(WhatsAppSettingsPanel)
 		if self.window:
@@ -346,14 +347,16 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		"""Give WhatsApp the chosen microphone and sound processing for calls."""
 		settings = config.conf[CONFIG_SECTION]
 		microphone, processing = settings["microphone"], settings["callProcessing"]
+		speaker = settings["speaker"]
 		self.session.callVolume = int(settings["callVolume"])
 		if not connect:
 			self.session.callAudio = (microphone, processing)
+			self.session.speaker = speaker
 			return
 
 		def apply() -> None:
 			try:
-				self.session.setCallAudio(microphone, processing)
+				self.session.setCallAudio(microphone, processing, speaker)
 				self.session.setCallVolume(self.session.callVolume)
 			except WhatsAppError as e:
 				log.debugWarning(f"WhatsApp Access: call audio: {e}")
@@ -512,6 +515,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			window.onAck(event.get("messageId", ""), event.get("ack", 0))
 		elif kind == "presence" and window:
 			window.onPresence(event.get("chatId", ""), event.get("presence"))
+		elif kind == "edited" and window:
+			window.onEdited(event.get("message") or {})
 		elif kind == "reactions" and window:
 			window.onReactions(event.get("messageId", ""), event.get("reactions") or [])
 		elif kind == "call":
@@ -574,6 +579,109 @@ def soundNames() -> list[str]:
 		# Translators: No sound for new messages.
 		_("None"),
 	]
+
+
+def openOwnSoundsFolder() -> None:
+	"""Open the folder whose WAV files replace the add-on's sounds of the same name, making it first."""
+	folder = sounds.ownSoundsFolder()
+	try:
+		os.makedirs(folder, exist_ok=True)
+		names = sorted(
+			os.path.splitext(name)[0] for name in os.listdir(sounds.SOUNDS_DIR) if name.endswith(".wav")
+		)
+		with open(os.path.join(folder, "sound names.txt"), "w", encoding="utf-8") as file:
+			file.write(
+				# Translators: The text file in the folder for the user's own sounds.
+				_(
+					"Put WAV files here named as the add-on's sounds below, such as sent.wav. "
+					"Each one plays instead of the add-on's sound; the others stay as they are."
+				)
+				+ "\n\n"
+				+ "\n".join(f"{name}.wav" for name in names)
+				+ "\n"
+			)
+		os.startfile(folder)
+	except OSError as e:
+		log.debugWarning(f"WhatsApp Access: own sounds folder: {e}")
+		# Translators: Said when the folder for the user's own sounds could not be opened.
+		ui.message(_("The folder for your own sounds could not be opened"))
+
+
+class SoundSetting:
+	"""A choice of the add-on's sounds, None, or a WAV file of the user's own, with a button that picks
+	the file. Moving through the choices plays each sound, so the user hears what they choose."""
+
+	def __init__(
+		self,
+		panel: wx.Window,
+		helper: "gui.guiHelper.BoxSizerHelper",
+		label: str,
+		fileLabel: str,
+		builtIn: list[tuple[str, str]],
+		value: str,
+	) -> None:
+		self.panel = panel
+		self.builtIn = builtIn
+		self.value = value
+		self.choice = helper.addLabeledControl(label, wx.Choice, choices=[])
+		row = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: A button after a choice of sound: plays it, or stops it if it is playing.
+		self.playButton = wx.Button(panel, label=_("Play"))
+		self.playButton.Bind(wx.EVT_BUTTON, lambda evt: self._playOrStop())
+		self.button = wx.Button(panel, label=fileLabel)
+		self.button.Bind(wx.EVT_BUTTON, lambda evt: self._chooseFile())
+		row.Add(self.playButton, 0, wx.RIGHT, 6)
+		row.Add(self.button)
+		helper.addItem(row)
+		self.choice.Bind(wx.EVT_CHOICE, lambda evt: self._chosen())
+		self._fill()
+
+	def _fill(self) -> None:
+		self.items = list(self.builtIn)
+		if os.path.isabs(self.value) and self.value not in [key for key, label in self.builtIn]:
+			# Translators: In a choice of sounds: the WAV file the user picked, by its name.
+			self.items.append((self.value, _("Your file: {name}").format(name=os.path.basename(self.value))))
+		self.choice.Set([label for key, label in self.items])
+		keys = [key for key, label in self.items]
+		self.choice.SetSelection(keys.index(self.value) if self.value in keys else 0)
+		if self.value not in keys:
+			self.value = keys[0]
+
+	def _chosen(self) -> None:
+		self.value = self.items[self.choice.GetSelection()][0]
+		self._preview()
+
+	def _preview(self) -> None:
+		sounds.preview(self.value)
+
+	def _playOrStop(self) -> None:
+		if sounds.previewPlaying():
+			sounds.stopRing()
+			# Translators: Said when the user stops a sound playing in the settings.
+			ui.message(_("Stopped"))
+		elif self.value == "none":
+			# Translators: Said when the user presses Play while no sound is chosen.
+			ui.message(_("No sound chosen"))
+		else:
+			self._preview()
+
+	def _chooseFile(self) -> None:
+		dialog = wx.FileDialog(
+			self.panel,
+			# Translators: The title of the file picker for a chat's own sound.
+			_("Choose a WAV file"),
+			wildcard="WAV (*.wav)|*.wav",
+			style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+		)
+		try:
+			if dialog.ShowModal() != wx.ID_OK:
+				return
+			self.value = dialog.GetPath()
+		finally:
+			dialog.Destroy()
+		self._fill()
+		self.choice.SetFocus()
+		self._preview()
 
 
 class WhatsAppSettingsPanel(SettingsPanel):
@@ -664,6 +772,28 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			choices=microphoneLabels,
 		)
 		self.microphoneChoice.SetSelection(self.microphones.index(settings["microphone"]))
+		self.speakers = [""]
+		speakerLabels = [
+			# Translators: The first choice in the list of speakers: the one Windows uses.
+			_("Windows default")
+		]
+		if plugin is not None and plugin.session.connected:
+			try:
+				for speaker in plugin.session.audioDevices().get("speakers", []):
+					self.speakers.append(speaker)
+					speakerLabels.append(speaker)
+			except WhatsAppError as e:
+				log.debugWarning(f"WhatsApp Access: could not list speakers: {e}")
+		if settings["speaker"] and settings["speaker"] not in self.speakers:
+			self.speakers.append(settings["speaker"])
+			speakerLabels.append(settings["speaker"])
+		self.speakerChoice = helper.addLabeledControl(
+			# Translators: The label of the list of speakers and headphones in this add-on's settings.
+			_("Sp&eaker for calls, voice notes and statuses:"),
+			wx.Choice,
+			choices=speakerLabels,
+		)
+		self.speakerChoice.SetSelection(self.speakers.index(settings["speaker"]))
 		self.callProcessingChoice = helper.addLabeledControl(
 			# Translators: The label of a choice in this add-on's settings: sound processing during calls.
 			_("Sound processing in ca&lls:"),
@@ -691,21 +821,49 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		# Translators: A checkbox in this add-on's settings.
 		self.soundsBox = helper.addItem(wx.CheckBox(self, label=_("Play the add-on's so&unds")))
 		self.soundsBox.SetValue(settings["sounds"])
-		self.soundKeys = list(notifications.NOTIFICATION_SOUNDS) + ["none"]
-		self.personalSoundChoice = helper.addLabeledControl(
+		messageSounds = list(zip([*notifications.NOTIFICATION_SOUNDS, "none"], soundNames(), strict=True))
+		self.personalSound = SoundSetting(
+			self,
+			helper,
 			# Translators: The label of the choice of sound for new messages in personal chats.
 			_("Sound for new messages in pe&rsonal chats:"),
-			wx.Choice,
-			choices=soundNames(),
+			# Translators: A button after the choice of sound for personal chats.
+			_("Choose a WAV file for personal chats…"),
+			messageSounds,
+			settings["personalSound"],
 		)
-		self.personalSoundChoice.SetSelection(self.soundKeys.index(settings["personalSound"]))
-		self.groupSoundChoice = helper.addLabeledControl(
+		self.groupSound = SoundSetting(
+			self,
+			helper,
 			# Translators: The label of the choice of sound for new messages in groups.
 			_("Sound for new messages in &groups:"),
-			wx.Choice,
-			choices=soundNames(),
+			# Translators: A button after the choice of sound for groups.
+			_("Choose a WAV file for groups…"),
+			messageSounds,
+			settings["groupSound"],
 		)
-		self.groupSoundChoice.SetSelection(self.soundKeys.index(settings["groupSound"]))
+		self.ringSound = SoundSetting(
+			self,
+			helper,
+			# Translators: The label of the choice of ringtone for incoming calls.
+			_("Ri&ngtone for calls:"),
+			# Translators: A button after the choice of ringtone.
+			_("Choose a WAV file for the ringtone…"),
+			[
+				# Translators: The add-on's own ringtone.
+				("ring", _("Ring")),
+				# Translators: No ringtone: NVDA only says who is calling.
+				("none", _("None, NVDA only says who calls")),
+				# Translators: One of Windows' own ringtones in the choice of ringtone, such as "Windows: Ring 01".
+				*[(path, _("Windows: {name}").format(name=name)) for path, name in sounds.windowsRingtones()],
+			],
+			settings["ringSound"],
+		)
+		self.ownSoundsButton = helper.addItem(
+			# Translators: A button in this add-on's settings: opens the folder for the user's own sounds.
+			wx.Button(self, label=_("&Open the folder for your own sounds"))
+		)
+		self.ownSoundsButton.Bind(wx.EVT_BUTTON, lambda evt: openOwnSoundsFolder())
 		self.volumeSpins = {}
 		for key, label in (
 			# Translators: The label of a volume in this add-on's settings, in percent.
@@ -722,6 +880,7 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			self.volumeSpins[key] = helper.addLabeledControl(
 				label, nvdaControls.SelectOnFocusSpinCtrl, min=0, max=100, initial=settings[key]
 			)
+		self._volumesShown = {key: spin.GetValue() for key, spin in self.volumeSpins.items()}
 		self.contentBox = helper.addItem(
 			# Translators: A checkbox in this add-on's settings.
 			wx.CheckBox(self, label=_("Read out what new messages say, not only who they are &from"))
@@ -809,7 +968,15 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		settings["checkUpdates"] = self.checkUpdatesBox.GetValue()
 		# Before the call audio is applied, which includes the call volume.
 		for key, spin in self.volumeSpins.items():
-			settings[key] = spin.GetValue()
+			# Only volumes changed here: F7 and F8 may have changed others since the panel opened.
+			if spin.GetValue() != self._volumesShown[key]:
+				settings[key] = spin.GetValue()
+		# Before the call audio is applied, so a new microphone or speaker takes over at once.
+		settings["microphone"] = self.microphones[self.microphoneChoice.GetSelection()]
+		settings["speaker"] = self.speakers[self.speakerChoice.GetSelection()]
+		settings["callProcessing"] = ("whatsapp", "echoOnly", "none")[
+			self.callProcessingChoice.GetSelection()
+		]
 		plugin = self.plugin
 		if plugin is not None:
 			plugin._applyCallAudio()
@@ -817,16 +984,13 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			# The next NVDA+Shift+W connects the new way.
 			plugin.disconnectForChange()
 		settings["announce"] = ANNOUNCE_CHOICES[self.announceChoice.GetSelection()]
-		settings["microphone"] = self.microphones[self.microphoneChoice.GetSelection()]
-		settings["callProcessing"] = ("whatsapp", "echoOnly", "none")[
-			self.callProcessingChoice.GetSelection()
-		]
 		settings["stereo"] = self.stereoBox.GetValue()
 		settings["rawMicrophone"] = self.rawBox.GetValue()
 		settings["voiceKbps"] = self.kbpsSpin.GetValue()
 		settings["sounds"] = self.soundsBox.GetValue()
-		settings["personalSound"] = self.soundKeys[self.personalSoundChoice.GetSelection()]
-		settings["groupSound"] = self.soundKeys[self.groupSoundChoice.GetSelection()]
+		settings["personalSound"] = self.personalSound.value
+		settings["groupSound"] = self.groupSound.value
+		settings["ringSound"] = self.ringSound.value
 		settings["readContent"] = self.contentBox.GetValue()
 		settings["hints"] = self.hintsBox.GetValue()
 		settings["playbackSpeed"] = ("1", "1.5", "2")[self.speedChoice.GetSelection()]

@@ -226,3 +226,34 @@ def test_the_hidden_browser_gets_chromes_user_agent_before_whatsapp_opens():
     assert override < methods.index("Page.navigate")
     assert browser.received[override]["params"]["userAgent"] == "Mozilla/5.0 Chrome/157.0.0.0"
     session.close()
+
+
+def test_memory_is_given_back_when_a_call_ends():
+    received = threading.Event()
+    browser = page({"window.__waAccess.install()": True, **LINKED})
+    original = browser.handler
+
+    def handler(message):
+        if message["method"] == "HeapProfiler.collectGarbage":
+            received.set()
+        return original(message)
+
+    browser.handler = handler
+    session = session_for(browser)
+
+    def call(state):
+        payload = {"type": "call", "call": state}
+        browser.send(
+            {
+                "method": "Runtime.bindingCalled",
+                "params": {"name": whatsApp.EVENT_BINDING, "payload": json.dumps(payload)},
+                "sessionId": "S1",
+            }
+        )
+
+    call({"state": "connected", "isGroup": True})
+    call(None)
+    assert received.wait(5)
+    methods = [m["method"] for m in browser.received]
+    assert methods.index("Memory.simulatePressureNotification") < methods.index("HeapProfiler.collectGarbage")
+    session.close()

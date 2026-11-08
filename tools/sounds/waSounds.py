@@ -191,6 +191,36 @@ def call_reaction():
     return done(tr, 0.15, 0.7)
 
 
+def chat_open():
+    """Opening a chat: a soft breath and two quick music-box notes rising A5 to D6, a door opening."""
+    seed(118)
+    tr = Track(0.8)
+    a = airy(0.18, 1400, 2400, 3400, 5000, voices=80)
+    tr.add(a * np.sin(np.pi * np.linspace(0, 1, len(a))) ** 2, 0.0, np.linspace(-0.3, 0.3, len(a)), 0.05)
+    tr.add(darken(bell("A5", 0.5, 0.25, 0.22), 3600), 0.0, -0.15, 0.24)
+    tr.add(darken(bell("D6", 0.6, 0.3, 0.22), 3800), 0.07, 0.15, 0.24)
+    return done(tr, 0.2, 1.0)
+
+
+def chat_close():
+    """Closing a chat: the same two notes falling D6 to A5, softer, the door closing."""
+    seed(119)
+    tr = Track(0.8)
+    tr.add(darken(bell("D6", 0.45, 0.22, 0.2), 3200), 0.0, 0.15, 0.22)
+    tr.add(darken(bell("A5", 0.55, 0.28, 0.2), 3000), 0.07, -0.15, 0.22)
+    return done(tr, 0.2, 1.0)
+
+
+def open_chat_message():
+    """A message in the chat you have open: one round, low music-box "blup", D5 over a soft A4, short and
+    quieter than a notification, so it sits inside the conversation."""
+    seed(120)
+    tr = Track(0.6)
+    tr.add(darken(bell("A4", 0.45, 0.2, 0.22), 1800), 0.0, -0.1, 0.18)
+    tr.add(darken(bell("D5", 0.5, 0.22, 0.22), 2200), 0.03, 0.1, 0.26)
+    return done(tr, 0.18, 0.9)
+
+
 SOUNDS = {
     "sent": sent,
     "received": received,
@@ -209,6 +239,9 @@ SOUNDS = {
     "callLeave": call_leave,
     "callHand": call_hand,
     "callReaction": call_reaction,
+    "chatOpen": chat_open,
+    "chatClose": chat_close,
+    "openChatMessage": open_chat_message,
 }
 
 if __name__ == "__main__":

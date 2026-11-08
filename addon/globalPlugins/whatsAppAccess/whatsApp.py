@@ -27,6 +27,11 @@ UPLOAD_CHUNK_BYTES = 512 * 1024
 MAX_FILE_BYTES = 200 * 2**20
 # How often the add-on tells the page it is still there. The page gives up after 60 seconds.
 HEARTBEAT_SECONDS = 20.0
+# WhatsApp Web keeps about 100 to 300 MB of JavaScript. Every few minutes the add-on looks, and above
+# this it asks the browser to give memory back, as Chromium does by itself when the computer runs low.
+# Nothing is reloaded, so calls, recordings and uploads go on undisturbed.
+MEMORY_CHECK_SECONDS = 300.0
+MEMORY_TRIM_BYTES = 500 * 1024 * 1024
 BRIDGE_PATH = os.path.join(os.path.dirname(__file__), "pageBridge.js")
 
 
@@ -130,9 +135,12 @@ class WhatsAppSession:
 		self.quietWhatsAppNotifications = False
 		self.linked = False
 		self.callAudio: tuple[str, str] = ("", "whatsapp")
+		self.speaker = ""
 		# How loud the other person is in calls, in percent; kept for the next connection.
 		self.callVolume = 100
 		self._heartbeat: threading.Thread | None = None
+		self._memoryGuard: threading.Thread | None = None
+		self._inCall = False
 
 	@property
 	def connected(self) -> bool:
@@ -208,6 +216,11 @@ class WhatsAppSession:
 				self._connection = None
 				connection.close()
 				raise WhatsAppError("failed", str(e)) from e
+		if self._memoryGuard is None or not self._memoryGuard.is_alive():
+			self._memoryGuard = threading.Thread(
+				target=self._guardMemory, name="whatsAppAccess.memory", daemon=True
+			)
+			self._memoryGuard.start()
 		return self.installBridge()
 
 	def installBridge(self) -> str:
@@ -240,6 +253,7 @@ class WhatsAppSession:
 					{
 						"microphone": self.callAudio[0],
 						"processing": self.callAudio[1],
+						"speaker": self.speaker,
 						"volume": self.callVolume / 100,
 					},
 				)
@@ -300,6 +314,39 @@ class WhatsAppSession:
 				pass
 			time.sleep(HEARTBEAT_SECONDS)
 
+	def _guardMemory(self) -> None:
+		"""Keep the hidden browser's memory down through long sessions, such as a call all night."""
+		waited = 0.0
+		while not self._closing:
+			time.sleep(5)
+			waited += 5
+			if waited < MEMORY_CHECK_SECONDS or not self.connected:
+				continue
+			waited = 0.0
+			try:
+				if self.memoryInUse() > MEMORY_TRIM_BYTES:
+					self.trimMemory()
+			except WhatsAppError:
+				pass
+
+	def memoryInUse(self) -> int:
+		"""The bytes of JavaScript WhatsApp Web uses now."""
+		return int(self._call("Runtime.getHeapUsage").get("usedSize", 0))
+
+	def trimMemory(self) -> None:
+		"""Ask the browser to free what it can: caches, and memory nothing uses any more."""
+		self._call("Memory.simulatePressureNotification", {"level": "critical"})
+		self._call("HeapProfiler.collectGarbage")
+
+	def _trimSoon(self) -> None:
+		def trim() -> None:
+			try:
+				self.trimMemory()
+			except WhatsAppError:
+				pass
+
+		threading.Thread(target=trim, name="whatsAppAccess.trim", daemon=True).start()
+
 	def close(self) -> None:
 		self._closing = True
 		connection = self._connection
@@ -320,6 +367,12 @@ class WhatsAppSession:
 				event = json.loads(params.get("payload", ""))
 			except ValueError:
 				return
+			if event.get("type") == "call":
+				inCall = bool(event.get("call"))
+				if self._inCall and not inCall:
+					# A call leaves much behind it, the longer it was the more; give it back at once.
+					self._trimSoon()
+				self._inCall = inCall
 			if self._onEvent is not None:
 				self._onEvent(event)
 		elif method == "Runtime.executionContextCreated":
@@ -768,12 +821,27 @@ class WhatsAppSession:
 		"""The call ringing or in progress: name, incoming, ringing, connected, ended, video, group."""
 		return self._bridge("callState")
 
-	def setCallAudio(self, microphone: str, processing: str) -> None:
-		"""The microphone (by name; empty for the browser's) and sound processing WhatsApp gets for calls:
-		"whatsapp" leaves WhatsApp's own, "echoOnly" keeps only echo cancellation, "none" turns all off."""
+	def setCallAudio(self, microphone: str, processing: str, speaker: str | None = None) -> dict:
+		"""The microphone and speaker (by name; empty for the default) and sound processing for calls:
+		"whatsapp" leaves WhatsApp's own, "echoOnly" keeps only echo cancellation, "none" turns all off.
+
+		They change at once, in a call too. Returns which of "microphone" and "speaker" changed now.
+		"""
 		self.callAudio = (microphone, processing)
-		if self.connected:
-			self._bridge("setCallAudio", {"microphone": microphone, "processing": processing})
+		if speaker is not None:
+			self.speaker = speaker
+		if not self.connected:
+			return {}
+		options = {"microphone": microphone, "processing": processing, "speaker": self.speaker}
+		return self._bridge("setCallAudio", options, timeout=30) or {}
+
+	def emojiSuggestions(self, query: str, limit: int = 20) -> list[str]:
+		"""Emoji whose English names start with what the user typed after ":", the best first."""
+		return self._bridge("emojiSuggestions", query, limit) or []
+
+	def audioDevices(self) -> dict:
+		"""The names of the microphones and speakers: {"microphones": [...], "speakers": [...]}."""
+		return self._bridge("audioDevices") or {}
 
 	def setCallVolume(self, percent: int) -> None:
 		"""How loud the other person is in calls, from 0 to 100, now and in later calls."""

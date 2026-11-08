@@ -35,6 +35,13 @@ def test_a_chat_can_have_its_own_sound_and_say_less():
     assert not decide(PERSONAL, readContent=False).withContent
 
 
+def test_the_open_chat_has_its_own_sound():
+    assert decide(PERSONAL, inOpenChat=True).sound == "openChatMessage"
+    assert decide(GROUP, inOpenChat=True).sound == "openChatMessage"
+    assert decide(PERSONAL, Rule(sound="notifyFlute"), inOpenChat=True).sound == "openChatMessage"
+    assert decide(PERSONAL, Rule(sound="none"), inOpenChat=True).sound is None
+
+
 def test_rules_are_kept_as_json_without_defaults():
     rules = {"1@c.us": Rule(announce="always", sound="notifyBell"), "2@g.us": Rule()}
     text = notifications.saveRules(rules)

@@ -30,11 +30,26 @@ def duration(seconds: float) -> str:
 	return _("{seconds} sec").format(seconds=seconds)
 
 
+# WhatsApp's formatting: ```monospace```, `code`, *bold*, _italic_ and ~strikethrough~. A mark counts only
+# next to text and not inside a word, as in WhatsApp, so 2*3*4, snake_case and "a * b" stay as they are.
+_FORMATTING = [re.compile(r"```(.+?)```", re.DOTALL)] + [
+	re.compile(r"(?<![\w%s])%s(?=\S)([^\n]*?\S)%s(?![\w%s])" % ((re.escape(mark),) * 4))
+	for mark in ("`", "*", "_", "~")
+]
+
+
+def plainText(text: str) -> str:
+	"""A message's text without WhatsApp's formatting marks, so they are not read out."""
+	for pattern in _FORMATTING:
+		text = pattern.sub(r"\1", text)
+	return text
+
+
 def content(message: dict) -> str:
 	"""What a message says or holds, without who sent it."""
 	kind = message.get("type", "")
-	text = message.get("text", "")
-	caption = message.get("caption", "")
+	text = plainText(message.get("text", ""))
+	caption = plainText(message.get("caption", ""))
 	if kind == "chat":
 		return text
 	if kind == "ptt":
@@ -190,6 +205,9 @@ def messageLine(message: dict, isGroup: bool, now: float | None = None) -> str:
 		# Translators: After a message that answers an earlier one: who wrote the earlier one, and its start
 		# in quotation marks, such as: quoting Anas: "Ada yang tahu cara pasang add-on?"
 		parts.append(_('quoting {sender}: "{text}"').format(sender=sender(quoted), text=quotedText))
+	if message.get("edited"):
+		# Translators: Said after a message its sender changed after sending it, as WhatsApp shows "Edited".
+		parts.append(_("edited"))
 	if message.get("isForwarded"):
 		# Translators: Said after a message that was forwarded from another chat.
 		parts.append(_("forwarded"))

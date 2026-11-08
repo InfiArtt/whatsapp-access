@@ -32,7 +32,8 @@ Tekan **NVDA+Shift+W**. Add-on menanyakan cara menjangkau WhatsApp:
 
 - **Browser tersembunyi milik add-on** (disarankan). WhatsApp Web berjalan tanpa jendela, dengan
   profilnya sendiri, jadi browser Anda dan tab-tabnya tidak pernah disentuh. Ia bisa menyala bersama
-  NVDA, jadi pesan baru dan panggilan sampai kapan saja. Ia memakai sekitar 400 sampai 600 MB memori.
+  NVDA, jadi pesan baru dan panggilan sampai kapan saja. Ia memakai sekitar 1 GB memori, sebanyak WhatsApp Web di
+  tab browser.
 - **WhatsApp Web di browser Anda sendiri**, kalau Anda memang membukanya di sana. Lihat
   [Memakai browser Anda sendiri](#memakai-browser-anda-sendiri).
 
@@ -59,20 +60,24 @@ atau tidak memakai WhatsApp di ponsel sekitar 14 hari, seperti semua perangkat t
 | Ctrl+R | Di chat | Merekam voice note; Ctrl+Shift+R mengirimnya. |
 | Applications | Di pesan atau chat | Menunya: balas, reaksi, teruskan, hapus, dan lainnya. |
 | Alt+T | Di chat | Mendengar apakah orangnya online atau kapan terakhir dilihat. |
+| Ctrl+Tab | Di chat | Chat berikutnya di daftar; Ctrl+Shift+Tab yang sebelumnya. |
+| Panah atas | Kotak pesan kosong | Mengedit pesan terakhir Anda, seperti di WhatsApp: Enter menyimpan, Escape membatalkan. |
 | Ctrl+1 sampai Ctrl+8 | Jendela | Chat, Status, Panggilan, Diarsipkan, Berbintang, Saluran, Komunitas, Pengaturan. |
 | NVDA+Alt+A | Di mana saja | Mengangkat panggilan, atau kembali ke jendela panggilan. |
 | NVDA+Alt+H | Di mana saja | Menolak panggilan, atau mengakhirinya. |
 | NVDA+Alt+M | Di mana saja | Mematikan atau menyalakan mikrofon saat panggilan. |
 | Escape | Jendela | Kembali ke daftar chat, atau menutup jendela. WhatsApp tetap berjalan. |
 
-Semua tombol bisa diganti di dialog Input Gestures NVDA, kategori WhatsApp Access.
+Empat tombol yang bekerja di mana saja (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H, dan NVDA+Alt+M) bisa
+diganti di dialog Input Gestures NVDA, kategori WhatsApp Access. Tombol di dalam jendela WhatsApp tidak
+bisa diganti.
 
 ## Jendela
 
 Jendela punya bagian, seperti bilah samping WhatsApp: **Chat** (Ctrl+1), **Status** (Ctrl+2),
 **Panggilan** (Ctrl+3), **Diarsipkan** (Ctrl+4), **Berbintang** (Ctrl+5), **Saluran** (Ctrl+6),
 **Komunitas** (Ctrl+7), dan **Pengaturan** (Ctrl+8). Ctrl+Tab dan Ctrl+Shift+Tab pindah ke bagian
-berikutnya dan sebelumnya. Bagian ini bukan tab: tekan Tab melewati kontrol sebuah bagian untuk
+berikutnya dan sebelumnya; di dalam chat, keduanya pindah ke chat berikutnya dan sebelumnya. Bagian ini bukan tab: tekan Tab melewati kontrol sebuah bagian untuk
 sampai ke daftar **Bagian**, yang menyebut bagian mana yang sedang dibuka; pilih yang lain dengan
 panah lalu tekan Enter.
 
@@ -126,7 +131,12 @@ pesan baru dan panggilan.
 ### Menulis dan mengirim
 
 - Tulis di **Ketik pesan** (Alt+E) lalu tekan **Enter** untuk mengirim. Ketik @ di grup untuk
-  menyebut seseorang: panah atas dan bawah memilih, Enter mengambilnya.
+  menyebut seseorang: panah atas dan bawah memilih, Enter mengambilnya. Ketik : dan awal nama emoji
+  dalam bahasa Inggris, seperti :grin atau :fire, untuk emoji: panah kiri dan kanan memilih, Enter
+  mengambilnya.
+- **Shift+Enter** membuat baris baru. **Ctrl+B**, **Ctrl+I**, dan **Ctrl+Shift+X** membuat teks yang
+  dipilih tebal, miring, atau dicoret, seperti di WhatsApp; ditekan lagi, formatnya dilepas. Pesan
+  dibacakan tanpa tanda formatnya; Alt+C menampilkannya seperti yang ditulis.
 - Untuk membalas satu pesan, pilih pesannya lalu tekan **Alt+R**; Escape membatalkan balasan.
 - Untuk mengirim file, tekan **Alt+A** untuk memilihnya, atau salin di File Explorer lalu tekan
   **Ctrl+V** di kotak pesan. Foto dan video dikirim sebagai foto dan video, audio sebagai audio,
@@ -193,7 +203,7 @@ dan **Status saya**, yang menyebut siapa saja yang melihat setiap status Anda da
 
 ## Panggilan
 
-Saat ada yang menelepon, add-on memutar nada dering dan menyebut siapa, di mana pun Anda berada.
+Saat ada yang menelepon, add-on berdering sampai Anda mengangkat atau menolak, dan menyebut siapa, di mana pun Anda berada.
 **NVDA+Alt+A** mengangkat dan **NVDA+Alt+H** menolak. Jendela panggilan muncul tanpa mengambil fokus.
 
 Selama panggilan:
@@ -221,8 +231,10 @@ Di panggilan grup, jendela panggilan juga punya:
 NVDA menyebut siapa yang bergabung, keluar, mengangkat tangan, dan memberi reaksi, masing-masing
 dengan bunyi kecilnya sendiri.
 
-Panggilan diangkat dengan mikrofon dan tanpa kamera. Di pengaturan add-on Anda memilih mikrofon dan
-seberapa banyak pengolahan suara untuk panggilan.
+Panggilan diangkat dengan mikrofon dan tanpa kamera. Di pengaturan add-on Anda memilih mikrofon,
+speaker, dan seberapa banyak pengolahan suara untuk panggilan. Untuk berganti saat panggilan, misalnya
+dari headset ke speaker laptop, tekan **Mikrofon dan speaker** di jendela panggilan: panggilannya
+langsung pindah. Voice note dan status diputar di speaker yang sama.
 
 ## Berbintang, Saluran, dan Komunitas
 
@@ -264,8 +276,14 @@ Menu NVDA, Preferences, Settings, **WhatsApp Access**:
   bersama NVDA;
 - **Putuskan tautan komputer ini**: keluar dari WhatsApp di sini dan menghapus data browser
   tersembunyi;
-- pesan baru mana yang dibacakan, suaranya, dan apakah isinya ikut dibacakan;
-- mikrofon, dan pengolahan suaranya di panggilan;
+- pesan baru mana yang dibacakan, dan apakah isinya ikut dibacakan;
+- suara untuk chat pribadi dan untuk grup (berbeda sejak awal, supaya bisa dibedakan) dan nada dering:
+  milik add-on, salah satu nada dering Windows, tidak ada, atau file WAV Anda sendiri. Bergerak di
+  daftarnya memutar tiap suara, dan **Putar** memutar pilihan itu lagi atau menghentikannya;
+- **Buka folder suara Anda sendiri**: file WAV yang Anda taruh di sana dengan nama salah satu suara
+  add-on, misalnya sent.wav atau openChatMessage.wav (pesan di chat yang sedang dibuka), diputar
+  menggantikannya. Folder itu berisi daftar namanya;
+- mikrofon dan speaker, dan pengolahan suara di panggilan;
 - voice note: stereo, suara asli mikrofon, kualitas;
 - kecepatan putar, lima volume, suara add-on, dan petunjuk (tombol yang perlu ditekan berikutnya);
 - pemeriksaan versi baru.

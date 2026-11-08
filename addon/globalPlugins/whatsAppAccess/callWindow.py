@@ -9,11 +9,13 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import config
 import ui
 import wx
 from logHandler import log
 
 from . import messageText, sounds, volumes
+from .configSpec import CONFIG_SECTION
 from .whatsApp import WhatsAppError, WhatsAppSession
 
 
@@ -82,12 +84,16 @@ class CallWindow(wx.Dialog):
 		# Translators: A button in a group call: sends a reaction, such as a thumbs up, to everyone.
 		self.reactButton = wx.Button(self, label=_("Rea&ct\u2026"))
 		self.reactButton.Bind(wx.EVT_BUTTON, lambda evt: self._react())
+		# Translators: A button in a call: choose the microphone and the speaker or headphones.
+		self.devicesButton = wx.Button(self, label=_("Microphone and &speaker…"))
+		self.devicesButton.Bind(wx.EVT_BUTTON, lambda evt: AudioDevicesDialog(self, self.session).ShowModal())
 		for button in (
 			self.answerButton,
 			self.declineButton,
 			self.muteButton,
 			self.handButton,
 			self.reactButton,
+			self.devicesButton,
 			self.endButton,
 		):
 			buttons.Add(button, 0, wx.RIGHT, 6)
@@ -183,6 +189,7 @@ class CallWindow(wx.Dialog):
 			(self.muteButton, active and bool(call.get("connected"))),
 			(self.handButton, inGroup),
 			(self.reactButton, inGroup),
+			(self.devicesButton, active),
 			(self.endButton, active),
 			(self.peopleLabel, inGroup),
 			(self.peopleList, inGroup),
@@ -377,6 +384,16 @@ class CallAnnouncer:
 
 	def onCall(self, call: dict | None) -> None:
 		before = self.call or {}
+		ringing = bool(
+			call
+			and call.get("incoming")
+			and call.get("ringing")
+			and not call.get("connected")
+			and not call.get("ended")
+		)
+		if not ringing:
+			# Answered, declined, missed or over: the ring stops at once.
+			sounds.stopRing()
 		if call is None:
 			if before and not before.get("ended"):
 				self._ended(before)
@@ -390,7 +407,7 @@ class CallAnnouncer:
 			self.connectedAt = None
 			self.muted = False
 			if call.get("incoming"):
-				sounds.play(sounds.RING)
+				sounds.startRing(config.conf[CONFIG_SECTION]["ringSound"])
 				# Translators: Read out when someone calls the user: the kind of call and who.
 				message = _("Incoming {kind} from {name}").format(
 					kind=callKind(call), name=call.get("name", "")
@@ -541,3 +558,67 @@ class CallAnnouncer:
 			self._showWindow(focus=False)
 		self.window.hangUp()
 		return True
+
+
+class AudioDevicesDialog(wx.Dialog):
+	"""Choose the microphone and the speaker; each change takes effect at once, during the call too."""
+
+	def __init__(self, parent: wx.Window, session: WhatsAppSession) -> None:
+		# Translators: The title of the dialog that chooses the microphone and speaker.
+		super().__init__(parent, title=_("Microphone and speaker"))
+		self.session = session
+		settings = config.conf[CONFIG_SECTION]
+		try:
+			devices = session.audioDevices()
+		except WhatsAppError:
+			devices = {}
+		# Translators: The first choice in the list of microphones: whatever the browser uses.
+		self.microphones = [("", _("Browser default"))]
+		self.microphones += [(name, name) for name in devices.get("microphones", [])]
+		# Translators: The first choice in the list of speakers: the one Windows uses.
+		self.speakers = [("", _("Windows default"))]
+		self.speakers += [(name, name) for name in devices.get("speakers", [])]
+		for items, key in ((self.microphones, "microphone"), (self.speakers, "speaker")):
+			if settings[key] and settings[key] not in [name for name, label in items]:
+				items.append((settings[key], settings[key]))
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		# Translators: The label of the list of microphones in the call's device dialog.
+		sizer.Add(wx.StaticText(self, label=_("&Microphone:")), 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
+		self.microphoneChoice = wx.Choice(self, choices=[label for name, label in self.microphones])
+		sizer.Add(self.microphoneChoice, 0, wx.EXPAND | wx.ALL, 8)
+		# Translators: The label of the list of speakers in the call's device dialog.
+		sizer.Add(wx.StaticText(self, label=_("&Speaker:")), 0, wx.LEFT | wx.RIGHT, 8)
+		self.speakerChoice = wx.Choice(self, choices=[label for name, label in self.speakers])
+		sizer.Add(self.speakerChoice, 0, wx.EXPAND | wx.ALL, 8)
+		self.microphoneChoice.SetSelection([n for n, label in self.microphones].index(settings["microphone"]))
+		self.speakerChoice.SetSelection([n for n, label in self.speakers].index(settings["speaker"]))
+		self.microphoneChoice.Bind(wx.EVT_CHOICE, lambda evt: self._apply())
+		self.speakerChoice.Bind(wx.EVT_CHOICE, lambda evt: self._apply())
+		closeButton = wx.Button(self, wx.ID_CLOSE)
+		closeButton.Bind(wx.EVT_BUTTON, lambda evt: self.EndModal(wx.ID_CLOSE))
+		self.SetEscapeId(wx.ID_CLOSE)
+		sizer.Add(closeButton, 0, wx.ALIGN_RIGHT | wx.ALL, 8)
+		self.SetSizerAndFit(sizer)
+		self.CentreOnParent()
+		self.microphoneChoice.SetFocus()
+
+	def _apply(self) -> None:
+		settings = config.conf[CONFIG_SECTION]
+		settings["microphone"] = self.microphones[self.microphoneChoice.GetSelection()][0]
+		settings["speaker"] = self.speakers[self.speakerChoice.GetSelection()][0]
+		volumes.saveSoon()
+		microphone, speaker, processing = (
+			settings["microphone"],
+			settings["speaker"],
+			settings["callProcessing"],
+		)
+
+		def apply() -> None:
+			try:
+				self.session.setCallAudio(microphone, processing, speaker)
+			except WhatsAppError as e:
+				log.debugWarning(f"WhatsApp Access: switching devices: {e}")
+				# Translators: Reported when the microphone or speaker could not be changed.
+				wx.CallAfter(ui.message, _("Could not change the device. {detail}").format(detail=e.code))
+
+		threading.Thread(target=apply, name="whatsAppAccess.devices", daemon=True).start()

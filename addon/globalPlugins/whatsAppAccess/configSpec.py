@@ -32,8 +32,11 @@ CONFIG_SPEC = {
 	# How fast voice messages play: 1, 1.5 or 2 times, as in WhatsApp.
 	"playbackSpeed": 'option("1", "1.5", "2", default="1")',
 	# The sound of a new message in a personal chat and in a group, unless a chat has its own.
-	"personalSound": 'option("received", "notifyBell", "notifyKalimba", "notifyFlute", "none", default="received")',
-	"groupSound": 'option("received", "notifyBell", "notifyKalimba", "notifyFlute", "none", default="received")',
+	"personalSound": 'string(default="received")',
+	# Different from personal chats at first, so a group's message can be told apart by its sound.
+	"groupSound": 'string(default="notifyKalimba")',
+	# The ring for incoming calls: "ring" (the add-on's), "none", or a WAV file's full path.
+	"ringSound": 'string(default="ring")',
 	# Read out what a new message says, or only who it is from.
 	"readContent": "boolean(default=True)",
 	# Each chat's own notification rule, as JSON; see notifications.py.
@@ -56,4 +59,6 @@ CONFIG_SPEC = {
 	"callProcessing": 'option("whatsapp", "echoOnly", "none", default="whatsapp")',
 	# The microphone's name, for voice notes and calls, or empty for the browser's default.
 	"microphone": 'string(default="")',
+	# The speaker's name, for calls, voice notes and statuses, or empty for Windows' default.
+	"speaker": 'string(default="")',
 }
