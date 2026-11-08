@@ -84,7 +84,13 @@
 	}
 
 	function chatTitle(chat) {
-		return chat.formattedTitle || chat.name || (chat.contact && chat.contact.formattedName) || chat.id.user || "";
+		return (
+			chat.formattedTitle ||
+			chat.name ||
+			(chat.contact && chat.contact.formattedName) ||
+			(chat.id.server === "lid" ? contactName(chat.id) : chat.id.user) ||
+			""
+		);
 	}
 
 	// Sending to "status@broadcast" posts the user's own status; that chat is not in the chat list.
@@ -408,14 +414,16 @@
 				const contact = C.Contact.get(p.id);
 				return {
 					id: p.id.toString(),
-					name: personName(contact) || p.id.user,
+					// Not in the contacts: their phone number, as WhatsApp shows it, not the hidden id.
+					name: contactName(p.id),
 					pushname: (contact && contact.pushname) || "",
 					isAdmin: !!(p.isAdmin || p.isSuperAdmin),
 					isMe: myIds.has(p.id.toString()) || !!(contact && contact.isMe),
 				};
 			})
 			.filter((p) => !p.isMe)
-			.sort((a, b) => a.name.localeCompare(b.name));
+			// Named people first, then phone numbers, as in WhatsApp.
+			.sort((a, b) => a.name.startsWith("+") - b.name.startsWith("+") || a.name.localeCompare(b.name));
 	}
 
 	// Emoji by name, for ":grin" in the message box: WhatsApp's own emoji search, which puts the user's
@@ -519,7 +527,7 @@
 				if (isMe) {
 					option.mine = true;
 				} else {
-					option.voters.push(name || sender.split("@")[0]);
+					option.voters.push(name || contactName(sender));
 				}
 			}
 		}
@@ -596,7 +604,7 @@
 		const C = collections();
 		const list = (people) =>
 			(people && people.getModelsArray ? people.getModelsArray() : [])
-				.map((p) => ({ name: personName(C.Contact.get(p.id)) || String((p.id && p.id.user) || p.id), t: p.t || 0 }))
+				.map((p) => ({ name: contactName(p.id), t: p.t || 0 }))
 				.sort((a, b) => a.t - b.t);
 		let info = null;
 		try {
@@ -1319,8 +1327,7 @@
 		return ((all && all.reactions && all.reactions.getModelsArray()) || []).map((r) => ({
 			emoji: r.aggregateEmoji,
 			people: r.senders.getModelsArray().map((s) => ({
-				name:
-					personName(s.senderObj || C.Contact.get(s.senderUserJid)) || String(s.senderUserJid).split("@")[0],
+				name: personName(s.senderObj) || contactName(s.senderUserJid),
 				isMe: me.has(String(s.senderUserJid)),
 				t: Math.floor((s.timestamp || 0) / 1000),
 			})),
@@ -2299,7 +2306,7 @@
 			const gm = chat.groupMetadata || {};
 			const people = gm.participants ? gm.participants.getModelsArray() : [];
 			const myIds = myIdSet();
-			const owner = gm.owner ? personName(C.Contact.get(gm.owner)) || String(gm.owner.user || gm.owner) : "";
+			const owner = gm.owner ? contactName(gm.owner) : "";
 			return {
 				kind: "group",
 				title: chatTitle(chat),
@@ -2308,7 +2315,7 @@
 				creator: owner,
 				participants: people
 					.map((p) => ({
-						name: personName(C.Contact.get(p.id)) || String(p.id.user),
+						name: contactName(p.id),
 						admin: !!(p.isAdmin || p.isSuperAdmin),
 						isMe: myIds.has(p.id.toString()),
 					}))
@@ -2369,7 +2376,7 @@
 				const last = items.length ? items[items.length - 1] : null;
 				return {
 					id: String(s.id),
-					name: personName(C.Contact.get(s.id)) || String((s.id && s.id.user) || s.id),
+					name: contactName(s.id),
 					unread: Math.max(0, s.unreadCount || 0),
 					t: last ? last.t : s.t || 0,
 					items: items,

@@ -13,6 +13,9 @@ notes the add-on shows before it installs an update.
 Fixed:
 
 - Saving a group's description in Manage group failed, as WhatsApp moved how it is saved.
+- People not in your contacts showed as a long hidden number in group participants, group info, poll
+  voters, who read a message, reactions and status viewers; they now show their phone number, after
+  the people with names.
 
 ## [0.3.2]
 
