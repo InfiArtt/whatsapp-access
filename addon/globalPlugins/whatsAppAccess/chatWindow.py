@@ -19,7 +19,7 @@ import ui
 import wx
 from logHandler import log
 
-from . import messageText, notifications, sounds, volumes
+from . import messageText, notifications, shortcuts, sounds, volumes
 from .configSpec import CONFIG_SECTION
 from .moreDialogs import (
 	CreateEventDialog,
@@ -1273,17 +1273,7 @@ class ChatWindow(wx.Dialog):
 			if self._playingId == message["id"]:
 				self._stopPlayback()
 				return
-			self._playingId = message["id"]
-			settings = config.conf[CONFIG_SECTION]
-			speed, volume = float(settings["playbackSpeed"]), int(settings["voiceVolume"])
-			self._run(
-				lambda: (
-					self.session.setPlaybackRate(speed),
-					self.session.setPlaybackVolume(volume),
-					self.session.playMessage(message["id"]),
-				),
-				onError=lambda e: self._playbackEnded(),
-			)
+			self._playVoice(message)
 		elif message.get("type") in OPENED_TYPES:
 			self._openFile(message)
 		else:
@@ -1528,6 +1518,15 @@ class ChatWindow(wx.Dialog):
 		self._run(lambda: self.session.download(message["id"], folder=folder), describe)
 
 	# Reading, copying, reacting and deleting with keys -------------------------------------------------
+
+	def _showShortcuts(self) -> None:
+		"""Ctrl+/: every keyboard shortcut, as WhatsApp lists its own."""
+		# Translators: The title of the window listing the keyboard shortcuts (Ctrl+/).
+		dialog = TextDialog(self, "", shortcuts.shortcutsText(), title=_("Keyboard shortcuts"))
+		try:
+			dialog.ShowModal()
+		finally:
+			dialog.Destroy()
 
 	def _readText(self) -> None:
 		"""Alt+C: the message's text alone, in a box to read by character, word or line."""
@@ -3538,8 +3537,35 @@ class ChatWindow(wx.Dialog):
 				self._refreshMessageLine(message)
 				return
 
-	def onPlaybackEnded(self) -> None:
-		self._playingId = None
+	def _playVoice(self, message: dict) -> None:
+		self._playingId = message["id"]
+		settings = config.conf[CONFIG_SECTION]
+		speed, volume = float(settings["playbackSpeed"]), int(settings["voiceVolume"])
+		self._run(
+			lambda: (
+				self.session.setPlaybackRate(speed),
+				self.session.setPlaybackVolume(volume),
+				self.session.playMessage(message["id"]),
+			),
+			onError=lambda e: self._playbackEnded(),
+		)
+
+	def onPlaybackEnded(self, messageId: str | None = None) -> None:
+		"""A voice message ended: as in WhatsApp, the voice message right after it plays next."""
+		finished, self._playingId = self._playingId, None
+		if finished is None or (messageId and messageId != finished):
+			return
+		index = next((i for i, m in enumerate(self._messages) if m.get("id") == finished), -1)
+		following = self._messages[index + 1] if 0 <= index < len(self._messages) - 1 else None
+		# Only a voice message straight after: a text, a document or anything else ends the run.
+		if following is None or self._messages[index].get("type") != "ptt" or following.get("type") != "ptt":
+			return
+		if wx.Window.FindFocus() is self.messageList and self.messageList.GetSelection() == index:
+			# The cursor follows, as long as the user is still on the one that ended.
+			self.messageList.SetSelection(index + 1)
+			if config.conf[CONFIG_SECTION]["sayNextVoiceMessage"]:
+				ui.message(messageText.messageLine(following, bool(self.chat and self.chat.get("isGroup"))))
+		self._playVoice(following)
 
 	# Selecting several messages or chats, as WhatsApp's "Select" -------------------------------------------
 
@@ -3909,6 +3935,9 @@ class ChatWindow(wx.Dialog):
 		if inConversation and focus is self.composeBox and (modifiers, key) in _FORMAT_KEYS:
 			self._format(*_FORMAT_KEYS[(modifiers, key)])
 			return
+		if modifiers == wx.MOD_CONTROL and key in (ord("/"), wx.WXK_NUMPAD_DIVIDE, wx.WXK_DIVIDE):
+			self._showShortcuts()
+			return
 		if modifiers == wx.MOD_CONTROL and ord("1") <= key <= ord("8"):
 			self.showTab(key - ord("1"))
 			return
@@ -4196,11 +4225,11 @@ class PollDialog(wx.Dialog):
 class TextDialog(wx.Dialog):
 	"""A message's text alone, read-only, to read by character, word or line. Escape closes it."""
 
-	def __init__(self, parent: wx.Window, sender: str, text: str) -> None:
-		# Translators: The title of the window that shows one message's text, with who sent it.
+	def __init__(self, parent: wx.Window, sender: str, text: str, title: str = "") -> None:
 		super().__init__(
 			parent,
-			title=_("Message from {sender}").format(sender=sender),
+			# Translators: The title of the window that shows one message's text, with who sent it.
+			title=title or _("Message from {sender}").format(sender=sender),
 			style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
 		)
 		sizer = wx.BoxSizer(wx.VERTICAL)

@@ -3,6 +3,13 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.3.2]
+
+- Ctrl+/ lists every keyboard shortcut, by section and in WhatsApp's words, as WhatsApp does.
+- Voice messages play one after another, as in WhatsApp: when one ends, the voice message right after
+  it plays, until a text or anything else comes between. In the messages list the cursor follows, and
+  NVDA reads the next one; a setting keeps NVDA quiet.
+
 ## [0.3.1]
 
 Fixed:

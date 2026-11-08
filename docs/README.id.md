@@ -66,6 +66,7 @@ atau tidak memakai WhatsApp di ponsel sekitar 14 hari, seperti semua perangkat t
 | NVDA+Alt+A | Di mana saja | Mengangkat panggilan, atau kembali ke jendela panggilan. |
 | NVDA+Alt+H | Di mana saja | Menolak panggilan, atau mengakhirinya. |
 | NVDA+Alt+M | Di mana saja | Mematikan atau menyalakan mikrofon saat panggilan. |
+| Ctrl+/ | Jendela | Semua pintasan keyboard, per bagian. |
 | Escape | Jendela | Kembali ke daftar chat, atau menutup jendela. WhatsApp tetap berjalan. |
 
 Empat tombol yang bekerja di mana saja (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H, dan NVDA+Alt+M) bisa
@@ -160,7 +161,7 @@ jauh lebih jernih daripada perekam WhatsApp sendiri. Semuanya bisa diubah di pen
 
 | Tombol | Fungsinya |
 |---|---|
-| Enter | Memutar pesan suara atau suara video (Enter lagi menghentikan); membuka foto atau dokumen; memilih di polling; detail acara. |
+| Enter | Memutar pesan suara atau suara video (Enter lagi menghentikan); membuka foto atau dokumen; memilih di polling; detail acara. Pesan suara yang berurutan diputar beruntun, dan kursor ikut pindah. |
 | Ctrl+S | Pesan suara 1x, 1,5x, atau 2x, seperti di WhatsApp. |
 | Alt+C | Menampilkan teks pesan saja, untuk dibaca per huruf, kata, atau baris. |
 | Ctrl+C | Menyalin teks pesan. |

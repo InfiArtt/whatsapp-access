@@ -528,7 +528,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		elif kind == "call":
 			self.calls.onCall(event.get("call"))
 		elif kind == "playbackEnded" and window:
-			window.onPlaybackEnded()
+			window.onPlaybackEnded(event.get("messageId"))
 		elif kind == "connection":
 			self._onConnection(event.get("state") or {})
 
@@ -897,6 +897,15 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			wx.CheckBox(self, label=_("Use &hints, such as which keys send or throw away a voice note"))
 		)
 		self.hintsBox.SetValue(settings["hints"])
+		self.sayNextVoiceBox = helper.addItem(
+			wx.CheckBox(
+				self,
+				# Translators: A checkbox in this add-on's settings: voice messages play one after another, and
+				# the messages list moves to the next one; this says whether NVDA reads it out too.
+				label=_("Read out the next voice message when voice messages play one after another"),
+			)
+		)
+		self.sayNextVoiceBox.SetValue(settings["sayNextVoiceMessage"])
 		speedLabels = ("1x", "1.5x", "2x")
 		self.speedChoice = helper.addLabeledControl(
 			# Translators: The label of a choice in this add-on's settings: how fast voice messages play.
@@ -999,6 +1008,7 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		settings["ringSound"] = self.ringSound.value
 		settings["readContent"] = self.contentBox.GetValue()
 		settings["hints"] = self.hintsBox.GetValue()
+		settings["sayNextVoiceMessage"] = self.sayNextVoiceBox.GetValue()
 		settings["playbackSpeed"] = ("1", "1.5", "2")[self.speedChoice.GetSelection()]
 		replace = self.replaceBox.GetValue()
 		settings["replaceNotifications"] = replace

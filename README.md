@@ -65,6 +65,7 @@ phone for about 14 days, as for every linked device.
 | NVDA+Alt+H | Anywhere | Decline a call, or end it. |
 | NVDA+Alt+M | Anywhere | Microphone off or on during a call. |
 | Escape | Window | Back to the chat list, or close the window. WhatsApp keeps running. |
+| Ctrl+/ | Window | Every keyboard shortcut, by section. |
 
 The four keys that work anywhere (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H and NVDA+Alt+M) can be changed in
 NVDA's Input Gestures dialog, category WhatsApp Access. The keys inside the WhatsApp window can't be changed.
@@ -153,7 +154,7 @@ all of this in the add-on's settings.
 
 | Key | What it does |
 |---|---|
-| Enter | Play a voice message or a video's sound (Enter again stops); open a photo or document; vote in a poll; an event's details. |
+| Enter | Play a voice message or a video's sound (Enter again stops); open a photo or document; vote in a poll; an event's details. Voice messages right after each other play one after another, and the cursor follows. |
 | Ctrl+S | Voice messages at 1x, 1.5x or 2x, as in WhatsApp. |
 | Alt+C | Show the message's text alone, to read it by character, word or line. |
 | Ctrl+C | Copy the message's text. |

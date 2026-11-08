@@ -29,6 +29,8 @@ CONFIG_SPEC = {
 	"replaceNotifications": "boolean(default=True)",
 	# Add which keys to press to messages, such as "Ctrl+Shift+R sends it" after recording.
 	"hints": "boolean(default=True)",
+	# When voice messages play one after another, the messages list moves to the next; NVDA reads it too.
+	"sayNextVoiceMessage": "boolean(default=True)",
 	# How fast voice messages play: 1, 1.5 or 2 times, as in WhatsApp.
 	"playbackSpeed": 'option("1", "1.5", "2", default="1")',
 	# The sound of a new message in a personal chat and in a group, unless a chat has its own.

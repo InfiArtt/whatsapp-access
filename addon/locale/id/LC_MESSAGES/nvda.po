@@ -2215,3 +2215,328 @@ msgstr "Taruh file WAV di sini dengan nama suara add-on di bawah, misalnya sent.
 #. Translators: Said when the folder for the user's own sounds could not be opened.
 msgid "The folder for your own sounds could not be opened"
 msgstr "Folder suara Anda sendiri tidak bisa dibuka"
+
+#. Translators: A section of the keyboard shortcuts list: keys that work in any program.
+msgid "From any program"
+msgstr "Dari program apa pun"
+
+#. Translators: A section of the keyboard shortcuts list: keys anywhere in the WhatsApp window.
+msgid "General"
+msgstr "Umum"
+
+#. Translators: A section of the keyboard shortcuts list.
+msgid "Chat list"
+msgstr "Daftar chat"
+
+#. Translators: A section of the keyboard shortcuts list: keys in an open chat.
+msgid "Chat"
+msgstr "Chat"
+
+#. Translators: A section of the keyboard shortcuts list: keys in the message box.
+msgid "Typing a message"
+msgstr "Mengetik pesan"
+
+#. Translators: A section of the keyboard shortcuts list: keys on a message in the messages list.
+msgid "Messages"
+msgstr "Pesan"
+
+#. Translators: A section of the keyboard shortcuts list: selecting several messages or chats.
+msgid "Select"
+msgstr "Pilih"
+
+#. Translators: A section of the keyboard shortcuts list: recording voice messages.
+msgid "Voice messages"
+msgstr "Pesan suara"
+
+#. Translators: A section of the keyboard shortcuts list.
+msgid "Calls"
+msgstr "Panggilan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Open WhatsApp"
+msgstr "Buka WhatsApp"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Answer the call, or return to the call"
+msgstr "Angkat panggilan, atau kembali ke panggilan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Decline or end the call"
+msgstr "Tolak atau akhiri panggilan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Mute or unmute the microphone"
+msgstr "Bisukan atau bunyikan mikrofon"
+
+#. Translators: In the keyboard shortcuts list: the keys that open the window's sections.
+msgid "Ctrl+1 to Ctrl+8"
+msgstr "Ctrl+1 sampai Ctrl+8"
+
+#. Translators: In the keyboard shortcuts list: the sections Ctrl+1 to Ctrl+8 open, in order.
+msgid "Chats, Status, Calls, Archived, Starred, Channels, Communities, Settings"
+msgstr "Chat, Status, Panggilan, Diarsipkan, Berbintang, Saluran, Komunitas, Pengaturan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Search messages in all chats"
+msgstr "Cari pesan di semua chat"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Next section; in a chat, next chat"
+msgstr "Bagian berikutnya; di chat, chat berikutnya"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Previous section; in a chat, previous chat"
+msgstr "Bagian sebelumnya; di chat, chat sebelumnya"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Choose a volume: sound effects, notifications, voice messages, status, call"
+msgstr "Pilih volume: efek suara, notifikasi, pesan suara, status, panggilan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Volume down, volume up"
+msgstr "Kecilkan volume, besarkan volume"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Keyboard shortcuts"
+msgstr "Pintasan keyboard"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Close chat, or close the window; WhatsApp keeps running"
+msgstr "Tutup chat, atau tutup jendela; WhatsApp tetap berjalan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Search chats"
+msgstr "Cari chat"
+
+#. Translators: In the keyboard shortcuts list: Alt+1 to Alt+4 and the chat filters they choose.
+msgid "Alt+1 to Alt+4"
+msgstr "Alt+1 sampai Alt+4"
+
+#. Translators: In the keyboard shortcuts list: Alt+1 to Alt+4 and the chat filters they choose.
+msgid "All, Unread, Groups, Favorites"
+msgstr "Semua, Belum dibaca, Grup, Favorit"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Next unread chat"
+msgstr "Chat belum dibaca berikutnya"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Open chat"
+msgstr "Buka chat"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Applications"
+msgstr "Tombol Aplikasi"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Archive, mute, pin, mark as unread, notifications"
+msgstr "Arsipkan, bisukan, sematkan, tandai belum dibaca, notifikasi"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Delete chat"
+msgstr "Hapus chat"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Type a message"
+msgstr "Ketik pesan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Online or last seen"
+msgstr "Online atau terakhir dilihat"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Search in chat"
+msgstr "Cari di chat"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Voice call"
+msgstr "Panggilan suara"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Attach"
+msgstr "Lampirkan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Send"
+msgstr "Kirim"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "New line"
+msgstr "Baris baru"
+
+#. Translators: In the keyboard shortcuts list: Up Arrow in the empty message box.
+msgid "Up Arrow, in the empty box"
+msgstr "Panah atas, di kotak kosong"
+
+#. Translators: In the keyboard shortcuts list: Up Arrow in the empty message box.
+msgid "Edit last message"
+msgstr "Edit pesan terakhir"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Bold"
+msgstr "Tebal"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Italic"
+msgstr "Miring"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Strikethrough"
+msgstr "Coret"
+
+#. Translators: In the keyboard shortcuts list: typing @ in a group.
+msgid "Mention someone: Up and Down Arrow choose, Enter adds"
+msgstr "Sebut seseorang: panah atas dan bawah memilih, Enter menambahkan"
+
+#. Translators: In the keyboard shortcuts list: typing : and part of an emoji's name.
+msgid ":name"
+msgstr ":nama"
+
+#. Translators: In the keyboard shortcuts list: typing : and part of an emoji's name.
+msgid "Emoji: Left and Right Arrow choose, Enter adds"
+msgstr "Emoji: panah kiri dan kanan memilih, Enter menambahkan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Paste; files copied in File Explorer are attached"
+msgstr "Tempel; file yang disalin di File Explorer dilampirkan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Cancel reply or edit"
+msgstr "Batalkan balasan atau edit"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Play or stop a voice message; open a photo, video or document"
+msgstr "Putar atau hentikan pesan suara; buka foto, video, atau dokumen"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Voice message speed: 1x, 1.5x, 2x"
+msgstr "Kecepatan pesan suara: 1x, 1,5x, 2x"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Reply"
+msgstr "Balas"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "React"
+msgstr "Beri reaksi"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Forward"
+msgstr "Teruskan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Read the message's text"
+msgstr "Baca teks pesan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Copy"
+msgstr "Salin"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Download"
+msgstr "Unduh"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Open link"
+msgstr "Buka tautan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Describe photo"
+msgstr "Jelaskan foto"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Star, edit, pin, reply privately, and more"
+msgstr "Bintangi, edit, sematkan, balas secara pribadi, dan lainnya"
+
+#. Translators: In the keyboard shortcuts list: Up Arrow on the first message of a chat.
+msgid "Up Arrow, on the first message"
+msgstr "Panah atas, di pesan pertama"
+
+#. Translators: In the keyboard shortcuts list: Up Arrow on the first message of a chat.
+msgid "Load older messages"
+msgstr "Muat pesan lebih lama"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Shift+Up Arrow, Shift+Down Arrow"
+msgstr "Shift+panah atas, Shift+panah bawah"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Select while moving"
+msgstr "Pilih sambil bergerak"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Space"
+msgstr "Spasi"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Select or unselect"
+msgstr "Pilih atau batal pilih"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Select all"
+msgstr "Pilih semua"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Clear selection"
+msgstr "Hapus pilihan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Record; while recording, stop and listen"
+msgstr "Rekam; saat merekam, berhenti lalu dengarkan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Send voice message"
+msgstr "Kirim pesan suara"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Pause or resume recording"
+msgstr "Jeda atau lanjutkan rekaman"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Delete voice message"
+msgstr "Hapus pesan suara"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Mute or unmute"
+msgstr "Bisukan atau bunyikan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Raise or lower hand"
+msgstr "Angkat atau turunkan tangan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Who is speaking"
+msgstr "Siapa yang berbicara"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Hide the call window; the call goes on"
+msgstr "Sembunyikan jendela panggilan; panggilan tetap berlangsung"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Left and Right Arrow"
+msgstr "Panah kiri dan kanan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Previous and next status"
+msgstr "Status sebelumnya dan berikutnya"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Ctrl+Left and Ctrl+Right Arrow"
+msgstr "Ctrl+panah kiri dan Ctrl+panah kanan"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Previous and next person"
+msgstr "Orang sebelumnya dan berikutnya"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Play or stop; describe a photo"
+msgstr "Putar atau hentikan; jelaskan foto"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Like"
+msgstr "Suka"
+
+#. Translators: A checkbox in this add-on's settings: voice messages play one after another, and
+#. the messages list moves to the next one; this says whether NVDA reads it out too.
+msgid "Read out the next voice message when voice messages play one after another"
+msgstr "Bacakan pesan suara berikutnya saat pesan suara diputar beruntun"
