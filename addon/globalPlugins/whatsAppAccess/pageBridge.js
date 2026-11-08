@@ -1095,7 +1095,25 @@
 		if (field === "subject") {
 			await req("WAWebSetSubjectGroupAction").setGroupSubject(chat, String(value));
 		} else if (field === "description") {
-			await req("WAWebSetDescAction").setDesc(chat, String(value));
+			// WAWebSetDescAction is empty now; this is the job WhatsApp's own group info screen runs. Each
+			// description has an id, and the server checks the new one replaces the one it has.
+			const gm = chat.groupMetadata;
+			const desc = String(value);
+			const bytes = crypto.getRandomValues(new Uint8Array(16));
+			const newDescId = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+			try {
+				await req("WAWebGroupModifyInfoJob").setGroupDescription({
+					desc: desc || null,
+					groupWid: chat.id,
+					newDescId: newDescId,
+					prevDescId: (gm && gm.descId) || null,
+				});
+			} catch (e) {
+				throw serverError(e);
+			}
+			if (gm) {
+				gm.set({ desc: desc, descId: newDescId });
+			}
 		}
 		return true;
 	}

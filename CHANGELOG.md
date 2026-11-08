@@ -10,6 +10,10 @@ notes the add-on shows before it installs an update.
   chose, such as English, to check before sending; Ctrl+T again gives back your own words. Both
   languages are chosen in the settings. The text goes to Google Translate only when you press Ctrl+T.
 
+Fixed:
+
+- Saving a group's description in Manage group failed, as WhatsApp moved how it is saved.
+
 ## [0.3.2]
 
 - Ctrl+/ lists every keyboard shortcut, by section and in WhatsApp's words, as WhatsApp does.
