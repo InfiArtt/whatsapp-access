@@ -302,7 +302,7 @@
 			t: chat.t || 0,
 			pinned: !!chat.pin,
 			archived: !!chat.archive,
-			muted: !!(chat.mute && chat.mute.isMuted),
+			muted: isMutedChat(chat),
 			favorite: !!chat.isFavorite,
 			last: last,
 			disappearing: 0,
@@ -1676,6 +1676,19 @@
 		return { info: String(stream.info || ""), mode: String(stream.mode || ""), socket: String(socket.state || ""), online: online };
 	}
 
+	// Whether the chat's notifications are muted, as WhatsApp itself decides it; mute.isMuted is gone.
+	function isMutedChat(chat) {
+		if (!chat.mute) {
+			return false;
+		}
+		try {
+			return !!req("WAWebMuteGetters").getIsMuted(chat.mute);
+		} catch (e) {
+			const expiration = chat.mute.expiration || 0;
+			return expiration === -1 || expiration * 1000 > Date.now();
+		}
+	}
+
 	async function chatAction(chatId, action, seconds) {
 		const chat = getChat(chatId);
 		if (action === "archive" || action === "unarchive") {
@@ -3034,7 +3047,7 @@
 			emit({
 				type: "message",
 				message: messageInfo(m),
-				chat: { id: chat.id._serialized, title: chatTitle(chat), isGroup: isGroupChat(chat), muted: !!(chat.mute && chat.mute.isMuted) },
+				chat: { id: chat.id._serialized, title: chatTitle(chat), isGroup: isGroupChat(chat), muted: isMutedChat(chat) },
 			});
 		});
 		// A message edited after it was sent, by its sender: on this computer, the phone, or someone else's.

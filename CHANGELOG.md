@@ -10,6 +10,11 @@ notes the add-on shows before it installs an update.
   it plays, until a text or anything else comes between. In the messages list the cursor follows, and
   NVDA reads the next one; a setting keeps NVDA quiet.
 
+Fixed:
+
+- Muted chats were never shown as muted, their menu offered to mute them again, and new messages in
+  muted chats were read out. WhatsApp changed how it marks a muted chat; the add-on now asks WhatsApp.
+
 ## [0.3.1]
 
 Fixed:
