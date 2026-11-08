@@ -110,6 +110,19 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 			ctypes.windll.user32.SetForegroundWindow(dialog)
 			return
+		window = self.window
+		if window and window.isQuietFocus(getattr(obj, "windowHandle", 0)):
+			# The messages list followed the voice messages and the user wants quiet: NVDA still tracks
+			# the focus, but says nothing.
+			import speech
+
+			mode = speech.getState().speechMode
+			speech.setSpeechMode(speech.SpeechMode.off)
+			try:
+				nextHandler()
+			finally:
+				speech.setSpeechMode(mode)
+			return
 		nextHandler()
 
 	def _openDialogOf(self, obj) -> int:

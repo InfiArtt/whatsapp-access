@@ -76,6 +76,8 @@ FILE_TYPES = ("image", "video", "ptv", "document", "sticker", "audio", "ptt")
 OPENED_TYPES = ("image", "video", "ptv", "document", "sticker")
 # Played in the hidden browser, with no other program: voice notes, audio, and the sound of videos.
 PLAYED_TYPES = ("ptt", "audio", "video", "ptv")
+# How long after the messages list moves to the next voice message its focus change may be kept quiet.
+QUIET_FOCUS_SECONDS = 1.0
 
 
 def withHint(message: str, hint: str) -> str:
@@ -187,6 +189,7 @@ class ChatWindow(wx.Dialog):
 		self._hasRecording = False
 		self._loadingEarlier = False
 		self._playingId: str | None = None
+		self._quietFocusUntil = 0.0
 
 		main = wx.BoxSizer(wx.VERTICAL)
 		self._archivedChats: list[dict] = []
@@ -3561,11 +3564,19 @@ class ChatWindow(wx.Dialog):
 		if following is None or self._messages[index].get("type") != "ptt" or following.get("type") != "ptt":
 			return
 		if wx.Window.FindFocus() is self.messageList and self.messageList.GetSelection() == index:
-			# The cursor follows, as long as the user is still on the one that ended.
+			# The cursor follows, as long as the user is still on the one that ended. NVDA reads the new
+			# message itself, unless the user asked for quiet.
+			if not config.conf[CONFIG_SECTION]["sayNextVoiceMessage"]:
+				self._quietFocusUntil = time.monotonic() + QUIET_FOCUS_SECONDS
 			self.messageList.SetSelection(index + 1)
-			if config.conf[CONFIG_SECTION]["sayNextVoiceMessage"]:
-				ui.message(messageText.messageLine(following, bool(self.chat and self.chat.get("isGroup"))))
 		self._playVoice(following)
+
+	def isQuietFocus(self, windowHandle: int) -> bool:
+		"""Whether NVDA should not read this focus change: the messages list following voice messages."""
+		if windowHandle != self.messageList.GetHandle() or time.monotonic() > self._quietFocusUntil:
+			return False
+		self._quietFocusUntil = 0.0
+		return True
 
 	# Selecting several messages or chats, as WhatsApp's "Select" -------------------------------------------
 
