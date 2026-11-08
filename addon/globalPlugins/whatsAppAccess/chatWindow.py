@@ -21,6 +21,14 @@ from logHandler import log
 
 from . import messageText, notifications, sounds, volumes
 from .configSpec import CONFIG_SECTION
+from .moreDialogs import (
+	CreateEventDialog,
+	CreatePollDialog,
+	ManageGroupDialog,
+	PrivacyDialog,
+	ProfileDialog,
+	TextStatusDialog,
+)
 from .whatsApp import WhatsAppError, WhatsAppSession
 
 MESSAGES_TO_LOAD = 50
@@ -163,18 +171,53 @@ class ChatWindow(wx.Dialog):
 		self._calls: list[dict] = []
 		# The sections are pages without tabs: screen reader users found a tab control awkward. The
 		# Sections list, reached with Tab, moves between them, like WhatsApp's sidebar.
+		self.calls = None
+		self.callPanel = wx.Panel(self)
+		callSizer = wx.BoxSizer(wx.HORIZONTAL)
+		self.callText = wx.StaticText(self.callPanel, label="")
+		callSizer.Add(self.callText, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+		# Translators: A button in the WhatsApp window during a call: shows the call's window again.
+		self.returnToCallButton = wx.Button(self.callPanel, label=_("Return to call (NVDA+Alt+A)"))
+		self.returnToCallButton.Bind(wx.EVT_BUTTON, lambda evt: self.calls and self.calls.answerOrShow())
+		callSizer.Add(self.returnToCallButton, 0, wx.RIGHT, 6)
+		self.callMuteButton = wx.Button(self.callPanel, label="")
+		self.callMuteButton.Bind(wx.EVT_BUTTON, lambda evt: self.calls and self.calls.toggleMute())
+		callSizer.Add(self.callMuteButton)
+		self.callPanel.SetSizer(callSizer)
+		self.callPanel.Hide()
+		main.Add(self.callPanel, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 6)
 		self.tabs = wx.Simplebook(self)
 		self.chatsPanel = wx.Panel(self.tabs)
 		self.statusPanel = wx.Panel(self.tabs)
 		self.callsPanel = wx.Panel(self.tabs)
 		self.archivedPanel = wx.Panel(self.tabs)
+		self.starredPanel = wx.Panel(self.tabs)
+		self.channelsPanel = wx.Panel(self.tabs)
+		self.communitiesPanel = wx.Panel(self.tabs)
+		self.settingsPanel = wx.Panel(self.tabs)
+		self._starred: list[dict] = []
+		self._goToMessageId: str | None = None
+		self._channels: list[dict] = []
+		self._communities: list[dict] = []
 		self._buildChatsPanel(self.chatsPanel)
 		self._buildStatusPanel(self.statusPanel)
 		self._buildCallsPanel(self.callsPanel)
 		self._buildArchivedPanel(self.archivedPanel)
-		for page, label in zip(
-			(self.chatsPanel, self.statusPanel, self.callsPanel, self.archivedPanel), tabNames(), strict=True
-		):
+		self._buildStarredPanel(self.starredPanel)
+		self._buildChannelsPanel(self.channelsPanel)
+		self._buildCommunitiesPanel(self.communitiesPanel)
+		self._buildSettingsPanel(self.settingsPanel)
+		pages = (
+			self.chatsPanel,
+			self.statusPanel,
+			self.callsPanel,
+			self.archivedPanel,
+			self.starredPanel,
+			self.channelsPanel,
+			self.communitiesPanel,
+			self.settingsPanel,
+		)
+		for page, label in zip(pages, tabNames(), strict=True):
 			self.tabs.AddPage(page, label)
 		self._selectedMessageIds: set[str] = set()
 		self._selectedChatIds: set[str] = set()
@@ -211,6 +254,8 @@ class ChatWindow(wx.Dialog):
 		self.CentreOnScreen()
 		self.Bind(wx.EVT_CHAR_HOOK, self._onCharHook)
 		self.Bind(wx.EVT_CLOSE, self._onClose)
+		self.Bind(wx.EVT_ACTIVATE, self._onActivate)
+		self._online = False
 
 	# Building -------------------------------------------------------------------------------------------
 
@@ -249,7 +294,20 @@ class ChatWindow(wx.Dialog):
 		sizer.Add(wx.StaticText(panel, label=_("&Status updates:")))
 		self.statusList = wx.ListBox(panel, style=wx.LB_SINGLE)
 		self.statusList.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: self._viewStatus())
-		sizer.Add(self.statusList, 1, wx.EXPAND)
+		sizer.Add(self.statusList, 1, wx.EXPAND | wx.BOTTOM, 6)
+		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		for label, action in (
+			# Translators: A button in the Status section: writes a text status.
+			(_("&Write a status\u2026"), self._postTextStatus),
+			# Translators: A button in the Status section: posts a photo or video as a status.
+			(_("Post a &photo or video\u2026"), self._postMediaStatus),
+			# Translators: A button in the Status section: the user's own statuses and who saw them.
+			(_("&My status"), self._showMyStatus),
+		):
+			button = wx.Button(panel, label=label)
+			button.Bind(wx.EVT_BUTTON, lambda evt, action=action: action())
+			buttons.Add(button, 0, wx.RIGHT, 6)
+		sizer.Add(buttons)
 		panel.SetSizer(sizer)
 
 	def _buildCallsPanel(self, panel: wx.Panel) -> None:
@@ -279,12 +337,313 @@ class ChatWindow(wx.Dialog):
 		sizer.Add(self.archivedList, 1, wx.EXPAND)
 		panel.SetSizer(sizer)
 
+	def _buildStarredPanel(self, panel: wx.Panel) -> None:
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		# Translators: The label of the list of starred messages.
+		sizer.Add(wx.StaticText(panel, label=_("Starred &messages:")))
+		self.starredList = wx.ListBox(panel, style=wx.LB_SINGLE)
+		self.starredList.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: self._openStarred())
+		self.starredList.Bind(wx.EVT_CONTEXT_MENU, lambda evt: self._starredMenu())
+		sizer.Add(self.starredList, 1, wx.EXPAND)
+		panel.SetSizer(sizer)
+
+	def _buildChannelsPanel(self, panel: wx.Panel) -> None:
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		# Translators: The label of the list of channels the user follows.
+		sizer.Add(wx.StaticText(panel, label=_("C&hannels you follow:")))
+		self.channelList = wx.ListBox(panel, style=wx.LB_SINGLE)
+		self.channelList.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: self._openChannel())
+		self.channelList.Bind(wx.EVT_CONTEXT_MENU, lambda evt: self._channelMenu())
+		sizer.Add(self.channelList, 1, wx.EXPAND | wx.BOTTOM, 6)
+		# Translators: A button that finds channels to follow.
+		findButton = wx.Button(panel, label=_("&Find channels\u2026"))
+		findButton.Bind(wx.EVT_BUTTON, lambda evt: self._findChannels())
+		sizer.Add(findButton)
+		panel.SetSizer(sizer)
+
+	def _buildCommunitiesPanel(self, panel: wx.Panel) -> None:
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		# Translators: The label of the list of the user's communities. Enter shows a community's groups.
+		sizer.Add(wx.StaticText(panel, label=_("Co&mmunities:")))
+		self.communityList = wx.ListBox(panel, style=wx.LB_SINGLE)
+		self.communityList.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: self._openCommunity())
+		sizer.Add(self.communityList, 1, wx.EXPAND)
+		panel.SetSizer(sizer)
+
+	def _buildSettingsPanel(self, panel: wx.Panel) -> None:
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		# Translators: The label of the list of WhatsApp settings, such as profile and privacy.
+		sizer.Add(wx.StaticText(panel, label=_("Se&ttings:")))
+		self._settingsItems: list[tuple[str, Callable[[], None]]] = [
+			# Translators: An item in the Settings section: the user's name, about and photo.
+			(_("Profile: name, about and photo"), self._editProfile),
+			# Translators: An item in the Settings section.
+			(_("Privacy: last seen, read receipts, groups and more"), self._editPrivacy),
+			# Translators: An item in the Settings section.
+			(_("Blocked contacts"), self._showBlocked),
+			# Translators: An item in the Settings section: the add-on's own settings in NVDA.
+			(_("Add-on settings: sounds, volumes, microphone, notifications"), self._openAddonSettings),
+		]
+		self.settingsList = wx.ListBox(panel, choices=[label for label, action in self._settingsItems])
+		self.settingsList.SetSelection(0)
+		self.settingsList.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: self._openSetting())
+		sizer.Add(self.settingsList, 1, wx.EXPAND)
+		panel.SetSizer(sizer)
+
+	# Starred messages ------------------------------------------------------------------------------------
+
+	def _gotStarred(self, messages: list[dict]) -> None:
+		self._starred = messages
+		_fillList(
+			self.starredList,
+			[messageText.messageInChat(m) for m in messages]
+			# Translators: Shown in the Starred section when no message is starred.
+			or [_("No starred messages")],
+		)
+
+	def _selectedStarred(self) -> dict | None:
+		index = self.starredList.GetSelection()
+		if index == wx.NOT_FOUND or index >= len(self._starred):
+			return None
+		return self._starred[index]
+
+	def _chatById(self, chatId: str, title: str = "") -> dict:
+		for chat in (*self._chats, *self._archivedChats, *self._channels):
+			if chat.get("id") == chatId:
+				return chat
+		return {"id": chatId, "title": title, "isGroup": chatId.endswith("@g.us")}
+
+	def _openStarred(self) -> None:
+		message = self._selectedStarred()
+		if message is None:
+			return
+		self._goToMessageId = message["id"]
+		self.openChat(self._chatById(message["chatId"], message.get("chatTitle", "")))
+
+	def _starredMenu(self) -> None:
+		message = self._selectedStarred()
+		if message is None:
+			return
+		menu = wx.Menu()
+
+		def add(label: str, handler: Callable[[], None]) -> None:
+			item = menu.Append(wx.ID_ANY, label)
+			self.Bind(wx.EVT_MENU, lambda evt: handler(), item)
+
+		# Translators: An item in a starred message's menu: opens its chat at the message.
+		add(_("&Open in chat"), self._openStarred)
+		add(_("&Copy"), lambda: self._copy(message.get("text") or message.get("caption") or ""))
+
+		def unstarred(result: Any) -> None:
+			ui.message(_("Unstarred"))
+			self._loadTab(self.TAB_STARRED)
+
+		add(
+			_("Un&star"),
+			lambda: self._run(lambda: self.session.starMessages([message["id"]], False), unstarred),
+		)
+		self.starredList.PopupMenu(menu)
+		menu.Destroy()
+
+	# Channels --------------------------------------------------------------------------------------------
+
+	def _gotChannels(self, channels: list[dict]) -> None:
+		self._channels = channels
+		_fillList(
+			self.channelList,
+			[messageText.chatLine(c) for c in channels]
+			# Translators: Shown in the Channels section when the user follows no channel.
+			or [_("You follow no channels. Find channels with the button below.")],
+		)
+
+	def _selectedChannel(self) -> dict | None:
+		index = self.channelList.GetSelection()
+		if index == wx.NOT_FOUND or index >= len(self._channels):
+			return None
+		return self._channels[index]
+
+	def _openChannel(self) -> None:
+		channel = self._selectedChannel()
+		if channel is not None:
+			self.openChat(channel)
+
+	def _channelMenu(self) -> None:
+		channel = self._selectedChannel()
+		if channel is None:
+			return
+		menu = wx.Menu()
+		item = menu.Append(wx.ID_ANY, _("&Open"))
+		self.Bind(wx.EVT_MENU, lambda evt: self.openChat(channel), item)
+		# Translators: An item in a channel's menu: stops following it.
+		item = menu.Append(wx.ID_ANY, _("&Unfollow"))
+		self.Bind(wx.EVT_MENU, lambda evt: self._followChannel(channel, False), item)
+		self.channelList.PopupMenu(menu)
+		menu.Destroy()
+
+	def _followChannel(self, channel: dict, follow: bool) -> None:
+		def done(result: Any) -> None:
+			# Translators: Reported after following or unfollowing a channel, with its name.
+			ui.message(
+				(_("Following {name}") if follow else _("Unfollowed {name}")).format(name=channel["title"])
+			)
+			self._loadTab(self.TAB_CHANNELS)
+
+		self._run(lambda: self.session.followChannel(channel["id"], follow), done)
+
+	def _findChannels(self) -> None:
+		dialog = wx.TextEntryDialog(
+			self,
+			# Translators: Asks what channels to look for.
+			_("Find channels named:"),
+			# Translators: The title of the dialog that finds channels.
+			_("Find channels"),
+		)
+		try:
+			if dialog.ShowModal() != wx.ID_OK:
+				return
+			query = dialog.GetValue().strip()
+		finally:
+			dialog.Destroy()
+		if not query:
+			return
+
+		def show(found: list[dict]) -> None:
+			if not found:
+				# Translators: Reported when a channel search finds nothing.
+				ui.message(_("No channels found"))
+				return
+			lines = []
+			for c in found:
+				# Translators: A channel found by a search: name, followers, and whether the user follows it.
+				line = _("{name}, {count} followers").format(name=c["title"], count=c.get("followers", 0))
+				if c.get("verified"):
+					# Translators: Added to a channel that WhatsApp verified.
+					line += ", " + _("verified")
+				if c.get("following"):
+					# Translators: Added to a channel the user already follows.
+					line += ", " + _("following")
+				if c.get("description"):
+					line += ". " + c["description"][:150]
+				lines.append(line)
+			# Translators: The title of the list of channels found.
+			picker = ListDialog(self, _("Channels found"), lines, okLabel=_("&Follow or open"))
+			try:
+				if picker.ShowModal() != wx.ID_OK:
+					return
+				chosen = found[picker.selection()]
+			finally:
+				picker.Destroy()
+			if chosen.get("following"):
+				self.openChat(chosen)
+			else:
+				self._followChannel(chosen, True)
+
+		self._run(lambda: self.session.searchChannels(query), show)
+
+	# Communities -----------------------------------------------------------------------------------------
+
+	def _gotCommunities(self, communities: list[dict]) -> None:
+		self._communities = communities
+		lines = []
+		for c in communities:
+			# Translators: A community in its list: name and how many groups it has.
+			line = _("{name}, {count} groups").format(name=c["title"], count=len(c.get("groups", [])))
+			if c.get("unread"):
+				line += ", " + _("{count} unread").format(count=c["unread"])
+			lines.append(line)
+		# Translators: Shown in the Communities section when the user is in no community.
+		_fillList(self.communityList, lines or [_("You are in no community")])
+
+	def _openCommunity(self) -> None:
+		index = self.communityList.GetSelection()
+		if index == wx.NOT_FOUND or index >= len(self._communities):
+			return
+		community = self._communities[index]
+		groups = community.get("groups", [])
+		lines = []
+		for g in groups:
+			# Translators: The community's announcement group, in the list of its groups.
+			line = _("Announcements: {name}").format(name=g["title"]) if g.get("announcement") else g["title"]
+			if not g.get("joined"):
+				if g.get("requested"):
+					# Translators: A community group the user asked to join, waiting for its admins.
+					line += ", " + _("request sent")
+				elif g.get("needsApproval"):
+					# Translators: A community group the user is not in; joining asks its admins.
+					line += ", " + _("not joined, asks the admins")
+				else:
+					# Translators: A community group the user is not in.
+					line += ", " + _("not joined")
+			elif g.get("unread"):
+				line += ", " + _("{count} unread").format(count=g["unread"])
+			lines.append(line)
+		if not lines:
+			return
+		picker = ListDialog(self, community["title"], lines, okLabel=_("&Open or join"))
+		try:
+			if picker.ShowModal() != wx.ID_OK:
+				return
+			group = groups[picker.selection()]
+		finally:
+			picker.Destroy()
+		if group.get("joined"):
+			self.openChat(self._chatById(group["id"], group["title"]))
+			return
+		if group.get("requested"):
+			ui.message(_("request sent"))
+			return
+		answer = wx.MessageBox(
+			# Translators: Asked before joining a community group, with its name.
+			_("Join {name}?").format(name=group["title"]),
+			community["title"],
+			wx.YES_NO | wx.ICON_QUESTION,
+			self,
+		)
+		if answer != wx.YES:
+			return
+
+		def joined(result: str) -> None:
+			if result == "requested":
+				# Translators: Reported after asking to join a community group whose admins approve members.
+				ui.message(_("Request sent to the admins"))
+			else:
+				# Translators: Reported after joining a community group.
+				ui.message(_("Joined {name}").format(name=group["title"]))
+			self._loadTab(self.TAB_COMMUNITIES)
+
+		self._run(lambda: self.session.joinCommunityGroup(community["id"], group["id"]), joined)
+
+	# Settings --------------------------------------------------------------------------------------------
+
+	def _openSetting(self) -> None:
+		index = self.settingsList.GetSelection()
+		if 0 <= index < len(self._settingsItems):
+			self._settingsItems[index][1]()
+
+	def _openAddonSettings(self) -> None:
+		import gui
+		from gui.settingsDialogs import NVDASettingsDialog
+
+		from . import WhatsAppSettingsPanel
+
+		wx.CallAfter(gui.mainFrame.popupSettingsDialog, NVDASettingsDialog, WhatsAppSettingsPanel)
+
 	# Tabs -----------------------------------------------------------------------------------------------
 
-	TAB_CHATS, TAB_STATUS, TAB_CALLS, TAB_ARCHIVED = range(4)
+	(
+		TAB_CHATS,
+		TAB_STATUS,
+		TAB_CALLS,
+		TAB_ARCHIVED,
+		TAB_STARRED,
+		TAB_CHANNELS,
+		TAB_COMMUNITIES,
+		TAB_SETTINGS,
+	) = range(8)
 
 	def showTab(self, index: int) -> None:
-		"""Ctrl+1 to Ctrl+4: Chats, Status, Calls or Archived, leaving the open conversation if needed."""
+		"""Ctrl+1 to Ctrl+8: Chats, Status, Calls, Archived, Starred, Channels, Communities or Settings, leaving the
+		open conversation if needed."""
 		if self.conversationPanel.IsShown():
 			self.showChats()
 		self.tabs.ChangeSelection(index)
@@ -322,9 +681,24 @@ class ChatWindow(wx.Dialog):
 			self._run(self.session.recentCalls, self._gotCalls)
 		elif index == self.TAB_ARCHIVED:
 			self._run(lambda: self.session.chats(True), self._gotArchived)
+		elif index == self.TAB_STARRED:
+			self._run(self.session.starredMessages, self._gotStarred)
+		elif index == self.TAB_CHANNELS:
+			self._run(self.session.channels, self._gotChannels)
+		elif index == self.TAB_COMMUNITIES:
+			self._run(self.session.communities, self._gotCommunities)
 
 	def _focusTab(self, index: int) -> None:
-		target = (self.chatList, self.statusList, self.callsList, self.archivedList)[index]
+		target = (
+			self.chatList,
+			self.statusList,
+			self.callsList,
+			self.archivedList,
+			self.starredList,
+			self.channelList,
+			self.communityList,
+			self.settingsList,
+		)[index]
 		target.SetFocus()
 
 	def _gotStatuses(self, statuses: list[dict]) -> None:
@@ -363,10 +737,19 @@ class ChatWindow(wx.Dialog):
 		call = self._selectedCall()
 		if call is None:
 			return
-		if call.get("group"):
-			ui.message(_("Group calls are not supported yet"))
+		chatId = call["chatId"]
+		if call.get("ongoing"):
+			if call.get("joined") and self.calls:
+				self.calls.answerOrShow()
+				return
+			# Translators: Reported while joining a group call.
+			ui.message(_("Joining…"))
+			self._run(lambda: self.session.joinGroupCall(chatId))
 			return
-		self._run(lambda: self.session.startCall(call["chatId"]))
+		if call.get("group"):
+			self._run(lambda: self.session.startGroupCall(chatId))
+			return
+		self._run(lambda: self.session.startCall(chatId))
 
 	def _onCallsMenu(self, evt: wx.ContextMenuEvent) -> None:
 		call = self._selectedCall()
@@ -416,7 +799,8 @@ class ChatWindow(wx.Dialog):
 		self.replyingText = wx.StaticText(panel, label="")
 		sizer.Add(self.replyingText, 0, wx.BOTTOM, 3)
 		# Translators: The label of the box where the user writes a message. Enter sends it.
-		sizer.Add(wx.StaticText(panel, label=_("Typ&e a message:")))
+		self.composeLabel = wx.StaticText(panel, label=_("Typ&e a message:"))
+		sizer.Add(self.composeLabel)
 		self.composeBox = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER)
 		self.composeBox.Bind(wx.EVT_TEXT_ENTER, lambda evt: self._sendText())
 		self.composeBox.Bind(wx.EVT_TEXT, self._onComposeText)
@@ -698,9 +1082,13 @@ class ChatWindow(wx.Dialog):
 		if self.chat is not None and self.chat["id"] != chat["id"]:
 			self._stopPlayback()
 		self.chat = chat
-		self.chatButton.SetLabel(chat.get("title", ""))
-		# Group calls are not supported yet, so a group has no call button.
-		self.callButton.Show(not chat.get("isGroup"))
+		self.chatButton.SetLabel(self._headerLabel(chat, ""))
+		# Channels have no calls, and only their admins post in them.
+		isChannel = bool(chat.get("isChannel"))
+		self.callButton.Show(not isChannel)
+		self._canWrite = not isChannel or bool(chat.get("canPost"))
+		self.composeLabel.Show(self._canWrite)
+		self.composeBox.Show(self._canWrite)
 		self.messageList.Set([])
 		self._messages = []
 		self._selectedMessageIds = set()
@@ -743,6 +1131,9 @@ class ChatWindow(wx.Dialog):
 			lambda messages: self._gotMessages(chatId, messages, opening=True),
 			lambda e: self.showChats(),
 		)
+		self._updateButtons()
+		if isChannel:
+			return
 		self._run(
 			lambda: self.session.watchPresence(chatId), lambda presence: self.onPresence(chatId, presence)
 		)
@@ -758,6 +1149,14 @@ class ChatWindow(wx.Dialog):
 		self._messages = messages
 		isGroup = self.chat.get("isGroup", False)
 		self.messageList.Set([messageText.messageLine(m, isGroup) for m in messages])
+		# Opened from a starred message or a search result: go to that message.
+		goTo, self._goToMessageId = self._goToMessageId, None
+		if opening and goTo:
+			index = next((i for i, m in enumerate(messages) if m.get("id") == goTo), -1)
+			if index >= 0:
+				self.messageList.SetSelection(index)
+				self.messageList.SetFocus()
+				return
 		if opening:
 			self._firstUnreadId = messageText.firstUnreadId(messages, self._unreadAtOpen)
 			if self._goToFirstUnread(announce=self._firstUnreadId is not None):
@@ -794,6 +1193,9 @@ class ChatWindow(wx.Dialog):
 			return
 		if message.get("type") == "poll_creation":
 			self._showPoll(message)
+			return
+		if message.get("type") == "event_creation":
+			self._showEvent(message)
 			return
 		if message.get("type") in PLAYED_TYPES:
 			if self._playingId == message["id"]:
@@ -1464,6 +1866,8 @@ class ChatWindow(wx.Dialog):
 			self.listenButton: self._hasRecording,
 			self.discardButton: self._hasRecording or self._recording,
 		}
+		if not getattr(self, "_canWrite", True):
+			shown = dict.fromkeys(shown, False)
 		changed = False
 		for button, show in shown.items():
 			if button.IsShown() != show:
@@ -1681,6 +2085,47 @@ class ChatWindow(wx.Dialog):
 		if actions.get("edit"):
 			# Translators: An item in a message's menu, like WhatsApp's: changes a message the user sent.
 			add(menu, _("E&dit"), lambda: self._edit(message, actions.get("text", "")))
+		if message.get("pinned"):
+			# Translators: An item in a message's menu, like WhatsApp's.
+			add(menu, _("Un&pin"), lambda: self._pin(message, None))
+		elif not (self.chat and self.chat.get("isChannel")):
+			pinMenu = wx.Menu()
+			for label, duration in (
+				# Translators: How long to pin a message, in its Pin menu.
+				(_("For 24 hours"), "day"),
+				# Translators: How long to pin a message, in its Pin menu.
+				(_("For 7 days"), "week"),
+				# Translators: How long to pin a message, in its Pin menu.
+				(_("For 30 days"), "month"),
+			):
+				add(pinMenu, label, lambda duration=duration: self._pin(message, duration))
+			# Translators: An item in a message's menu, like WhatsApp's: opens how long to pin it.
+			menu.AppendSubMenu(pinMenu, _("Pi&n"))
+		if self.chat and self.chat.get("isGroup") and not message.get("fromMe"):
+			# Translators: An item in a group message's menu, like WhatsApp's: replies in a personal chat.
+			add(menu, _("Reply &privately\u2026"), lambda: self._replyPrivately(message))
+		if message.get("reactions"):
+			# Translators: An item in a message's menu: who reacted with which emoji.
+			add(menu, _("&Who reacted"), lambda: self._whoReacted(message))
+		if message.get("type") == "event_creation":
+			# Translators: An item in an event's menu: its time, place and who is going.
+			add(menu, _("Event &details"), lambda: self._showEvent(message))
+			eventMenu = wx.Menu()
+			for label, answer in (
+				# Translators: An answer to an event, like WhatsApp's.
+				(_("Going"), "going"),
+				# Translators: An answer to an event, like WhatsApp's.
+				(_("Maybe"), "maybe"),
+				# Translators: An answer to an event, like WhatsApp's.
+				(_("Not going"), "notGoing"),
+			):
+				add(
+					eventMenu,
+					label,
+					lambda answer=answer, label=label: self._respondToEvent(message, answer, label),
+				)
+			# Translators: An item in an event's menu: answers whether the user is going.
+			menu.AppendSubMenu(eventMenu, _("Res&pond"))
 		menu.AppendSeparator()
 		# Translators: An item in a message's menu, like WhatsApp's: removes it from this computer and phone only.
 		add(menu, _("Delete for &me"), lambda: self._delete(message, False))
@@ -1817,7 +2262,7 @@ class ChatWindow(wx.Dialog):
 			add(menu, _("&Archive chat"), lambda: self._chatAction(chat, "archive", _("Archived")))
 		if chat.get("muted"):
 			# Translators: An item in a chat's menu, like WhatsApp's.
-			add(menu, _("Un&mute notifications"), lambda: self._chatAction(chat, "unmute", _("Unmuted")))
+			add(menu, _("Unmute n&otifications"), lambda: self._chatAction(chat, "unmute", _("Unmuted")))
 		else:
 			muteMenu = wx.Menu()
 			for label, seconds in (
@@ -1834,13 +2279,13 @@ class ChatWindow(wx.Dialog):
 					lambda seconds=seconds: self._chatAction(chat, "mute", _("Muted"), seconds),
 				)
 			# Translators: An item in a chat's menu, like WhatsApp's: opens how long to mute it.
-			menu.AppendSubMenu(muteMenu, _("&Mute notifications"))
+			menu.AppendSubMenu(muteMenu, _("Mute n&otifications"))
 		if chat.get("pinned"):
 			# Translators: An item in a chat's menu, like WhatsApp's.
-			add(menu, _("Un&pin chat"), lambda: self._chatAction(chat, "unpin", _("Unpinned")))
+			add(menu, _("Unpin &chat"), lambda: self._chatAction(chat, "unpin", _("Unpinned")))
 		else:
 			# Translators: An item in a chat's menu, like WhatsApp's.
-			add(menu, _("&Pin chat"), lambda: self._chatAction(chat, "pin", _("Pinned")))
+			add(menu, _("Pin &chat"), lambda: self._chatAction(chat, "pin", _("Pinned")))
 		if chat.get("unread"):
 			# Translators: An item in a chat's menu, like WhatsApp's.
 			add(menu, _("Mark as &read"), lambda: self._chatAction(chat, "markRead", _("Marked as read")))
@@ -1848,7 +2293,7 @@ class ChatWindow(wx.Dialog):
 			# Translators: An item in a chat's menu, like WhatsApp's.
 			add(
 				menu,
-				_("Mark as &unread"),
+				_("Ma&rk as unread"),
 				lambda: self._chatAction(chat, "markUnread", _("Marked as unread")),
 			)
 
@@ -1868,21 +2313,795 @@ class ChatWindow(wx.Dialog):
 		add(
 			menu,
 			# Translators: An item in a chat's More options menu: the group's details.
-			_("&Group info")
+			_("Group &info")
 			if chat.get("isGroup")
 			# Translators: An item in a chat's More options menu: the contact's details.
-			else _("&Contact info"),
+			else _("Contact &info"),
 			self._showContactInfo,
 		)
 		# Translators: An item in a chat's More options menu: finds messages in this chat.
 		add(menu, _("&Search in chat\tCtrl+F"), self._searchMessages)
 		# Translators: An item in a chat's More options menu: explains how to select messages.
-		add(menu, _("Se&lect messages"), self._startSelecting)
+		add(menu, _("Select &messages"), self._startSelecting)
+
+		def show(found: tuple[dict, bool]) -> None:
+			abilities, ongoingCall = found
+			self._moreOptions(menu, add, chat, abilities, ongoingCall)
+			self.moreButton.PopupMenu(menu)
+			menu.Destroy()
+
+		if chat.get("isChannel"):
+			# Translators: An item in a channel's More options menu: stops following it.
+			add(menu, _("&Unfollow channel"), lambda: self._followChannel(chat, False))
+			add(menu, _("Close chat"), self.showChats)
+			self.moreButton.PopupMenu(menu)
+			menu.Destroy()
+			return
+		self._run(
+			lambda: (
+				self.session.chatAbilities(chatId),
+				bool(chat.get("isGroup")) and self.session.ongoingGroupCall(chatId),
+			),
+			show,
+		)
+
+	def _moreOptions(
+		self,
+		menu: wx.Menu,
+		add: Callable[[wx.Menu, str, Callable[[], None]], None],
+		chat: dict,
+		abilities: dict,
+		ongoingCall: bool,
+	) -> None:
+		chatId = chat["id"]
+		isGroup = bool(chat.get("isGroup"))
+		# Translators: An item in a chat's More options menu: pinned messages of this chat.
+		add(menu, _("&Pinned messages"), self._showPinned)
+		mediaMenu = wx.Menu()
+		for label, kind in (
+			# Translators: An item in the Media, links and docs menu.
+			(_("&Photos, videos and audio"), "media"),
+			# Translators: An item in the Media, links and docs menu.
+			(_("&Links"), "links"),
+			# Translators: An item in the Media, links and docs menu.
+			(_("&Documents"), "docs"),
+		):
+			add(mediaMenu, label, lambda kind=kind: self._showMedia(kind))
+		# Translators: An item in a chat's More options menu, like WhatsApp's chat info.
+		menu.AppendSubMenu(mediaMenu, _("Media, &links and docs"))
+		if isGroup:
+			# Translators: An item in a group's More options menu: messages that mention the user, not read yet.
+			add(menu, _("&Unread mentions\tCtrl+Shift+M"), self._showMentions)
+		sendMenu = wx.Menu()
+		# Translators: An item in the Send menu: makes a poll.
+		add(sendMenu, _("&Poll\u2026"), self._createPoll)
+		# Translators: An item in the Send menu: sends a contact card.
+		add(sendMenu, _("&Contact\u2026"), self._sendContact)
+		# Translators: An item in the Send menu: sends one of the user's stickers.
+		add(sendMenu, _("&Sticker\u2026"), self._sendSticker)
+		if isGroup:
+			# Translators: An item in the Send menu: makes an event in a group.
+			add(sendMenu, _("&Event\u2026"), self._createEvent)
+		# Translators: An item in a chat's More options menu: sends a poll, contact, sticker or event.
+		menu.AppendSubMenu(sendMenu, _("S&end"))
+		if isGroup and ongoingCall:
+			# Translators: An item in a group's More options menu: joins the call going on in the group.
+			add(
+				menu, _("Join &the group call"), lambda: self._run(lambda: self.session.joinGroupCall(chatId))
+			)
+		elif isGroup and abilities.get("member", True):
+			# Translators: An item in a group's More options menu: calls everyone in the group.
+			add(
+				menu,
+				_("S&tart a group voice call"),
+				lambda: self._run(lambda: self.session.startGroupCall(chatId)),
+			)
+		menu.AppendSeparator()
 		self._addChatItems(menu, chat, add)
+		if abilities.get("favoritesEnabled"):
+			if abilities.get("favorite"):
+				# Translators: An item in a chat's More options menu, like WhatsApp's.
+				add(
+					menu,
+					_("Remove &from favorites"),
+					lambda: self._chatSet(
+						lambda: self.session.setFavorite(chatId, False), _("Removed from favorites")
+					),
+				)
+			else:
+				# Translators: An item in a chat's More options menu, like WhatsApp's.
+				add(
+					menu,
+					_("Add to &favorites"),
+					lambda: self._chatSet(
+						lambda: self.session.setFavorite(chatId, True), _("Added to favorites")
+					),
+				)
+		if abilities.get("canSetEphemeral"):
+			current = int(abilities.get("ephemeral") or 0)
+			ephemeralMenu = wx.Menu()
+			for label, seconds in (
+				# Translators: A choice for disappearing messages, like WhatsApp's.
+				(_("Off"), 0),
+				# Translators: A choice for disappearing messages, like WhatsApp's.
+				(_("24 hours"), 86400),
+				# Translators: A choice for disappearing messages, like WhatsApp's.
+				(_("7 days"), 604800),
+				# Translators: A choice for disappearing messages, like WhatsApp's.
+				(_("90 days"), 7776000),
+			):
+				item = ephemeralMenu.AppendRadioItem(wx.ID_ANY, label)
+				item.Check(seconds == current)
+				self.Bind(
+					wx.EVT_MENU,
+					lambda evt, seconds=seconds, label=label: self._chatSet(
+						lambda: (
+							self.session.setDisappearing(chatId, seconds),
+							self._setDisappearing(chatId, seconds),
+						),
+						# Translators: Reported after setting disappearing messages, such as "Disappearing messages: 7 days".
+						_("Disappearing messages: {choice}").format(choice=label),
+					),
+					item,
+				)
+			# Translators: An item in a chat's More options menu, like WhatsApp's.
+			menu.AppendSubMenu(ephemeralMenu, _("&Disappearing messages"))
+		if isGroup and abilities.get("admin"):
+			# Translators: An item in a group's More options menu, for its admins: name, settings, members, link.
+			add(menu, _("Manage &group\u2026"), lambda: self._manageGroup(chat, abilities))
+		elif isGroup and abilities.get("canAdd"):
+			# Translators: An item in a group's More options menu: adds people to it.
+			add(menu, _("Add mem&bers\u2026"), lambda: self._addMembers(chat))
+		menu.AppendSeparator()
+		if not isGroup:
+			if abilities.get("blocked"):
+				# Translators: An item in a chat's More options menu, like WhatsApp's.
+				add(menu, _("Unbloc&k"), lambda: self._block(chat, False))
+			else:
+				# Translators: An item in a chat's More options menu, like WhatsApp's.
+				add(menu, _("Bloc&k\u2026"), lambda: self._block(chat, True))
+		# Translators: An item in a chat's More options menu, like WhatsApp's.
+		add(menu, _("Report\u2026"), lambda: self._report(chat))
+		# Translators: An item in a chat's More options menu, like WhatsApp's: deletes its messages.
+		add(menu, _("Clear c&hat\u2026"), lambda: self._clearChat(chat))
+		if isGroup and abilities.get("member") and not abilities.get("readOnly"):
+			# Translators: An item in a group's More options menu, like WhatsApp's.
+			add(menu, _("E&xit group\u2026"), lambda: self._exitGroup(chat))
+		else:
+			# Translators: An item in a chat's More options menu, like WhatsApp's.
+			add(menu, _("Delete chat\u2026"), lambda: self._deleteChat(chat))
 		# Translators: An item in a chat's More options menu: goes back to the list of chats.
-		add(menu, _("Cl&ose chat"), self.showChats)
-		self.moreButton.PopupMenu(menu)
-		menu.Destroy()
+		add(menu, _("Close chat"), self.showChats)
+
+	def _setDisappearing(self, chatId: str, seconds: int) -> None:
+		def update() -> None:
+			if self.chat and self.chat["id"] == chatId:
+				self.chat["disappearing"] = seconds
+				self.chatButton.SetLabel(self._headerLabel(self.chat, self._presenceText))
+
+		wx.CallAfter(update)
+
+	def _chatSet(self, work: Callable[[], Any], doneText: str) -> None:
+		def done(result: Any) -> None:
+			ui.message(doneText)
+			self.refreshChats()
+
+		self._run(work, done)
+
+	def _confirm(self, question: str, title: str) -> bool:
+		return wx.MessageBox(question, title, wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING, self) == wx.YES
+
+	def _askText(self, prompt: str, title: str, value: str = "", multiline: bool = False) -> str | None:
+		style = wx.TextEntryDialogStyle | (wx.TE_MULTILINE if multiline else 0)
+		dialog = wx.TextEntryDialog(self, prompt, title, value, style=style)
+		try:
+			if dialog.ShowModal() != wx.ID_OK:
+				return None
+			return dialog.GetValue().strip()
+		finally:
+			dialog.Destroy()
+
+	# Pins, reactions, private replies and events ---------------------------------------------------------
+
+	def _pin(self, message: dict, duration: str | None) -> None:
+		def done(result: Any) -> None:
+			message["pinned"] = duration is not None
+			# Translators: Reported after pinning or unpinning a message.
+			ui.message(_("Pinned") if duration else _("Unpinned"))
+
+		self._run(lambda: self.session.pinMessage(message["id"], duration), done)
+
+	def _showPinned(self) -> None:
+		if not self.chat:
+			return
+		# Translators: Reported when a chat has no pinned messages.
+		self._run(
+			lambda: self.session.pinnedMessages(self.chat["id"]),
+			lambda found: self._pickMessage(found, _("Pinned messages"), _("No pinned messages")),
+		)
+
+	def _pickMessage(self, messages: list[dict], title: str, emptyText: str, withChat: bool = False) -> None:
+		# A list of messages; Enter goes to the chosen one in the conversation, or opens its chat.
+		if not messages:
+			ui.message(emptyText)
+			return
+		isGroup = bool(self.chat and self.chat.get("isGroup"))
+		lines = [
+			messageText.messageInChat(m) if withChat else messageText.messageLine(m, isGroup)
+			for m in messages
+		]
+		picker = ListDialog(self, title, lines)
+		try:
+			if picker.ShowModal() != wx.ID_OK:
+				return
+			chosen = messages[picker.selection()]
+		finally:
+			picker.Destroy()
+		if self.chat and chosen.get("chatId") == self.chat["id"]:
+			index = next((i for i, m in enumerate(self._messages) if m.get("id") == chosen["id"]), -1)
+			if index >= 0:
+				self.messageList.SetSelection(index)
+				self.messageList.SetFocus()
+				ui.message(self.messageList.GetString(index))
+				return
+			if chosen.get("type") in FILE_TYPES:
+				self._openFile(chosen)
+				return
+			ui.message(messageText.messageLine(chosen, isGroup))
+			return
+		self._goToMessageId = chosen["id"]
+		self.openChat(self._chatById(chosen.get("chatId", ""), chosen.get("chatTitle", "")))
+
+	def _showMedia(self, kind: str) -> None:
+		if not self.chat:
+			return
+		titles = {
+			# Translators: The title of the list of a chat's photos, videos and audio.
+			"media": _("Photos, videos and audio"),
+			# Translators: The title of the list of links sent in a chat.
+			"links": _("Links"),
+			# Translators: The title of the list of documents sent in a chat.
+			"docs": _("Documents"),
+		}
+		chatId = self.chat["id"]
+		# Translators: Reported when a chat has no media, links or documents of the kind asked for.
+		self._run(
+			lambda: self.session.chatMedia(chatId, kind),
+			lambda found: self._pickMessage(found, titles[kind], _("Nothing here yet")),
+		)
+
+	def _showMentions(self) -> None:
+		if not self.chat or not self.chat.get("isGroup"):
+			return
+		chatId = self.chat["id"]
+		self._run(
+			lambda: self.session.unreadMentions(chatId),
+			# Translators: The title of the list of unread messages that mention the user.
+			lambda found: self._pickMessage(found, _("Unread mentions"), _("No unread mentions")),
+		)
+
+	def _replyPrivately(self, message: dict) -> None:
+		sender = message.get("sender") or ""
+		text = self._askText(
+			# Translators: Asks for a private reply to a group message, with its sender.
+			_("Reply privately to {name}:").format(name=sender),
+			# Translators: The title of the dialog for a private reply.
+			_("Reply privately"),
+		)
+		if not text:
+			return
+
+		def done(chat: dict) -> None:
+			sounds.play(sounds.SENT)
+			# Translators: Reported after a private reply was sent, with who it went to.
+			ui.message(_("Sent to {name}").format(name=chat.get("title", sender)))
+
+		self._run(lambda: self.session.replyPrivately(message["id"], text), done)
+
+	def _whoReacted(self, message: dict) -> None:
+		def show(details: list[dict]) -> None:
+			lines = []
+			for reaction in details:
+				for person in reaction.get("people", []):
+					# Translators: Who reacted, in the list of reactions; for the user it says You.
+					name = _("You") if person.get("isMe") else person.get("name", "")
+					lines.append(f"{reaction.get('emoji', '')} {name}")
+			if not lines:
+				# Translators: Reported for a channel post, whose reactions show counts only.
+				ui.message(_("Only the number of reactions is known"))
+				return
+			# Translators: The title of the list of who reacted to a message.
+			picker = ListDialog(self, _("Reactions"), lines, okLabel=_("Close"))
+			try:
+				picker.ShowModal()
+			finally:
+				picker.Destroy()
+
+		self._run(lambda: self.session.reactionDetails(message["id"]), show)
+
+	def _showEvent(self, message: dict) -> None:
+		def show(event: dict) -> None:
+			dialog = TextDialog(self, event.get("name", ""), messageText.eventText(event))
+			try:
+				dialog.ShowModal()
+			finally:
+				dialog.Destroy()
+
+		self._run(lambda: self.session.eventInfo(message["id"]), show)
+
+	def _respondToEvent(self, message: dict, answer: str, label: str) -> None:
+		# Translators: Reported after answering an event, such as "Answered: Going".
+		self._run(
+			lambda: self.session.respondToEvent(message["id"], answer),
+			lambda r: ui.message(_("Answered: {answer}").format(answer=label)),
+		)
+
+	# Sending polls, contacts, stickers and events --------------------------------------------------------
+
+	def _createPoll(self) -> None:
+		if not self.chat:
+			return
+		dialog = CreatePollDialog(self)
+		try:
+			if dialog.ShowModal() != wx.ID_OK:
+				return
+			question, options, single = dialog.values()
+		finally:
+			dialog.Destroy()
+		if not question or len(options) < 2:
+			# Translators: Reported when a poll has no question or fewer than two options.
+			ui.message(_("A poll needs a question and at least two options"))
+			return
+		chatId = self.chat["id"]
+
+		def done(result: Any) -> None:
+			sounds.play(sounds.SENT)
+			# Translators: Reported after a poll was sent.
+			ui.message(_("Poll sent"))
+
+		self._run(lambda: self.session.sendPoll(chatId, question, options, single), done)
+
+	def _sendContact(self) -> None:
+		if not self.chat:
+			return
+		chatId = self.chat["id"]
+
+		def pick(contacts: list[dict]) -> None:
+			# Translators: The title and button of the list of contacts to send as cards.
+			dialog = ChatPickerDialog(self, contacts, title=_("Send contacts"), okLabel=_("&Send"))
+			try:
+				if dialog.ShowModal() != wx.ID_OK:
+					return
+				chosen = [c["id"] for c in dialog.chosen()]
+			finally:
+				dialog.Destroy()
+			if chosen:
+				self._run(
+					lambda: self.session.sendContacts(chatId, chosen),
+					lambda r: (sounds.play(sounds.SENT), ui.message(_("Sent"))),
+				)
+
+		self._run(self.session.contactChoices, pick)
+
+	def _sendSticker(self) -> None:
+		if not self.chat:
+			return
+		chatId = self.chat["id"]
+
+		def pick(stickers: list[dict]) -> None:
+			if not stickers:
+				# Translators: Reported when the user has no recent or favorite stickers.
+				ui.message(_("No stickers yet. Stickers you send or favorite on your phone appear here."))
+				return
+			lines = []
+			for number, s in enumerate(stickers, 1):
+				# Translators: A sticker in the list: its number, and whether it is a favorite or recent.
+				kind = _("favorite") if s["kind"] == "favorite" else _("recent")
+				line = _("Sticker {number}, {kind}").format(number=number, kind=kind)
+				for extra in (s.get("label"), s.get("pack")):
+					if extra:
+						line += ", " + extra
+				if s.get("animated"):
+					# Translators: Added to an animated sticker.
+					line += ", " + _("animated")
+				lines.append(line)
+			# Translators: The title of the list of stickers to send.
+			picker = ListDialog(self, _("Stickers"), lines, okLabel=_("&Send"))
+			try:
+				if picker.ShowModal() != wx.ID_OK:
+					return
+				chosen = stickers[picker.selection()]
+			finally:
+				picker.Destroy()
+			self._run(
+				lambda: self.session.sendSticker(chatId, chosen["kind"], chosen["index"]),
+				lambda r: (sounds.play(sounds.SENT), ui.message(_("Sent"))),
+			)
+
+		self._run(self.session.stickers, pick)
+
+	def _createEvent(self) -> None:
+		if not self.chat:
+			return
+		dialog = CreateEventDialog(self)
+		try:
+			if dialog.ShowModal() != wx.ID_OK:
+				return
+			options = dialog.values()
+		finally:
+			dialog.Destroy()
+		if options is None:
+			return
+		chatId = self.chat["id"]
+
+		def done(result: Any) -> None:
+			sounds.play(sounds.SENT)
+			# Translators: Reported after an event was sent to a group.
+			ui.message(_("Event sent"))
+
+		self._run(lambda: self.session.createEvent(chatId, options), done)
+
+	# Managing chats and groups -------------------------------------------------------------------------
+
+	def _block(self, chat: dict, blocked: bool) -> None:
+		if blocked and not self._confirm(
+			# Translators: Asked before blocking someone, with their name.
+			_("Block {name}? Blocked contacts can't call you or send you messages.").format(
+				name=chat["title"]
+			),
+			_("Block"),
+		):
+			return
+		self._chatSet(
+			lambda: self.session.setBlocked(chat["id"], blocked),
+			# Translators: Reported after blocking or unblocking someone.
+			_("Blocked") if blocked else _("Unblocked"),
+		)
+
+	def _report(self, chat: dict) -> None:
+		isGroup = bool(chat.get("isGroup"))
+		dialog = wx.MessageDialog(
+			self,
+			# Translators: Asked before reporting a chat to WhatsApp, with its name.
+			_("Report {name} to WhatsApp? The last messages in this chat are sent to WhatsApp.").format(
+				name=chat["title"]
+			),
+			_("Report"),
+			wx.YES_NO | wx.CANCEL | wx.NO_DEFAULT | wx.ICON_WARNING,
+		)
+		dialog.SetYesNoCancelLabels(
+			# Translators: A button that reports a group and leaves it, or reports a person and blocks them.
+			_("Report and &exit group") if isGroup else _("Report and &block"),
+			# Translators: A button that only reports a chat.
+			_("&Report only"),
+			_("Cancel"),
+		)
+		try:
+			answer = dialog.ShowModal()
+		finally:
+			dialog.Destroy()
+		if answer == wx.ID_CANCEL:
+			return
+		# Translators: Reported after a chat was reported to WhatsApp.
+		self._chatSet(lambda: self.session.reportChat(chat["id"], answer == wx.ID_YES), _("Reported"))
+
+	def _clearChat(self, chat: dict) -> None:
+		dialog = wx.MessageDialog(
+			self,
+			# Translators: Asked before clearing a chat's messages, with its name.
+			_("Clear all messages in {name}? The chat stays in your list.").format(name=chat["title"]),
+			_("Clear chat"),
+			wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
+		)
+		dialog.SetYesNoCancelLabels(
+			# Translators: A button that clears a chat but keeps its starred messages.
+			_("Clear, &keep starred"),
+			# Translators: A button that clears a chat with its starred messages.
+			_("Clear &all"),
+			_("Cancel"),
+		)
+		try:
+			answer = dialog.ShowModal()
+		finally:
+			dialog.Destroy()
+		if answer == wx.ID_CANCEL:
+			return
+
+		def done(result: Any) -> None:
+			sounds.play(sounds.DISCARD)
+			# Translators: Reported after a chat was cleared.
+			ui.message(_("Chat cleared"))
+			if self.chat and self.chat["id"] == chat["id"]:
+				self.openChat(chat)
+
+		self._run(lambda: self.session.clearChat(chat["id"], answer == wx.ID_YES), done)
+
+	def _deleteChat(self, chat: dict) -> None:
+		# Translators: Asked before deleting one chat, with its name.
+		if not self._confirm(
+			_("Delete the chat with {name}? Its messages are removed from this device.").format(
+				name=chat["title"]
+			),
+			_("Delete chats"),
+		):
+			return
+
+		def done(result: Any) -> None:
+			sounds.play(sounds.DISCARD)
+			ui.message(_("Deleted"))
+			self.showChats()
+
+		self._run(lambda: self.session.deleteChat(chat["id"]), done)
+
+	def _exitGroup(self, chat: dict) -> None:
+		dialog = wx.MessageDialog(
+			self,
+			# Translators: Asked before leaving a group, with its name.
+			_("Exit {name}? Only the group's admins are told.").format(name=chat["title"]),
+			_("Exit group"),
+			wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
+		)
+		# Translators: Buttons when leaving a group: leave and also delete the chat, or only leave.
+		dialog.SetYesNoCancelLabels(_("Exit and &delete"), _("&Exit"), _("Cancel"))
+		try:
+			answer = dialog.ShowModal()
+		finally:
+			dialog.Destroy()
+		if answer == wx.ID_CANCEL:
+			return
+
+		def done(result: Any) -> None:
+			# Translators: Reported after leaving a group.
+			ui.message(_("You left {name}").format(name=chat["title"]))
+			if answer == wx.ID_YES:
+				self.showChats()
+
+		self._run(lambda: self.session.exitGroup(chat["id"], answer == wx.ID_YES), done)
+
+	def _addMembers(self, chat: dict) -> None:
+		def pick(contacts: list[dict]) -> None:
+			# Translators: The title and button of the list of people to add to a group.
+			dialog = ChatPickerDialog(self, contacts, title=_("Add members"), okLabel=_("&Add"))
+			try:
+				if dialog.ShowModal() != wx.ID_OK:
+					return
+				chosen = [c["id"] for c in dialog.chosen()]
+			finally:
+				dialog.Destroy()
+			if not chosen:
+				return
+
+			def done(failed: int) -> None:
+				if failed:
+					# Translators: Reported when some people could not be added, usually for their privacy.
+					ui.message(
+						_("{count} could not be added. WhatsApp offers to send them an invite.").format(
+							count=failed
+						)
+					)
+				else:
+					# Translators: Reported after people were added to a group.
+					ui.message(_("Added"))
+
+			self._run(lambda: self.session.changeParticipants(chat["id"], "add", chosen), done)
+
+		self._run(self.session.contactChoices, pick)
+
+	def _manageGroup(self, chat: dict, abilities: dict) -> None:
+		dialog = ManageGroupDialog(self, chat, abilities)
+		try:
+			dialog.ShowModal()
+		finally:
+			dialog.Destroy()
+
+	def _newGroup(self) -> None:
+		name = self._askText(
+			# Translators: Asks for the name of a new group.
+			_("Group name:"),
+			# Translators: The title of the dialogs that make a new group.
+			_("New group"),
+		)
+		if not name:
+			return
+
+		def pick(contacts: list[dict]) -> None:
+			dialog = ChatPickerDialog(self, contacts, title=_("New group"), okLabel=_("&Create"))
+			try:
+				if dialog.ShowModal() != wx.ID_OK:
+					return
+				chosen = [c["id"] for c in dialog.chosen()]
+			finally:
+				dialog.Destroy()
+			if not chosen:
+				return
+
+			def done(result: dict) -> None:
+				# Translators: Reported after a group was made, with its name.
+				message = _("Group {name} created").format(name=name)
+				if result.get("failed"):
+					message += ". " + _(
+						"{count} could not be added. WhatsApp offers to send them an invite."
+					).format(count=result["failed"])
+				ui.message(message)
+				self.refreshChats()
+				self.openChat({"id": result["chatId"], "title": name, "isGroup": True})
+
+			self._run(lambda: self.session.createGroup(name, chosen), done)
+
+		self._run(self.session.contactChoices, pick)
+
+	def _searchAll(self) -> None:
+		query = self._askText(
+			# Translators: Asks what to look for in every chat's messages.
+			_("Find messages in all chats containing:"),
+			# Translators: The title of the dialog that searches every chat.
+			_("Search all chats"),
+		)
+		if not query:
+			return
+		# Translators: The title of the list of messages found in all chats.
+		self._run(
+			lambda: self.session.searchAll(query),
+			lambda found: self._pickMessage(
+				found["messages"], _("Messages found"), _("No messages found"), withChat=True
+			),
+		)
+
+	# Your status --------------------------------------------------------------------------------------
+
+	def _postTextStatus(self) -> None:
+		dialog = TextStatusDialog(self)
+		try:
+			if dialog.ShowModal() != wx.ID_OK:
+				return
+			text, colorIndex, font = dialog.values()
+		finally:
+			dialog.Destroy()
+		if not text:
+			return
+
+		def done(result: Any) -> None:
+			sounds.play(sounds.SENT)
+			# Translators: Reported after the user posted a status.
+			ui.message(_("Status posted"))
+
+		self._run(lambda: self.session.postTextStatus(text, colorIndex, font), done)
+
+	def _postMediaStatus(self) -> None:
+		dialog = wx.FileDialog(
+			self,
+			# Translators: The title of the dialog for choosing a photo or video to post as a status.
+			_("Choose a photo or video for your status"),
+			wildcard=_("Photos and videos") + "|*.jpg;*.jpeg;*.png;*.webp;*.mp4;*.3gp;*.mov",
+			style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+		)
+		try:
+			if dialog.ShowModal() != wx.ID_OK:
+				return
+			path = dialog.GetPath()
+		finally:
+			dialog.Destroy()
+		# Translators: Asks for a caption for a photo or video status; it may stay empty.
+		caption = self._askText(_("Caption (may be empty):"), _("Your status"))
+		if caption is None:
+			return
+		mime = mimetypes.guess_type(path)[0] or "image/jpeg"
+		kind = "video" if mime.startswith("video/") else "image"
+
+		def done(result: Any) -> None:
+			sounds.play(sounds.SENT)
+			ui.message(_("Status posted"))
+
+		# Translators: Reported while a status photo or video is sent.
+		ui.message(_("Posting…"))
+		self._run(lambda: self.session.sendFile("status@broadcast", path, kind, mime, caption), done)
+
+	def _showMyStatus(self) -> None:
+		def show(statuses: list[dict]) -> None:
+			if not statuses:
+				# Translators: Reported when the user has no status in the last 24 hours.
+				ui.message(_("You have no status now"))
+				return
+			lines = []
+			for s in statuses:
+				names = ", ".join(v["name"] for v in s.get("viewers", []))
+				# Translators: One of the user's statuses: what it is, then who saw it.
+				lines.append(
+					_("{status}. Seen by {count}: {names}").format(
+						status=messageText.content(s) if not s.get("text") else s["text"],
+						count=len(s.get("viewers", [])),
+						names=names,
+					)
+					if names
+					# Translators: One of the user's statuses that nobody has seen yet.
+					else _("{status}. Not seen yet").format(
+						status=messageText.content(s) if not s.get("text") else s["text"]
+					)
+				)
+			# Translators: The title of the list of the user's own statuses; its button deletes one.
+			picker = ListDialog(self, _("My status"), lines, okLabel=_("&Delete this status"))
+			try:
+				if picker.ShowModal() != wx.ID_OK:
+					return
+				chosen = statuses[picker.selection()]
+			finally:
+				picker.Destroy()
+			# Translators: Asked before deleting one of the user's statuses.
+			if self._confirm(_("Delete this status for everyone?"), _("My status")):
+				self._run(
+					lambda: self.session.deleteMyStatus(chosen["id"]),
+					lambda r: (sounds.play(sounds.DISCARD), ui.message(_("Deleted"))),
+				)
+
+		self._run(self.session.myStatuses, show)
+
+	# Settings: profile, privacy, blocked contacts ---------------------------------------------------------
+
+	def _editProfile(self) -> None:
+		def show(profile: dict) -> None:
+			dialog = ProfileDialog(self, profile)
+			try:
+				if dialog.ShowModal() != wx.ID_OK:
+					return
+				name, about, photo = dialog.values()
+			finally:
+				dialog.Destroy()
+
+			def work() -> None:
+				if name and name != profile.get("name"):
+					self.session.setProfile("name", name)
+				if about and about != profile.get("about"):
+					self.session.setProfile("about", about)
+				if photo == "":
+					self.session.setProfilePhoto(None)
+				elif photo:
+					self.session.setProfilePhoto(photo)
+
+			# Translators: Reported after the user's profile was saved.
+			self._run(work, lambda r: ui.message(_("Profile saved")))
+
+		self._run(self.session.profile, show)
+
+	def _editPrivacy(self) -> None:
+		def show(current: dict) -> None:
+			dialog = PrivacyDialog(self, current)
+			try:
+				if dialog.ShowModal() != wx.ID_OK:
+					return
+				changed = dialog.changes()
+			finally:
+				dialog.Destroy()
+			if not changed:
+				return
+
+			def work() -> None:
+				for key, value in changed.items():
+					self.session.setPrivacy(key, value)
+
+			# Translators: Reported after privacy settings were saved.
+			self._run(work, lambda r: ui.message(_("Privacy saved")))
+
+		self._run(self.session.privacy, show)
+
+	def _showBlocked(self) -> None:
+		def show(blocked: list[dict]) -> None:
+			if not blocked:
+				# Translators: Reported when the user blocked nobody.
+				ui.message(_("You blocked nobody"))
+				return
+			# Translators: The title of the list of blocked contacts; its button unblocks one.
+			picker = ListDialog(
+				self, _("Blocked contacts"), [b["name"] for b in blocked], okLabel=_("&Unblock")
+			)
+			try:
+				if picker.ShowModal() != wx.ID_OK:
+					return
+				chosen = blocked[picker.selection()]
+			finally:
+				picker.Destroy()
+			self._run(lambda: self.session.unblock(chosen["id"]), lambda r: ui.message(_("Unblocked")))
+
+		self._run(self.session.blockedContacts, show)
 
 	def _startSelecting(self) -> None:
 		self.messageList.SetFocus()
@@ -1949,6 +3168,16 @@ class ChatWindow(wx.Dialog):
 		ui.message(_("{speed}x").format(speed=speed))
 		self._run(lambda: self.session.setPlaybackRate(float(speed)))
 
+	@staticmethod
+	def _headerLabel(chat: dict, presenceText: str) -> str:
+		"""The chat's name, then what WhatsApp shows under it: disappearing messages, online or last seen."""
+		parts = [chat.get("title", "")]
+		if chat.get("disappearing"):
+			parts.append(messageText.disappearingText(chat["disappearing"]))
+		if presenceText:
+			parts.append(presenceText)
+		return ", ".join(parts)
+
 	def onPresence(self, chatId: str, presence: dict | None) -> None:
 		"""Show what WhatsApp shows under the chat's name, and read out typing and recording as they start."""
 		if not self.chat or self.chat["id"] != chatId or presence is None:
@@ -1958,8 +3187,7 @@ class ChatWindow(wx.Dialog):
 		text = messageText.presenceText(presence)
 		if text != self._presenceText:
 			self._presenceText = text
-			title = self.chat.get("title", "")
-			self.chatButton.SetLabel(f"{title}, {text}" if text else title)
+			self.chatButton.SetLabel(self._headerLabel(self.chat, text))
 		if messageText.isActivity(presence) and messageText.presenceText(before) != text:
 			ui.message(text)
 
@@ -2018,6 +3246,7 @@ class ChatWindow(wx.Dialog):
 
 		def report(presence: dict) -> None:
 			self.onPresence(chat["id"], presence)
+			# Only who and their state, to be quick; the chat's name button also says disappearing messages.
 			text = messageText.presenceText(presence)
 			title = chat.get("title", "")
 			ui.message(f"{title}, {text}" if text else title)
@@ -2203,12 +3432,12 @@ class ChatWindow(wx.Dialog):
 		muteMenu = wx.Menu()
 		for label, seconds in ((_("8 hours"), 8 * 3600), (_("1 week"), 7 * 86400), (_("Always"), -1)):
 			add(muteMenu, label, "mute", _("Muted"), seconds)
-		menu.AppendSubMenu(muteMenu, _("&Mute notifications"))
-		add(menu, _("Un&mute notifications"), "unmute", _("Unmuted"))
-		add(menu, _("&Pin chat"), "pin", _("Pinned"))
-		add(menu, _("Un&pin chat"), "unpin", _("Unpinned"))
+		menu.AppendSubMenu(muteMenu, _("Mute n&otifications"))
+		add(menu, _("Unmute n&otifications"), "unmute", _("Unmuted"))
+		add(menu, _("Pin &chat"), "pin", _("Pinned"))
+		add(menu, _("Unpin &chat"), "unpin", _("Unpinned"))
 		add(menu, _("Mark as &read"), "markRead", _("Marked as read"))
-		add(menu, _("Mark as &unread"), "markUnread", _("Marked as unread"))
+		add(menu, _("Ma&rk as unread"), "markUnread", _("Marked as unread"))
 		# Translators: An item in the menu for selected chats: deletes them.
 		item = menu.Append(wx.ID_ANY, _("&Delete chats\tDelete"))
 		self.Bind(wx.EVT_MENU, lambda evt: self._deleteChats(), item)
@@ -2258,6 +3487,47 @@ class ChatWindow(wx.Dialog):
 		self._run(lambda: self.session.chatsAction([c["id"] for c in chats], "delete"), done)
 
 	# Keys and closing -----------------------------------------------------------------------------------
+
+	def _onActivate(self, evt: wx.ActivateEvent) -> None:
+		"""Online while this window is in front, as WhatsApp Web is; offline once the user goes to another
+		program. The add-on's own dialogs over this window keep it online."""
+		evt.Skip()
+		if evt.GetActive():
+			self._setOnline(True)
+		else:
+			wx.CallLater(400, self._checkStillInFront)
+
+	def _checkStillInFront(self) -> None:
+		import ctypes
+
+		user32 = ctypes.windll.user32
+		pid = ctypes.c_ulong()
+		user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(pid))
+		if pid.value != os.getpid():
+			self._setOnline(False)
+
+	def _setOnline(self, online: bool) -> None:
+		if self and online != self._online:
+			self._online = online
+			self._run(lambda: self.session.setOnline(online))
+
+	def onCallChanged(self) -> None:
+		"""During a call, a bar at the top says who it is with and offers Return to call and Mute."""
+		calls = self.calls
+		inCall = bool(calls and calls.inCall)
+		if inCall:
+			# Translators: The bar at the top of the WhatsApp window during a call, with who it is with.
+			self.callText.SetLabel(_("In a call with {name}").format(name=calls.call.get("name", "")))
+			self.callMuteButton.SetLabel(
+				# Translators: A button in the WhatsApp window during a call: turns the microphone back on.
+				_("Unmute microphone (Ctrl+M)")
+				if calls.muted
+				# Translators: A button in the WhatsApp window during a call: turns the microphone off.
+				else _("Mute microphone (Ctrl+M)")
+			)
+		if self.callPanel.IsShown() != inCall:
+			self.callPanel.Show(inCall)
+			self.Layout()
 
 	def _onCharHook(self, evt: wx.KeyEvent) -> None:
 		key = evt.GetKeyCode()
@@ -2315,8 +3585,20 @@ class ChatWindow(wx.Dialog):
 			if focus is self.sectionList:
 				self.showTab(self.sectionList.GetSelection())
 				return
+			if focus is self.starredList:
+				self._openStarred()
+				return
+			if focus is self.channelList:
+				self._openChannel()
+				return
+			if focus is self.communityList:
+				self._openCommunity()
+				return
+			if focus is self.settingsList:
+				self._openSetting()
+				return
 		modifiers = evt.GetModifiers()
-		if modifiers == wx.MOD_CONTROL and ord("1") <= key <= ord("4"):
+		if modifiers == wx.MOD_CONTROL and ord("1") <= key <= ord("8"):
 			self.showTab(key - ord("1"))
 			return
 		if (
@@ -2333,6 +3615,25 @@ class ChatWindow(wx.Dialog):
 			return
 		if modifiers == wx.MOD_ALT and key == ord("U"):
 			self._nextUnread()
+			return
+		if modifiers == wx.MOD_CONTROL and key == ord("M") and self.calls and self.calls.inCall:
+			self.calls.toggleMute()
+			return
+		if (
+			modifiers == wx.MOD_CONTROL | wx.MOD_SHIFT
+			and key == ord("G")
+			and self.calls
+			and self.calls.inCall
+		):
+			self.calls.saySpeakers()
+			return
+		if modifiers == wx.MOD_CONTROL | wx.MOD_SHIFT and key in (ord("N"), ord("F"), ord("M")):
+			if key == ord("N"):
+				self._newGroup()
+			elif key == ord("F"):
+				self._searchAll()
+			elif inConversation:
+				self._showMentions()
 			return
 		if modifiers == wx.MOD_CONTROL and key == ord("N"):
 			self._newChat()
@@ -2397,6 +3698,10 @@ class ChatWindow(wx.Dialog):
 		if self._recording or self._hasRecording:
 			self._run(self.session.cancelRecording)
 		self._stopPlayback()
+		# Offline again, as WhatsApp Web is when it is no longer in front.
+		if self._online:
+			self._online = False
+			self._run(lambda: self.session.setOnline(False))
 		self._onClosed()
 		self.Destroy()
 
@@ -2662,7 +3967,7 @@ def _findDescriber():
 class ListDialog(wx.Dialog):
 	"""A list to choose one item from with Enter."""
 
-	def __init__(self, parent: wx.Window, title: str, items: list[str]) -> None:
+	def __init__(self, parent: wx.Window, title: str, items: list[str], okLabel: str | None = None) -> None:
 		super().__init__(parent, title=title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
 		sizer = wx.BoxSizer(wx.VERTICAL)
 		self.list = wx.ListBox(self, choices=items, size=(600, 300))
@@ -2672,7 +3977,7 @@ class ListDialog(wx.Dialog):
 		sizer.Add(self.list, 1, wx.EXPAND | wx.ALL, 10)
 		buttons = wx.StdDialogButtonSizer()
 		# Translators: The button that goes to the chosen message.
-		buttons.AddButton(wx.Button(self, wx.ID_OK, label=_("&Go to message")))
+		buttons.AddButton(wx.Button(self, wx.ID_OK, label=okLabel or _("&Go to message")))
 		buttons.AddButton(wx.Button(self, wx.ID_CANCEL, label=_("Close")))
 		buttons.Realize()
 		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM, 10)
@@ -2693,9 +3998,12 @@ class ListDialog(wx.Dialog):
 class ChatPickerDialog(wx.Dialog):
 	"""Choose chats to forward to: type to narrow the list, Space to check, Enter to forward."""
 
-	def __init__(self, parent: wx.Window, chats: list[dict]) -> None:
-		# Translators: The title of the dialog for forwarding a message.
-		super().__init__(parent, title=_("Forward to"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+	def __init__(
+		self, parent: wx.Window, chats: list[dict], title: str | None = None, okLabel: str | None = None
+	) -> None:
+		super().__init__(
+			parent, title=title or _("Forward to"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER
+		)
 		self.chats = chats
 		self.shown: list[dict] = []
 		self.checked: set[str] = set()
@@ -2712,7 +4020,7 @@ class ChatPickerDialog(wx.Dialog):
 		sizer.Add(self.list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
 		buttons = wx.StdDialogButtonSizer()
 		# Translators: The button that forwards the message to the checked chats.
-		buttons.AddButton(wx.Button(self, wx.ID_OK, label=_("&Forward")))
+		buttons.AddButton(wx.Button(self, wx.ID_OK, label=okLabel or _("&Forward")))
 		buttons.AddButton(wx.Button(self, wx.ID_CANCEL, label=_("Cancel")))
 		buttons.Realize()
 		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
@@ -2755,6 +4063,14 @@ def tabNames() -> list[str]:
 		_("Calls (Ctrl+3)"),
 		# Translators: A tab of the add-on's window: archived chats.
 		_("Archived (Ctrl+4)"),
+		# Translators: A section of the add-on's window, like WhatsApp's: starred messages.
+		_("Starred (Ctrl+5)"),
+		# Translators: A section of the add-on's window, like WhatsApp's: the channels the user follows.
+		_("Channels (Ctrl+6)"),
+		# Translators: A section of the add-on's window, like WhatsApp's: the user's communities.
+		_("Communities (Ctrl+7)"),
+		# Translators: A section of the add-on's window, like WhatsApp's: profile, privacy and more.
+		_("Settings (Ctrl+8)"),
 	]
 
 
@@ -3009,15 +4325,18 @@ class NotificationDialog(wx.Dialog):
 		sizer = wx.BoxSizer(wx.VERTICAL)
 		helper = wx.FlexGridSizer(cols=2, vgap=6, hgap=6)
 
-		def labeled(label: str, control: wx.Window) -> wx.Window:
-			helper.Add(wx.StaticText(self, label=label), 0, wx.ALIGN_CENTER_VERTICAL)
+		def labeled(label: str, make: Callable[[], wx.Window]) -> Any:
+			# Screen readers name a control by the text made just before it: the label comes first.
+			text = wx.StaticText(self, label=label)
+			control = make()
+			helper.Add(text, 0, wx.ALIGN_CENTER_VERTICAL)
 			helper.Add(control, 1, wx.EXPAND)
 			return control
 
 		self.announceChoice = labeled(
 			# Translators: The label of the choice of whether this chat's new messages are read out.
 			_("Read out new &messages:"),
-			wx.Choice(
+			lambda: wx.Choice(
 				self,
 				choices=[
 					# Translators: A choice for one chat's notifications.
@@ -3034,7 +4353,7 @@ class NotificationDialog(wx.Dialog):
 		self.soundChoice = labeled(
 			# Translators: The label of the choice of sound for this chat's new messages.
 			_("&Sound:"),
-			wx.Choice(
+			lambda: wx.Choice(
 				self,
 				choices=[
 					# Translators: A choice of sound for one chat: the sound of personal chats or groups.
@@ -3054,7 +4373,7 @@ class NotificationDialog(wx.Dialog):
 		self.contentChoice = labeled(
 			# Translators: The label of the choice of how much is said for this chat's new messages.
 			_("&What to say:"),
-			wx.Choice(
+			lambda: wx.Choice(
 				self,
 				choices=[
 					# Translators: A choice for one chat's notifications.

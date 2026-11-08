@@ -46,6 +46,8 @@ RESTART_WINDOW_SECONDS = 600
 # Starting WhatsApp with NVDA waits a little, so NVDA's own start is not slowed down.
 AUTO_START_DELAY_MS = 4000
 START_RETRY_SECONDS = 3
+# A lost connection is said only after this long, so a short drop stays silent.
+CONNECTION_LOST_DELAY_MS = 8000
 
 
 def _profileDir() -> str:
@@ -76,12 +78,67 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.calls = CallAnnouncer(self.session, lambda: config.conf[CONFIG_SECTION]["hints"])
 		self._restarts: list[float] = []
 		self._stopping = False
+		self._connectionLost = False
+		self._saidLost = False
+		self._lostTimer: wx.CallLater | None = None
 		settings = config.conf[CONFIG_SECTION]
 		if settings["setupDone"] and settings["connection"] == "hidden" and settings["startWithNVDA"]:
 			wx.CallLater(AUTO_START_DELAY_MS, self._startHidden, False, False)
 		updateCheck.scheduleAutoCheck()
 		WhatsAppSettingsPanel.plugin = self
 		NVDASettingsDialog.categoryClasses.append(WhatsAppSettingsPanel)
+
+	def _callChanged(self) -> None:
+		if self.window:
+			self.window.onCallChanged()
+
+	def event_gainFocus(self, obj, nextHandler) -> None:
+		"""Coming back to the WhatsApp window while one of its dialogs is open goes to that dialog.
+
+		Alt+Tab lists only the main window; while a dialog is open that window is locked, so the user would
+		hear "unavailable" and could not reach the dialog's buttons."""
+		dialog = self._openDialogOf(obj)
+		if dialog:
+			# Straight to the dialog, without first saying the locked window.
+			import ctypes
+
+			ctypes.windll.user32.SetForegroundWindow(dialog)
+			return
+		nextHandler()
+
+	def _openDialogOf(self, obj) -> int:
+		"""The dialog open over the WhatsApp window, when obj is that window while it is locked; else 0."""
+		window = self.window
+		if window is None or not window or window.IsEnabled():
+			return 0
+		try:
+			handle = window.GetHandle()
+		except RuntimeError:
+			return 0
+		if obj.windowHandle != handle:
+			return 0
+		import ctypes
+		from ctypes import wintypes
+
+		user32 = ctypes.windll.user32
+		owned: list[int] = []
+		others: list[int] = []
+
+		# Usually the dialog is one the WhatsApp window owns; GetLastActivePopup misses it once the user
+		# went to another program. A question from NVDA or another add-on, such as NVDA MCP asking to allow
+		# key presses, locks this window too: then it is the other window NVDA shows, visible and usable.
+		@ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+		def collect(hwnd, lParam):
+			if hwnd != handle and user32.IsWindowVisible(hwnd) and user32.IsWindowEnabled(hwnd):
+				if user32.GetWindow(hwnd, 4) == handle:
+					owned.append(hwnd)
+				elif user32.GetWindowTextLengthW(hwnd):
+					others.append(hwnd)
+			return True
+
+		user32.EnumThreadWindows(user32.GetWindowThreadProcessId(handle, None), collect, 0)
+		found = owned or others
+		return found[0] if found else 0
 
 	def terminate(self) -> None:
 		if WhatsAppSettingsPanel in NVDASettingsDialog.categoryClasses:
@@ -141,6 +198,19 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		if not self.calls.answerOrShow():
 			# Translators: Reported when there is no WhatsApp call to answer or show.
 			ui.message(_("No WhatsApp call"))
+
+	@script(
+		# Translators: Describes a command in the Input Gestures dialog.
+		description=_("Turns the microphone off or on again during a WhatsApp call, from any program"),
+		category=SCRCAT_WHATSAPP,
+		gesture="kb:NVDA+alt+m",
+	)
+	def script_toggleCallMute(self, gesture) -> None:
+		if not self.calls.inCall:
+			# Translators: Said when the user asks to mute the microphone but no call is going on.
+			ui.message(_("Not in a call"))
+			return
+		self.calls.toggleMute()
 
 	@script(
 		# Translators: Describes a command in the Input Gestures dialog.
@@ -372,6 +442,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def _showWindow(self) -> None:
 		if self.window is None:
 			self.window = ChatWindow(gui.mainFrame, self.session, self._windowClosed)
+			self.window.calls = self.calls
+			self.calls.onChange = self._callChanged
+			self.window.onCallChanged()
 			gui.mainFrame.prePopup()
 			self.window.Show()
 			gui.mainFrame.postPopup()
@@ -445,6 +518,35 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			self.calls.onCall(event.get("call"))
 		elif kind == "playbackEnded" and window:
 			window.onPlaybackEnded()
+		elif kind == "connection":
+			self._onConnection(event.get("state") or {})
+
+	def _onConnection(self, state: dict) -> None:
+		"""Says when WhatsApp loses its connection and when it is back, so a message that waits makes sense.
+
+		Short drops are common; only one that lasts a few seconds is said."""
+		info = state.get("info", "")
+		lost = info in ("OFFLINE", "CONNECTING", "OPENING") or not state.get("online", True)
+		if lost and not self._connectionLost:
+			self._connectionLost = True
+			if self._lostTimer is None:
+				self._lostTimer = wx.CallLater(CONNECTION_LOST_DELAY_MS, self._sayConnectionLost)
+		elif info == "NORMAL" and self._connectionLost:
+			self._connectionLost = False
+			if self._lostTimer is not None:
+				self._lostTimer.Stop()
+				self._lostTimer = None
+			if self._saidLost:
+				self._saidLost = False
+				# Translators: Said when WhatsApp is connected again after losing its connection.
+				ui.message(_("WhatsApp is connected again"))
+
+	def _sayConnectionLost(self) -> None:
+		self._lostTimer = None
+		if self._connectionLost:
+			self._saidLost = True
+			# Translators: Said when WhatsApp loses its connection; messages wait until it is back.
+			ui.message(_("WhatsApp lost its connection. Messages are sent when it is back."))
 
 	def _shouldAnnounce(self, chat: dict, inOpenChat: bool) -> bool:
 		mode = config.conf[CONFIG_SECTION]["announce"]

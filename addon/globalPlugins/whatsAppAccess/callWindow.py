@@ -47,33 +47,58 @@ def callStatus(call: dict, connectedAt: float | None) -> str:
 class CallWindow(wx.Dialog):
 	"""Answer or decline a call, then mute and hang up. Escape only hides it; the call goes on."""
 
-	def __init__(self, parent: wx.Window, session: WhatsAppSession, onClosed: Callable[[], None]) -> None:
+	def __init__(
+		self,
+		parent: wx.Window,
+		session: WhatsAppSession,
+		onClosed: Callable[[], None],
+		announcer: "CallAnnouncer",
+	) -> None:
+		self.announcer = announcer
 		# Translators: The title of the call window.
 		super().__init__(parent, title=_("WhatsApp call"))
 		self.session = session
 		self._onClosed = onClosed
 		self.call: dict | None = None
 		self.connectedAt: float | None = None
-		self.muted = False
 		self.declined = False
 		sizer = wx.BoxSizer(wx.VERTICAL)
 		self.statusBox = wx.TextCtrl(self, style=wx.TE_READONLY, size=(420, -1))
 		sizer.Add(self.statusBox, 0, wx.EXPAND | wx.ALL, 8)
 		buttons = wx.BoxSizer(wx.HORIZONTAL)
 		# Translators: A button that answers a call. NVDA+Alt+A does this from anywhere.
-		self.answerButton = wx.Button(self, label=_("&Answer (NVDA+Alt+A)"))
+		self.answerButton = wx.Button(self, label=_("Answer (NVDA+Alt+A)"))
 		self.answerButton.Bind(wx.EVT_BUTTON, lambda evt: self.answer())
 		# Translators: A button that declines a ringing call. NVDA+Alt+H does this from anywhere.
-		self.declineButton = wx.Button(self, label=_("&Decline (NVDA+Alt+H)"))
+		self.declineButton = wx.Button(self, label=_("Decline (NVDA+Alt+H)"))
 		self.declineButton.Bind(wx.EVT_BUTTON, lambda evt: self.hangUp())
 		self.muteButton = wx.Button(self, label="")
 		self.muteButton.Bind(wx.EVT_BUTTON, lambda evt: self.toggleMute())
 		# Translators: A button that ends the call. NVDA+Alt+H does this from anywhere.
-		self.endButton = wx.Button(self, label=_("&End call (NVDA+Alt+H)"))
+		self.endButton = wx.Button(self, label=_("End call (NVDA+Alt+H)"))
 		self.endButton.Bind(wx.EVT_BUTTON, lambda evt: self.hangUp())
-		for button in (self.answerButton, self.declineButton, self.muteButton, self.endButton):
+		self.handButton = wx.Button(self, label="")
+		self.handButton.Bind(wx.EVT_BUTTON, lambda evt: self.announcer.toggleHand())
+		# Translators: A button in a group call: sends a reaction, such as a thumbs up, to everyone.
+		self.reactButton = wx.Button(self, label=_("Rea&ct\u2026"))
+		self.reactButton.Bind(wx.EVT_BUTTON, lambda evt: self._react())
+		for button in (
+			self.answerButton,
+			self.declineButton,
+			self.muteButton,
+			self.handButton,
+			self.reactButton,
+			self.endButton,
+		):
 			buttons.Add(button, 0, wx.RIGHT, 6)
 		sizer.Add(buttons, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+		# Translators: The label of the list of people in a group call.
+		self.peopleLabel = wx.StaticText(self, label=_("&Participants:"))
+		self.peopleList = wx.ListBox(self, style=wx.LB_SINGLE, size=(420, 200))
+		self.peopleList.Bind(wx.EVT_CONTEXT_MENU, lambda evt: self._personMenu())
+		self._people: list[dict] = []
+		sizer.Add(self.peopleLabel, 0, wx.LEFT | wx.RIGHT, 8)
+		sizer.Add(self.peopleList, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 		self.SetSizerAndFit(sizer)
 		self.CentreOnScreen()
 		self.Bind(wx.EVT_CHAR_HOOK, self._onKey)
@@ -117,22 +142,7 @@ class CallWindow(wx.Dialog):
 			self._run(self.session.endCall)
 
 	def toggleMute(self) -> None:
-		if not self.call or not self.call.get("connected"):
-			return
-
-		def done(muted: bool) -> None:
-			self.muted = muted
-			self._updateButtons()
-			ui.message(
-				# Translators: Reported when the user's microphone is muted during a call.
-				_("Microphone off")
-				if muted
-				# Translators: Reported when the user's microphone is on again during a call.
-				else _("Microphone on")
-			)
-
-		target = not self.muted
-		self._run(lambda: self.session.muteCall(target), done)
+		self.announcer.toggleMute()
 
 	# Showing the call ----------------------------------------------------------------------------------
 
@@ -154,20 +164,83 @@ class CallWindow(wx.Dialog):
 		active = not call.get("ended") and not ringingIn
 		self.muteButton.SetLabel(
 			# Translators: A button that turns the microphone back on during a call.
-			_("Un&mute (Ctrl+M)")
-			if self.muted
+			_("Unmute (Ctrl+M)")
+			if self.announcer.muted
 			# Translators: A button that turns the microphone off during a call.
-			else _("&Mute (Ctrl+M)")
+			else _("Mute (Ctrl+M)")
+		)
+		inGroup = active and bool(call.get("connected")) and bool(call.get("group"))
+		self.handButton.SetLabel(
+			# Translators: A button in a group call: lowers the user's raised hand.
+			_("Lower hand (Ctrl+H)")
+			if call.get("myHand")
+			# Translators: A button in a group call: raises the user's hand, as WhatsApp's button does.
+			else _("Raise hand (Ctrl+H)")
 		)
 		for button, show in (
 			(self.answerButton, ringingIn),
 			(self.declineButton, ringingIn),
 			(self.muteButton, active and bool(call.get("connected"))),
+			(self.handButton, inGroup),
+			(self.reactButton, inGroup),
 			(self.endButton, active),
+			(self.peopleLabel, inGroup),
+			(self.peopleList, inGroup),
 		):
 			button.Show(show)
+		if inGroup:
+			self._fillPeople(call.get("participants") or [])
 		self.Layout()
 		self.Fit()
+
+	def _fillPeople(self, people: list[dict]) -> None:
+		# Those in the call first, then those invited who have not joined.
+		people = sorted(people, key=lambda p: (not p.get("connected"), not p.get("hand"), p.get("name", "")))
+		self._people = people
+		lines = [messageText.participantLine(p) for p in people]
+		if self.peopleList.GetItems() != lines:
+			selection = self.peopleList.GetSelection()
+			self.peopleList.Set(lines)
+			if lines:
+				self.peopleList.SetSelection(min(max(selection, 0), len(lines) - 1))
+
+	def _personMenu(self) -> None:
+		index = self.peopleList.GetSelection()
+		if index == wx.NOT_FOUND or index >= len(self._people):
+			return
+		person = self._people[index]
+		if not person.get("connected") or person.get("muted"):
+			return
+		menu = wx.Menu()
+		# Translators: An item in a group call participant's menu: asks them to mute their microphone.
+		item = menu.Append(wx.ID_ANY, _("&Ask to mute"))
+		self.Bind(
+			wx.EVT_MENU,
+			lambda evt: self._run(
+				lambda: self.session.askToMute(person["id"]),
+				# Translators: Reported after asking someone in a group call to mute, with their name.
+				lambda r: ui.message(_("Asked {name} to mute").format(name=person.get("name", ""))),
+			),
+			item,
+		)
+		self.peopleList.PopupMenu(menu)
+		menu.Destroy()
+
+	def _react(self) -> None:
+		menu = wx.Menu()
+		for emoji in CALL_REACTIONS:
+			item = menu.Append(wx.ID_ANY, emoji)
+			self.Bind(
+				wx.EVT_MENU,
+				lambda evt, emoji=emoji: self._run(
+					lambda: self.session.callReaction(emoji),
+					# Translators: Reported after sending a reaction in a group call, with the emoji.
+					lambda r: ui.message(_("Sent {emoji}").format(emoji=emoji)),
+				),
+				item,
+			)
+		self.PopupMenu(menu)
+		menu.Destroy()
 
 	def focusAction(self) -> None:
 		"""Put focus on what the user most likely wants now: Answer while ringing, End during a call."""
@@ -188,12 +261,22 @@ class CallWindow(wx.Dialog):
 		if modifiers == wx.MOD_CONTROL and key == ord("M"):
 			self.toggleMute()
 			return
+		if modifiers == wx.MOD_CONTROL and key == ord("H"):
+			self.announcer.toggleHand()
+			return
+		if modifiers == wx.MOD_CONTROL | wx.MOD_SHIFT and key == ord("G"):
+			self.announcer.saySpeakers()
+			return
 		evt.Skip()
 
 	def _onClose(self, evt: wx.CloseEvent) -> None:
 		self.timer.Stop()
 		self._onClosed()
 		self.Destroy()
+
+
+# The reactions WhatsApp offers first in a call.
+CALL_REACTIONS = ("👍", "❤️", "😂", "😮", "😢", "🙏", "👏")
 
 
 class CallAnnouncer:
@@ -205,6 +288,92 @@ class CallAnnouncer:
 		self.window: CallWindow | None = None
 		self.call: dict | None = None
 		self.connectedAt: float | None = None
+		self.muted = False
+		# What the user asked the microphone to become, until WhatsApp confirms it.
+		self._expectedMute: bool | None = None
+		# Told when the call starts, changes or ends, so the WhatsApp window can show it.
+		self.onChange: Callable[[], None] | None = None
+
+	@property
+	def inCall(self) -> bool:
+		call = self.call
+		return bool(call and call.get("connected") and not call.get("ended"))
+
+	def saySpeakers(self) -> None:
+		"""Ctrl+Shift+G: who is speaking in the call now."""
+		if not self.inCall:
+			return
+
+		def work() -> None:
+			try:
+				names = self.session.speakers()
+			except WhatsAppError as e:
+				log.debugWarning(f"WhatsApp Access: speakers: {e}")
+				return
+			wx.CallAfter(
+				ui.message,
+				# Translators: Said when the user asks who is speaking in a call and nobody is.
+				", ".join(names) if names else _("Nobody is speaking"),
+			)
+
+		threading.Thread(target=work, name="whatsAppAccess.speakers", daemon=True).start()
+
+	def toggleHand(self) -> None:
+		"""Ctrl+H in a group call: raise or lower the user's hand."""
+		call = self.call or {}
+		if not self.inCall or not call.get("group"):
+			return
+		target = not call.get("myHand")
+
+		def work() -> None:
+			try:
+				self.session.raiseHand(target)
+			except WhatsAppError as e:
+				log.debugWarning(f"WhatsApp Access: hand: {e}")
+				return
+			# Translators: Reported after the user raised or lowered their hand in a group call.
+			wx.CallAfter(ui.message, _("Hand raised") if target else _("Hand lowered"))
+
+		threading.Thread(target=work, name="whatsAppAccess.hand", daemon=True).start()
+
+	def toggleMute(self) -> None:
+		"""Ctrl+M: microphone off or on again, from the call window or the WhatsApp window."""
+		if not self.inCall:
+			return
+		target = not self.muted
+		self._expectedMute = target
+
+		def work() -> None:
+			try:
+				muted = self.session.muteCall(target)
+			except WhatsAppError as e:
+				log.debugWarning(f"WhatsApp Access: mute: {e}")
+				return
+			wx.CallAfter(done, bool(muted))
+
+		def done(muted: bool) -> None:
+			self._expectedMute = None
+			self.muted = muted
+			sounds.play(sounds.MIC_OFF if muted else sounds.MIC_ON)
+			if self.window:
+				self.window._updateButtons()
+			self._changed()
+			ui.message(
+				# Translators: Reported when the user's microphone is muted during a call.
+				_("Microphone off")
+				if muted
+				# Translators: Reported when the user's microphone is on again during a call.
+				else _("Microphone on")
+			)
+
+		threading.Thread(target=work, name="whatsAppAccess.mute", daemon=True).start()
+
+	def _changed(self) -> None:
+		if self.onChange is not None:
+			try:
+				self.onChange()
+			except Exception:  # noqa: BLE001 - the WhatsApp window may be closing
+				log.debugWarning("WhatsApp Access: call change", exc_info=True)
 
 	def onCall(self, call: dict | None) -> None:
 		before = self.call or {}
@@ -212,11 +381,14 @@ class CallAnnouncer:
 			if before and not before.get("ended"):
 				self._ended(before)
 			self.call = None
+			self.muted = False
 			self._closeSoon()
+			self._changed()
 			return
 		new = call.get("id") != before.get("id")
 		if new:
 			self.connectedAt = None
+			self.muted = False
 			if call.get("incoming"):
 				sounds.play(sounds.RING)
 				# Translators: Read out when someone calls the user: the kind of call and who.
@@ -239,9 +411,62 @@ class CallAnnouncer:
 		if call.get("ended") and not before.get("ended"):
 			self._ended(call)
 			self._closeSoon()
+		# WhatsApp knows whether the microphone is on, also after joining muted or muting elsewhere.
+		if "muted" in call:
+			muted = bool(call["muted"])
+			if (
+				muted
+				and not self.muted
+				and self._expectedMute is None
+				and call.get("connected")
+				and before.get("connected")
+				and not new
+			):
+				# Someone else muted the user, as a group's admin can.
+				sounds.play(sounds.MIC_OFF)
+				# Translators: Said when someone else in the call turned the user's microphone off.
+				ui.message(_("Someone in the call muted your microphone"))
+			self.muted = muted
+			if self.window:
+				self.window._updateButtons()
+		# Joins, leaves and raised hands in a group call, with a small sound each; not the people
+		# already there when the user joined.
+		if call.get("group") and call.get("connected") and before.get("connected") and not new:
+			self._announceChanges(before.get("participants") or [], call.get("participants") or [])
 		self.call = call
 		if self.window:
 			self.window.update(call, self.connectedAt)
+		self._changed()
+
+	def _announceChanges(self, before: list[dict], after: list[dict]) -> None:
+		changes = messageText.callChanges(before, after)
+		if not changes:
+			return
+		texts = []
+		for kind, name in changes:
+			if kind == "joined":
+				# Translators: Said when someone joins the group call the user is in.
+				texts.append(_("{name} joined").format(name=name))
+			elif kind == "left":
+				# Translators: Said when someone leaves the group call the user is in.
+				texts.append(_("{name} left").format(name=name))
+			elif kind == "hand":
+				# Translators: Said when someone in the group call raises their hand.
+				texts.append(_("{name} raised a hand").format(name=name))
+			else:
+				# Someone's reaction: their name and the emoji.
+				texts.append(name)
+		kinds = {kind for kind, name in changes}
+		for kind, sound in (
+			("hand", sounds.CALL_HAND),
+			("joined", sounds.CALL_JOIN),
+			("left", sounds.CALL_LEAVE),
+			("reaction", sounds.CALL_REACTION),
+		):
+			if kind in kinds:
+				sounds.play(sound)
+				break
+		ui.message(", ".join(texts))
 
 	def _ended(self, call: dict) -> None:
 		sounds.play(sounds.DISCARD)
@@ -267,7 +492,7 @@ class CallAnnouncer:
 		import gui
 
 		if self.window is None:
-			self.window = CallWindow(gui.mainFrame, self.session, self._windowClosed)
+			self.window = CallWindow(gui.mainFrame, self.session, self._windowClosed, self)
 		if self.call:
 			self.window.update(self.call, self.connectedAt)
 		if not focus:

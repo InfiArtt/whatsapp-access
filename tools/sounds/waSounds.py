@@ -139,6 +139,58 @@ def tick():
     return done(tr, 0.12, 0.6)
 
 
+def mic_off():
+    """Microphone off: two soft notes falling A5 to D5, then a dim wooden tock, like a lid closing."""
+    seed(112)
+    tr = Track(0.9)
+    tr.add(darken(bell("A5", 0.5, 0.25, 0.25), 3200), 0.0, 0.15, 0.26)
+    tr.add(darken(bell("D5", 0.6, 0.3, 0.25), 3000), 0.09, -0.15, 0.26)
+    tr.add(darken(wood(n("D4"), 0.14, 0.03), 1800), 0.17, 0.0, 0.18)
+    return done(tr, 0.2, 1.0)
+
+
+def mic_on():
+    """Microphone on: two bright notes rising D5 to A5, the lid opening again."""
+    seed(113)
+    tr = Track(0.9)
+    tr.add(darken(bell("D5", 0.5, 0.25, 0.25), 3600), 0.0, -0.15, 0.26)
+    tr.add(darken(bell("A5", 0.7, 0.35, 0.28), 4000), 0.09, 0.15, 0.28)
+    return done(tr, 0.2, 1.0)
+
+
+def call_join():
+    """Someone joins the group call: one small, soft glass note on A5, from the right."""
+    seed(114)
+    tr = Track(0.7)
+    tr.add(darken(bell("A5", 0.5, 0.3, 0.2), 3400), 0.0, 0.35, 0.22)
+    return done(tr, 0.18, 0.9)
+
+
+def call_leave():
+    """Someone leaves the group call: one small, dim note on D5, from the left."""
+    seed(115)
+    tr = Track(0.7)
+    tr.add(darken(bell("D5", 0.5, 0.3, 0.2), 2600), 0.0, -0.35, 0.22)
+    return done(tr, 0.18, 0.9)
+
+
+def call_hand():
+    """A hand is raised in the group call: two light wooden knocks, as on a desk."""
+    seed(116)
+    tr = Track(0.6)
+    tr.add(darken(wood(n("E5"), 0.12, 0.03), 2400), 0.0, 0.0, 0.22)
+    tr.add(darken(wood(n("E5"), 0.12, 0.03), 2400), 0.11, 0.0, 0.18)
+    return done(tr, 0.15, 0.7)
+
+
+def call_reaction():
+    """Someone reacts in the group call: a tiny, soft music-box plink on D6, barely there."""
+    seed(117)
+    tr = Track(0.5)
+    tr.add(darken(bell("D6", 0.3, 0.15, 0.2), 4200), 0.0, 0.0, 0.16)
+    return done(tr, 0.15, 0.7)
+
+
 SOUNDS = {
     "sent": sent,
     "received": received,
@@ -151,6 +203,12 @@ SOUNDS = {
     "notifyKalimba": notify_kalimba,
     "notifyFlute": notify_flute,
     "tick": tick,
+    "micOff": mic_off,
+    "micOn": mic_on,
+    "callJoin": call_join,
+    "callLeave": call_leave,
+    "callHand": call_hand,
+    "callReaction": call_reaction,
 }
 
 if __name__ == "__main__":

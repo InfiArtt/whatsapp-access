@@ -1,214 +1,320 @@
 # WhatsApp Access
 
-WhatsApp Access menampilkan chat WhatsApp Anda dalam jendela sederhana yang dibuat untuk pembaca
-layar NVDA. Di sana Anda membaca dan membalas pesan serta mengirim voice note yang jernih, sementara
-WhatsApp Web tetap terbuka di Brave, Google Chrome, atau Microsoft Edge. Browser boleh tetap di
-belakang, diminimalkan, atau di desktop virtual lain.
+WhatsApp Access membawa WhatsApp Anda ke jendela sederhana yang dibuat untuk pembaca layar NVDA:
+chat, voice note, status, panggilan, saluran, komunitas, dan pengaturan, semuanya dengan keyboard,
+dengan ucapan yang jelas dan suara-suara kecil. WhatsApp Web berjalan tersembunyi di belakang, jadi
+Anda tidak perlu menjelajahi halaman webnya sama sekali.
 
-Ini cara lain untuk melihat dan memakai WhatsApp, bukan bot. Add-on hanya mengirim apa yang Anda
-tulis atau rekam, saat Anda memilih mengirimnya. Add-on tidak pernah membalas atau mengirim pesan
-sendiri.
+Ini cara lain melihat dan memakai WhatsApp Anda sendiri, bukan bot. Add-on hanya mengirim apa yang
+Anda tulis, rekam, atau pilih, saat Anda memilih mengirimnya. Add-on tidak pernah menjawab atau
+mengirim apa pun sendiri.
 
-## Dua cara terhubung ke WhatsApp
+## Yang Anda perlukan
 
-- **Browser tersembunyi milik add-on** (disarankan). Add-on menjalankan WhatsApp Web di Brave, Google
-  Chrome, atau browser Chromium lain versi 120 atau lebih baru, tanpa jendela dan dengan profilnya
-  sendiri, jadi browser Anda tidak tersentuh dan tidak ada yang meminta izin. Anda menautkannya sekali ke
-  ponsel dengan kode, dan ia muncul di ponsel di Perangkat tertaut. Ia bisa berjalan bersama NVDA, jadi
-  pesan baru dibacakan kapan saja. Memakai sekitar 400 sampai 600 MB memori.
-- **WhatsApp Web di browser Anda sendiri**, dijelaskan di bawah. Browser Anda meminta izin setiap kali dibuka.
+- Windows 10 atau 11, dan NVDA 2026.3 atau lebih baru.
+- Salah satu browser ini terpasang, versi 120 atau lebih baru: Brave, Google Chrome, Chromium,
+  Vivaldi, Opera, atau Microsoft Edge. Anda tidak perlu memakainya sendiri; add-on hanya meminjamnya.
+- WhatsApp di ponsel Anda, untuk menautkan komputer ini sekali, seperti WhatsApp Web.
 
-Pertama kali Anda menekan NVDA+Shift+W, add-on menanyakan cara yang Anda inginkan. Anda bisa mengubahnya
-di pengaturan NVDA, WhatsApp Access, yang juga punya **Putuskan tautan komputer ini**: keluar dari WhatsApp
-dan menghapus apa yang disimpan browser tersembunyi. Menghapus add-on juga menghapusnya.
+## Memasang
 
-### Menautkan browser tersembunyi
+1. Buka [halaman Rilis](https://github.com/InfiArtt/whatsapp-access/releases/latest) dan unduh file
+   yang berakhiran `.nvda-addon`.
+2. Buka file itu, misalnya dengan menekan Enter padanya di File Explorer. NVDA menanyakan apakah
+   add-on akan dipasang: pilih Ya.
+3. Mulai ulang NVDA saat diminta.
 
-1. Ketik nomor telepon Anda dengan kode negaranya lalu tekan Enter.
-2. Add-on membacakan kode 8 karakter huruf demi huruf, dan menampilkannya di kotak dengan tombol Salin.
+Versi baru datang dengan cara yang sama, sendiri: lihat [Pembaruan](#pembaruan).
+
+## Pertama kali
+
+Tekan **NVDA+Shift+W**. Add-on menanyakan cara menjangkau WhatsApp:
+
+- **Browser tersembunyi milik add-on** (disarankan). WhatsApp Web berjalan tanpa jendela, dengan
+  profilnya sendiri, jadi browser Anda dan tab-tabnya tidak pernah disentuh. Ia bisa menyala bersama
+  NVDA, jadi pesan baru dan panggilan sampai kapan saja. Ia memakai sekitar 400 sampai 600 MB memori.
+- **WhatsApp Web di browser Anda sendiri**, kalau Anda memang membukanya di sana. Lihat
+  [Memakai browser Anda sendiri](#memakai-browser-anda-sendiri).
+
+Lalu tautkan ke ponsel Anda, sekali:
+
+1. Ketik nomor telepon Anda dengan kode negaranya, misalnya +62 812 3456 7890, lalu tekan Enter.
+2. Add-on membacakan kode 8 karakter huruf demi huruf, dan menampilkannya dengan tombol Salin.
 3. Di ponsel, buka WhatsApp, lalu Setelan, Perangkat tertaut, Tautkan perangkat, dan pilih
-   **Tautkan dengan nomor telepon saja**. Ketik kodenya. Ponsel Anda mungkin juga menampilkan notifikasi.
+   **Tautkan dengan nomor telepon saja**. Ketik kodenya. Ponsel Anda mungkin juga menampilkan
+   notifikasi yang memintanya.
 4. Begitu ponsel menerimanya, add-on mengucapkan "Tertaut" dan membuka chat Anda.
 
-## Yang dibutuhkan untuk WhatsApp Web di browser Anda sendiri
+Tautannya tetap. Menutup jendela, memulai ulang NVDA, atau memulai ulang Windows tidak membuat Anda
+keluar. Anda menautkan lagi hanya kalau Anda memutus tautan komputer ini, mengeluarkannya di ponsel,
+atau tidak memakai WhatsApp di ponsel sekitar 14 hari, seperti semua perangkat tertaut.
 
-- NVDA 2026.3 atau lebih baru.
-- WhatsApp Web terbuka dan sudah masuk di web.whatsapp.com, di Brave, Google Chrome, atau Microsoft Edge.
-- Remote debugging dinyalakan di browser itu, cukup sekali:
-  1. Buka tab baru dengan Control+T.
-  2. Ketik `brave://inspect/#remote-debugging` lalu tekan Enter.
-     Di Chrome alamatnya `chrome://inspect/#remote-debugging`, di Edge `edge://inspect/#remote-debugging`.
-  3. Centang "Allow remote debugging for this browser instance".
+## Tombol yang paling sering dipakai
 
-## Cara memakai
+| Tombol | Di mana | Fungsinya |
+|---|---|---|
+| NVDA+Shift+W | Di mana saja | Membuka jendela WhatsApp. |
+| Enter | Daftar chat | Membuka chat. |
+| Alt+E | Di chat | Ke **Ketik pesan**; Enter mengirim. |
+| Ctrl+R | Di chat | Merekam voice note; Ctrl+Shift+R mengirimnya. |
+| Applications | Di pesan atau chat | Menunya: balas, reaksi, teruskan, hapus, dan lainnya. |
+| Alt+T | Di chat | Mendengar apakah orangnya online atau kapan terakhir dilihat. |
+| Ctrl+1 sampai Ctrl+8 | Jendela | Chat, Status, Panggilan, Diarsipkan, Berbintang, Saluran, Komunitas, Pengaturan. |
+| NVDA+Alt+A | Di mana saja | Mengangkat panggilan, atau kembali ke jendela panggilan. |
+| NVDA+Alt+H | Di mana saja | Menolak panggilan, atau mengakhirinya. |
+| NVDA+Alt+M | Di mana saja | Mematikan atau menyalakan mikrofon saat panggilan. |
+| Escape | Jendela | Kembali ke daftar chat, atau menutup jendela. WhatsApp tetap berjalan. |
 
-Tekan **NVDA+Shift+W** untuk membuka jendela WhatsApp.
+Semua tombol bisa diganti di dialog Input Gestures NVDA, kategori WhatsApp Access.
 
-Pertama kali setelah browser dibuka, add-on menyambung ke browser. Browser muncul ke depan dan
-bertanya "Allow remote debugging?". Fokusnya ada di Cancel: tekan **Shift+Tab**, lalu **Enter**
-untuk memilih Allow. Selama add-on tersambung, browser menampilkan bar bahwa browser sedang
-dikendalikan perangkat lunak. Itu add-on ini.
-
-### Daftar chat
-
-- Ketik di **Cari chat** (Alt+C) untuk mencari chat berdasarkan nama.
-- Di **Daftar chat** (Alt+H), tiap chat menyebut namanya, jumlah pesan yang belum dibaca, dan pesan
-  terakhirnya. Tekan **Enter** untuk membukanya.
-- **Escape** menutup jendela. WhatsApp Web tetap terbuka, dan pesan baru tetap dibacakan.
-
-### Bagian
+## Jendela
 
 Jendela punya bagian, seperti bilah samping WhatsApp: **Chat** (Ctrl+1), **Status** (Ctrl+2),
-**Panggilan** (Ctrl+3), dan **Diarsipkan** (Ctrl+4). Ctrl+Tab dan Ctrl+Shift+Tab pindah ke bagian
-berikutnya dan sebelumnya. Bagian ini bukan tab: tekan Tab melewati kontrol sebuah bagian untuk sampai
-ke daftar **Bagian**, yang menyebut bagian mana yang sedang dibuka; pilih yang lain dengan panah lalu
-tekan Enter.
+**Panggilan** (Ctrl+3), **Diarsipkan** (Ctrl+4), **Berbintang** (Ctrl+5), **Saluran** (Ctrl+6),
+**Komunitas** (Ctrl+7), dan **Pengaturan** (Ctrl+8). Ctrl+Tab dan Ctrl+Shift+Tab pindah ke bagian
+berikutnya dan sebelumnya. Bagian ini bukan tab: tekan Tab melewati kontrol sebuah bagian untuk
+sampai ke daftar **Bagian**, yang menyebut bagian mana yang sedang dibuka; pilih yang lain dengan
+panah lalu tekan Enter.
 
-- **Status** menampilkan orang yang membuat status, yang belum dilihat lebih dulu. Enter menampilkan
-  statusnya: panah ke status berikutnya dan sebelumnya, Ctrl+panah ke orang berikutnya dan sebelumnya,
-  Status suara dan video langsung diputar sendiri di add-on, tanpa program lain; Enter menghentikan atau
-  memutarnya lagi, dan mendeskripsikan foto. Alt+Y menyukai, Alt+R membalas (di chat orangnya), Alt+D
-  mengunduh foto, video, atau suaranya sebagai file, di folder yang Anda pilih. Melihat status menampilkan Anda di daftar yang melihat, seperti
-  di WhatsApp.
-- **Panggilan** menampilkan panggilan terbaru, termasuk yang tak terjawab. Enter menelepon balik.
-- **Diarsipkan** menampilkan chat yang diarsipkan.
+Selama jendela ada di depan, Anda online bagi kontak Anda, seperti di WhatsApp Web. Saat Anda pindah
+ke program lain atau menutup jendela, Anda offline lagi; WhatsApp tetap berjalan di belakang untuk
+pesan baru dan panggilan.
 
-### Panggilan
+### Chat
 
-Saat ada yang menelepon, add-on memutar nada dering dan menyebut siapa. **NVDA+Alt+A** mengangkat dan
-**NVDA+Alt+H** menolak, dari mana saja; jendela panggilan muncul tanpa mengambil fokus. Saat panggilan,
-Ctrl+M membisukan mikrofon dan NVDA+Alt+H mengakhirinya. Di chat, **Ctrl+Shift+C** menelepon orangnya.
-Panggilan grup belum didukung. Di pengaturan NVDA Anda memilih mikrofon dan pengolahan suara panggilan.
+- Ketik di **Cari chat** (Alt+S) untuk mencari chat menurut nama. Alt+1 sampai Alt+4 menampilkan
+  semua chat, chat belum dibaca, grup, atau favorit.
+- Setiap chat di daftar (Alt+C) menyebut namanya, berapa pesan yang belum dibaca, apakah
+  disematkan atau dibisukan, apakah pesannya sementara, apakah ada panggilan grup yang sedang
+  berlangsung, dan pesan terakhir. Pesan yang mulai Anda tulis disimpan sebagai draf, dan daftar
+  menyebutnya.
+- **Enter** membuka chat. **Alt+U** memilih chat berikutnya yang punya pesan belum dibaca.
+- Tombol Applications membuka menu chat: notifikasi untuk chat ini, arsipkan, bisukan, sematkan,
+  tandai sudah atau belum dibaca. **Delete** menghapus chat setelah bertanya.
+- **Ctrl+N** memulai chat dengan nomor telepon, tanpa menyimpan kontak. **Ctrl+Shift+N** membuat
+  grup baru. **Ctrl+Shift+F** mencari pesan di semua chat.
 
-### Notifikasi
+### Sebuah chat
 
-Pesan baru dibacakan dengan suara. Di pengaturan NVDA Anda memilih suara untuk chat pribadi dan grup,
-dan apakah isi pesan ikut dibacakan atau hanya pengirimnya. Di menu chat, **Notifikasi untuk chat ini**
-mengatur aturan chat itu sendiri: selalu dibacakan (walaupun dibisukan) atau tidak pernah, suaranya
-sendiri (salah satu suara add-on atau file WAV Anda), dan seberapa banyak yang diucapkan.
+- Di bagian atas ada nama chat, dengan apa yang ditampilkan WhatsApp di bawahnya: online, terakhir
+  dilihat, atau pesan sementara. Saat seseorang mulai mengetik atau merekam, NVDA mengucapkannya; di
+  grup, NVDA menyebut siapa. Tekan namanya untuk info kontak atau grup.
+- Di sebelah nama ada **Panggilan suara** (Ctrl+Shift+C) dan **Opsi lainnya**. Dari daftar pesan,
+  Shift+Tab sampai ke Opsi lainnya, lalu Panggilan suara, lalu nama.
+- Daftar **Pesan** (Alt+M) dimulai di tempat Anda berhenti membaca, di pesan pertama yang belum
+  dibaca, atau di pesan terbaru. Setiap pesan menyebut pengirimnya ("Anda" untuk pesan Anda), isinya,
+  pesan yang dibalasnya, reaksinya, waktunya, dan untuk pesan Anda, apakah sudah terkirim dan dibaca.
+  Panah atas di pesan pertama memuat pesan yang lebih lama. Membuka chat menandainya sudah dibaca.
+- Pemberitahuan seperti "Anas menambahkan Qisti" dibacakan dengan kata-kata WhatsApp. Foto dan video
+  sekali lihat menyebut agar dibuka di ponsel, karena WhatsApp Web tidak bisa membukanya.
+
+**Opsi lainnya** berisi apa yang ada di menu chat dan info chat WhatsApp:
+
+- info kontak atau grup, cari di chat (Ctrl+F), pilih pesan;
+- pesan yang disematkan, media, tautan, dan dokumen, dan di grup sebutan yang belum dibaca
+  (Ctrl+Shift+M);
+- **Kirim**: polling, kartu kontak, salah satu stiker Anda, atau acara di grup;
+- di grup, memulai panggilan suara grup atau bergabung ke panggilan yang sedang berlangsung;
+- notifikasi untuk chat ini, arsipkan, bisukan, sematkan, tandai sudah atau belum dibaca, favorit
+  (kalau akun Anda punya), dan pesan sementara (mati, 24 jam, 7 hari, 90 hari);
+- untuk admin grup, **Kelola grup**: nama, deskripsi, siapa yang boleh mengirim atau mengubah info,
+  persetujuan anggota baru, tautan undangan (salin atau atur ulang), menambah anggota, dan menu tiap
+  anggota untuk menjadikannya admin atau mengeluarkannya;
+- blokir atau buka blokir, laporkan, bersihkan chat, keluar dari grup atau hapus chat, masing-masing
+  ditanyakan dulu.
+
+### Menulis dan mengirim
+
+- Tulis di **Ketik pesan** (Alt+E) lalu tekan **Enter** untuk mengirim. Ketik @ di grup untuk
+  menyebut seseorang: panah atas dan bawah memilih, Enter mengambilnya.
+- Untuk membalas satu pesan, pilih pesannya lalu tekan **Alt+R**; Escape membatalkan balasan.
+- Untuk mengirim file, tekan **Alt+A** untuk memilihnya, atau salin di File Explorer lalu tekan
+  **Ctrl+V** di kotak pesan. Foto dan video dikirim sebagai foto dan video, audio sebagai audio,
+  selain itu sebagai dokumen. Yang Anda ketik menjadi keterangannya.
+- Selama Anda menulis, lawan bicara melihat "mengetik…", seperti di WhatsApp.
+
+### Voice note
+
+| Tombol | Fungsinya |
+|---|---|
+| Ctrl+R | Mulai merekam. Saat merekam: berhenti dan memutarnya. Sesudahnya: memutarnya lagi. |
+| Ctrl+Shift+R | Mengirimnya, menghentikan rekaman dulu kalau perlu. |
+| Ctrl+Shift+D | Menjeda atau melanjutkan rekaman. |
+| Ctrl+D | Membuangnya. |
+
+Voice note direkam dari suara asli mikrofon Anda, tanpa peredam gema, peredam bising, dan pengatur
+volume otomatis browser, dalam stereo kalau mikrofonnya dua kanal, dan pada 128 kilobit per detik,
+jauh lebih jernih daripada perekam WhatsApp sendiri. Semuanya bisa diubah di pengaturan add-on.
+
+### Tombol pada pesan
+
+| Tombol | Fungsinya |
+|---|---|
+| Enter | Memutar pesan suara atau suara video (Enter lagi menghentikan); membuka foto atau dokumen; memilih di polling; detail acara. |
+| Ctrl+S | Pesan suara 1x, 1,5x, atau 2x, seperti di WhatsApp. |
+| Alt+C | Menampilkan teks pesan saja, untuk dibaca per huruf, kata, atau baris. |
+| Ctrl+C | Menyalin teks pesan. |
+| Alt+Y | Memberi reaksi emoji. |
+| Alt+R | Membalasnya. |
+| Alt+F | Meneruskannya ke satu chat atau lebih. |
+| Alt+D | Menyimpan filenya ke folder pilihan Anda. |
+| Alt+L | Membuka tautan di dalamnya. |
+| Alt+I | Untuk pesan Anda: siapa yang menerima, membaca, dan memutarnya, dan kapan. |
+| Alt+P | Mendeskripsikan foto dengan add-on AI Content Describer, bila terpasang. |
+| Delete | Menghapusnya, untuk Anda atau untuk semua orang. |
+| Applications | Menunya: juga bintangi, edit, sematkan 24 jam, 7 hari, atau 30 hari, balas secara pribadi di grup, lihat siapa yang bereaksi, dan jawab acara. |
 
 ### Memilih beberapa pesan atau chat
 
 Seperti mode Pilih di WhatsApp, di daftar chat dan di pesan sebuah chat:
 
 - **Shift+Panah bawah** dan **Shift+Panah atas** memilih sambil bergerak; **Spasi** memilih atau batal
-  memilih yang sekarang; **Ctrl+A** memilih semua. Bunyi tik pelan terdengar saat sampai di item terpilih.
-- **Escape** membatalkan semua pilihan.
-- Dengan pesan terpilih, **Ctrl+C** menyalinnya seperti WhatsApp (`[10:15, 8/11/2026] Nama: teks`, satu
-  per baris), **Alt+F** meneruskannya, **Delete** menghapusnya, dan menu konteks juga bisa membintanginya.
-- Dengan chat terpilih, menu konteks mengarsipkan, membisukan, menyematkan, menandai dibaca atau belum
-  dibaca, atau menghapus semuanya, dan **Delete** menghapusnya setelah bertanya. Grup yang masih Anda
-  ikuti tidak dihapus: keluar dari grupnya dulu.
+  memilih satu; **Ctrl+A** memilih semua. Bunyi tik pelan terdengar saat sampai di item terpilih.
+  **Escape** membatalkan pilihan.
+- Dengan pesan terpilih, **Ctrl+C** menyalinnya seperti WhatsApp (`[10:15, 8/11/2026] Nama: teks`),
+  **Alt+F** meneruskannya, **Delete** menghapusnya, dan tombol Applications juga bisa membintanginya.
+- Dengan chat terpilih, tombol Applications mengarsipkan, membisukan, menyematkan, menandai sudah
+  atau belum dibaca, atau menghapus semuanya. Grup yang masih Anda ikuti tidak dihapus: keluar dulu.
 
-Di daftar pesan, **Enter** memutar atau membuka pesan; Spasi sekarang untuk memilih.
+## Status
 
-### Di mana saja di jendela
+**Status** (Ctrl+2) menampilkan orang yang membuat status, yang belum dilihat lebih dulu. Enter
+menampilkan statusnya:
 
-| Tombol | Fungsinya |
-|---|---|
-| Alt+1 sampai Alt+4 | Menampilkan semua chat, chat belum dibaca, grup, atau favorit, seperti tab WhatsApp. |
-| Alt+U | Di chat, ke pesan pertama yang belum dibaca, tempat WhatsApp menulis "5 pesan belum dibaca". Di daftar chat, memilih chat berikutnya yang punya pesan belum dibaca. |
-| Ctrl+N | Memulai chat dengan nomor telepon, tanpa menyimpan kontak. |
+- Panah ke status berikutnya dan sebelumnya, Ctrl+panah ke orang berikutnya dan sebelumnya.
+- Status suara dan video diputar sendiri di dalam add-on. Enter menghentikan atau memutarnya lagi,
+  dan mendeskripsikan foto.
+- Alt+Y menyukai, Alt+R membalas di chat orangnya, Alt+D menyimpan foto, video, atau suaranya sebagai
+  file.
+- Melihat status menampilkan Anda di daftar yang melihat, seperti di WhatsApp.
 
-Pesan yang mulai Anda tulis disimpan sebagai draf saat Anda meninggalkan chat, dan daftar chat menyebutnya.
+Di bawah daftarnya: **Tulis status** (teks, dengan warna latar dan huruf), **Kirim foto atau video**,
+dan **Status saya**, yang menyebut siapa saja yang melihat setiap status Anda dan bisa menghapusnya.
 
-### Percakapan
+## Panggilan
 
-- Di bagian atas ada tombol berisi nama chat dan apa yang ditampilkan WhatsApp di bawahnya: online, kapan orangnya
-  terakhir dilihat, atau "tidak ada info" kalau disembunyikan. Saat seseorang mulai mengetik atau
-  merekam pesan suara, NVDA langsung mengucapkannya; di grup, NVDA menyebut siapa. Tekan **Alt+T**
-  untuk mendengarnya kapan saja. Tekan tombol itu untuk info kontak: nomor telepon, info, dan grup
-  yang sama; untuk grup, deskripsi, pembuatnya, dan pesertanya.
-- Di sebelah nama, seperti di WhatsApp, ada **Panggilan suara** (Ctrl+Shift+C, tidak untuk grup) dan
-  **Opsi lainnya**. Dari daftar pesan, Shift+Tab sampai ke Opsi lainnya, lalu Panggilan suara, lalu nama.
-  Opsi lainnya berisi info kontak atau grup, cari di chat (Ctrl+F), pilih pesan, notifikasi untuk chat
-  ini, arsipkan, bisukan, sematkan, tandai sudah atau belum dibaca, dan tutup chat.
-- Daftar **Pesan** (Alt+P) dimulai dari pesan terbaru. Setiap pesan menyebut pengirimnya: "Anda" untuk
-  pesan Anda, nama kontak untuk pesan orang lain. Balasan juga menyebut pesan yang dibalas, misalnya
-  `Anas: Oke, mengutip Anda: "Jadi?"`. Membuka chat menandainya sudah dibaca, seperti di WhatsApp.
-- Tekan **Panah Atas** di pesan pertama untuk memuat pesan yang lebih lama.
-- Tekan **Enter** di pesan suara untuk mendengarkannya, dan sekali lagi untuk berhenti. **Ctrl+S**
-  mengganti kecepatannya: 1x, 1.5x, atau 2x, seperti di WhatsApp.
-- Tombol di pesan:
+Saat ada yang menelepon, add-on memutar nada dering dan menyebut siapa, di mana pun Anda berada.
+**NVDA+Alt+A** mengangkat dan **NVDA+Alt+H** menolak. Jendela panggilan muncul tanpa mengambil fokus.
 
-  | Tombol | Fungsinya |
-  |---|---|
-  | Enter | Memutar pesan suara atau suara video di add-on (Enter lagi menghentikan); membuka foto atau dokumen dengan program Windows-nya (Buka di menu melakukannya untuk video); memilih di polling. |
-  | Alt+C | Menampilkan teks pesan saja, untuk dibaca per karakter, kata, atau baris. Pesan panjang selalu utuh. |
-  | Ctrl+C | Menyalin teks pesan. |
-  | Alt+Y | Memberi reaksi emoji. |
-  | Alt+D | Mengunduh file pesan ke folder pilihan Anda. |
-  | Delete | Menghapusnya, untuk Anda atau untuk semua orang. |
-  | Alt+R | Membalasnya. |
-  | Alt+F | Meneruskannya ke satu atau beberapa chat. |
-  | Alt+L | Membuka tautan di pesan; bila ada beberapa, pilih salah satu. |
-  | Alt+I | Info pesan untuk pesan Anda: siapa yang menerima, membaca, dan memutarnya, dan kapan. |
-  | Alt+P | Mendeskripsikan foto dengan add-on AI Content Describer, bila terpasang. |
-  | Ctrl+F | Mencari pesan di chat ini, termasuk yang lama. |
+Selama panggilan:
 
-  Saat Anda menulis, lawan bicara melihat "mengetik…", seperti di WhatsApp. WhatsApp Web tidak punya
-  transkrip pesan suara; fitur itu hanya ada di WhatsApp di ponsel.
+- **NVDA+Alt+M** mematikan atau menyalakan mikrofon dari program apa pun, dengan bunyi kecil untuk
+  masing-masing. Di jendela panggilan atau jendela WhatsApp, Ctrl+M melakukan hal yang sama.
+- **Escape** menyembunyikan jendela panggilan dan panggilan tetap berjalan, jadi Anda bisa terus chat.
+  Jendela WhatsApp lalu menampilkan baris di atas dengan **Kembali ke panggilan** dan **Bisukan
+  mikrofon**.
+- NVDA+Alt+H mengakhiri panggilan. Kalau orang lain membisukan Anda, NVDA mengucapkannya.
 
-- Untuk mengirim file, tekan **Alt+A** untuk memilihnya, atau salin di File Explorer lalu tekan **Ctrl+V**
-  di kotak tulis. Foto dan video dikirim sebagai foto dan video, audio sebagai audio, selain itu (apk, exe,
-  pdf, zip) sebagai dokumen. Yang Anda ketik menjadi keterangannya.
-- Tekan tombol **Applications** atau **Shift+F10** di pesan untuk menu WhatsApp: balas, reaksi, salin,
-  beri bintang, edit pesan Anda, hapus untuk Anda atau untuk semua orang.
-- Tulis di **Ketik pesan** (Alt+E) lalu tekan **Enter** untuk mengirim. Selama kosong, jendela
-  menawarkan voice note; begitu Anda menulis, yang muncul tombol Kirim.
-- Untuk membalas satu pesan, pilih pesannya lalu tekan **Alt+R**. **Escape** membatalkan balasan.
-- **Escape** kembali ke daftar chat. Di daftar chat, tombol Applications membuka menu chat:
-  arsipkan, bisukan, sematkan, tandai sudah atau belum dibaca.
+Untuk menelepon: **Ctrl+Shift+C** di chat, atau Opsi lainnya, **Mulai panggilan suara grup**, di grup.
+Grup yang sedang ada panggilan menyebut "panggilan sedang berlangsung" di daftar chat dan di bagian
+atas **Panggilan** (Ctrl+3), tempat Enter bergabung. Kalau Anda diundang lagi, bergabung berarti
+mengangkat panggilannya.
 
-### Voice note
+Di panggilan grup, jendela panggilan juga punya:
 
-| Tombol | Fungsinya |
-|---|---|
-| Ctrl+R | Mulai merekam. Saat merekam: berhenti lalu memutarnya. Sesudahnya: memutarnya lagi. |
-| Ctrl+Shift+R | Mengirim, dan menghentikan rekaman lebih dulu bila perlu. |
-| Ctrl+Shift+D | Menjeda atau melanjutkan rekaman. |
-| Ctrl+D | Membuangnya. |
+- daftar **Peserta**, yang ada di panggilan lebih dulu: siapa yang dibisukan, siapa yang mengangkat
+  tangan, siapa yang belum bergabung; tombol Applications pada seseorang memintanya membisukan
+  mikrofon;
+- **Angkat tangan** (Ctrl+H) dan **Reaksi**, yang mengirim emoji ke semua peserta;
+- **Ctrl+Shift+G**, di jendela panggilan atau jendela WhatsApp: siapa yang sedang berbicara.
 
-Voice note direkam dari suara asli mikrofon, tanpa peredam gema, peredam bising, dan volume otomatis
-dari browser, dalam stereo bila mikrofon punya dua kanal, dan pada 128 kilobit per detik. Perekam
-bawaan WhatsApp memakai jauh lebih kecil. Semua ini bisa diubah di pengaturan NVDA.
+NVDA menyebut siapa yang bergabung, keluar, mengangkat tangan, dan memberi reaksi, masing-masing
+dengan bunyi kecilnya sendiri.
 
-## Pengaturan
+Panggilan diangkat dengan mikrofon dan tanpa kamera. Di pengaturan add-on Anda memilih mikrofon dan
+seberapa banyak pengolahan suara untuk panggilan.
 
-Menu NVDA, Preferensi, Pengaturan, **WhatsApp Access**:
+## Berbintang, Saluran, dan Komunitas
 
-- **Bacakan pesan baru dari**: semua chat yang tidak dibisukan, hanya chat pribadi, hanya chat yang
-  terbuka di jendela, atau tidak ada.
-- **Mikrofon untuk voice note**: sambungkan dulu dengan NVDA+Shift+W untuk melihat semua mikrofon.
-- **Bacakan pesan baru sebagai ganti notifikasi dan suara WhatsApp**, **Putar suara add-on**, dan
-  **Pakai petunjuk** (tombol yang perlu ditekan, diucapkan setelah pesan seperti "Merekam").
-- **Kecepatan putar pesan suara**.
-- Lima volume, dalam persen: suara pesan baru dan nada dering; suara lainnya (terkirim, merekam,
-  memilih); voice note dan video di chat; status; lawan bicara di panggilan. 0 membisukan jenis suara
-  itu. Anda juga bisa mengubahnya tanpa membuka pengaturan: di jendela WhatsApp, jendela status, atau
-  jendela panggilan, **F6** memilih volume mana (efek suara, notifikasi, voice note, status, panggilan),
-  **F7** menurunkan dan **F8** menaikkannya 5 persen. Perubahannya langsung berlaku, juga untuk yang
-  sedang diputar, dan disimpan.
-- **Rekam voice note dalam stereo**, **Pakai suara asli mikrofon**, dan **Kualitas voice note**.
-- **Periksa versi baru di GitHub sehari sekali** dan **Periksa pembaruan sekarang**.
+- **Berbintang** (Ctrl+5) menampilkan pesan berbintang dari semua chat. Enter membuka chatnya di
+  pesan itu; tombol Applications menyalin atau menghapus bintang.
+- **Saluran** (Ctrl+6) menampilkan saluran yang Anda ikuti. Enter membukanya: postingan dibaca
+  seperti pesan, Alt+Y memberi reaksi, dan hanya admin saluran yang bisa memposting. **Cari saluran**
+  mencari di direktori WhatsApp; menu saluran bisa berhenti mengikutinya.
+- **Komunitas** (Ctrl+7) menampilkan komunitas Anda. Enter menampilkan grup-grupnya, pengumuman
+  lebih dulu. Enter membuka grup yang Anda ikuti, atau meminta bergabung ke grup yang belum.
+
+## Pengaturan WhatsApp Anda
+
+**Pengaturan** (Ctrl+8) berisi pengaturan WhatsApp sendiri:
+
+- **Profil**: nama, info, dan foto Anda.
+- **Privasi**: terakhir dilihat, online, foto profil, info, siapa yang bisa menambahkan Anda ke grup,
+  tanda dibaca, dan membisukan penelepon tak dikenal.
+- **Kontak yang diblokir**: Enter membuka blokir.
+- **Pengaturan add-on**: membuka pengaturan di bawah ini.
+
+## Notifikasi, suara, dan volume
+
+Pesan baru dibacakan dengan suara, sebagai ganti notifikasi WhatsApp sendiri. Di menu chat,
+**Notifikasi untuk chat ini** mengatur aturan chat itu sendiri: selalu dibacakan (walaupun dibisukan)
+atau tidak pernah, suaranya sendiri (salah satu suara add-on atau file WAV Anda), dan seberapa banyak
+yang diucapkan.
+
+Ada lima volume: suara pesan baru dan nada dering; suara add-on lainnya; voice note dan video di chat;
+status; dan lawan bicara di panggilan. Di jendela WhatsApp, jendela status, atau jendela panggilan,
+**F6** memilih volume mana, **F7** menurunkan dan **F8** menaikkannya 5 persen. Perubahannya langsung
+berlaku dan disimpan.
+
+## Pengaturan add-on
+
+Menu NVDA, Preferences, Settings, **WhatsApp Access**:
+
+- cara menjangkau WhatsApp (browser tersembunyi atau browser Anda), browser yang dipakai, dan menyala
+  bersama NVDA;
+- **Putuskan tautan komputer ini**: keluar dari WhatsApp di sini dan menghapus data browser
+  tersembunyi;
+- pesan baru mana yang dibacakan, suaranya, dan apakah isinya ikut dibacakan;
+- mikrofon, dan pengolahan suaranya di panggilan;
+- voice note: stereo, suara asli mikrofon, kualitas;
+- kecepatan putar, lima volume, suara add-on, dan petunjuk (tombol yang perlu ditekan berikutnya);
+- pemeriksaan versi baru.
 
 ## Pembaruan
 
-WhatsApp Access diterbitkan di [halaman GitHub-nya](https://github.com/InfiArtt/whatsapp-access/releases),
-bukan di NVDA Add-on Store. Sehari sekali, tak lama setelah NVDA menyala, add-on mencari versi baru di
-sana. Kalau ada, add-on menampilkan apa yang baru dan menawarkan **Unduh dan pasang**; pemasang add-on
-milik NVDA lalu memasangnya dan meminta NVDA dimulai ulang. **Nanti saja** menanyakan lagi keesokan
-harinya. File-nya dicocokkan dengan checksum dari GitHub sebelum dipasang. Add-on tidak mengirim apa pun
-tentang Anda: ia hanya menanyakan rilis terbaru ke GitHub.
+WhatsApp Access diterbitkan di
+[halaman GitHub-nya](https://github.com/InfiArtt/whatsapp-access/releases), bukan di NVDA Add-on
+Store. Sehari sekali, tak lama setelah NVDA menyala, add-on mencari versi baru di sana. Kalau ada,
+add-on menampilkan apa yang baru dan menawarkan **Unduh dan pasang**; NVDA memasangnya dan meminta
+dimulai ulang. **Nanti saja** menanyakan lagi keesokan harinya. Anda juga bisa memeriksa sekarang:
+pengaturan add-on, **Periksa pembaruan sekarang**. File-nya dicocokkan dengan checksum dari GitHub
+sebelum dipasang, dan add-on tidak mengirim apa pun tentang Anda.
+
+## Memakai browser Anda sendiri
+
+Kalau Anda memilih WhatsApp Web di browser Anda sendiri, bukan browser tersembunyi:
+
+1. Buka web.whatsapp.com dan masuk, di Brave, Google Chrome, atau Microsoft Edge.
+2. Nyalakan remote debugging di sana, sekali: buka tab baru dengan Ctrl+T, ketik
+   `brave://inspect/#remote-debugging` (di Chrome `chrome://inspect/#remote-debugging`, di Edge
+   `edge://inspect/#remote-debugging`), lalu centang "Allow remote debugging for this browser
+   instance".
+3. Setiap kali browser dinyalakan, NVDA+Shift+W yang pertama membawanya ke depan dengan pertanyaan
+   "Allow remote debugging?". Fokusnya ada di Cancel: tekan Shift+Tab, lalu Enter, untuk
+   mengizinkan.
+
+Selama add-on tersambung, browser menampilkan baris yang menyebut ia sedang dikendalikan perangkat
+lunak: itu add-on ini.
+
+## Kalau ada masalah
+
+- **"Still connecting to WhatsApp Web"**: WhatsApp sedang menyala, yang butuh sampai setengah menit
+  setelah NVDA menyala. Coba lagi sebentar.
+- **WhatsApp kehilangan koneksi**: NVDA mengucapkannya setelah beberapa detik dan lagi saat
+  tersambung kembali. Pesan yang Anda kirim sementara itu terkirim begitu tersambung.
+- **Ada pertanyaan terbuka tapi tidak terjangkau**: kembali ke jendela WhatsApp; add-on membawa Anda
+  ke pertanyaan yang terbuka.
+- **Anda diminta menautkan lagi**: WhatsApp mengeluarkan komputer ini dari perangkat tertaut. Tautkan
+  lagi seperti pertama kali.
 
 ## Privasi
 
 Add-on hanya berbicara dengan browser di komputer Anda sendiri, dan memeriksa bahwa program yang
-diajak bicara memang browser itu. Add-on tidak mengirim pesan Anda ke tempat lain.
+diajak bicara memang browser itu. Add-on tidak mengirim pesan Anda ke mana pun.
 
 WhatsApp tidak menyediakan akses seperti ini secara resmi. Add-on memakai WhatsApp Web seperti Anda
-memakainya, dari akun dan browser Anda sendiri, tetapi ketentuan WhatsApp tidak mengizinkan
-mengubah cara kerja aplikasinya. Gunakan dengan pertimbangan Anda sendiri.
+memakainya, dari akun Anda sendiri, tetapi ketentuan WhatsApp tidak mengizinkan mengubah cara kerja
+aplikasinya. Gunakan dengan pertimbangan Anda sendiri.
 
 ## Lisensi
 

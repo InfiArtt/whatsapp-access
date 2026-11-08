@@ -1,163 +1,132 @@
 # WhatsApp Access
 
-WhatsApp Access shows your WhatsApp chats in a simple window made for the NVDA screen reader.
-You read and answer messages and send clear voice notes there, while WhatsApp Web stays open in
-Brave, Google Chrome or Microsoft Edge. The browser can stay in the background, minimized or on
-another virtual desktop.
+WhatsApp Access brings your WhatsApp into a simple window made for the NVDA screen reader: chats,
+voice notes, status, calls, channels, communities and settings, all with the keyboard and with
+clear speech and small sounds. WhatsApp Web runs hidden in the background, so you never have to
+find your way around its web page.
 
-It is a different way to see and use WhatsApp, not a bot. It sends only what you write or record,
-when you choose to send it. It never answers or sends messages on its own.
+It is a different way to see and use your own WhatsApp, not a bot. It sends only what you write,
+record or choose, when you choose to send it. It never answers or sends anything on its own.
 
-## Two ways to reach WhatsApp
+## What you need
 
-- **A hidden browser of the add-on's own** (recommended). The add-on runs WhatsApp Web in Brave,
-  Google Chrome or another Chromium browser, version 120 or newer, with no window and with its own
-  profile, so your own browser is never touched and nothing asks for permission. You link it once to
-  your phone with a code, and it appears on your phone under Linked devices. It can start with NVDA,
-  so new messages are read out at any time. It uses about 400 to 600 MB of memory.
-- **WhatsApp Web in your own browser**, described below. Your browser asks for permission each time
-  it starts.
+- Windows 10 or 11, and NVDA 2026.3 or later.
+- One of these browsers installed, version 120 or newer: Brave, Google Chrome, Chromium, Vivaldi,
+  Opera or Microsoft Edge. You don't have to use it yourself; the add-on only borrows it.
+- WhatsApp on your phone, to link this computer once, as for WhatsApp Web.
 
-The first time you press NVDA+Shift+W, the add-on asks which way you want. You can change it in
-NVDA's settings, WhatsApp Access, which also has **Unlink this computer**: it logs out of WhatsApp and
-removes what the hidden browser kept. Removing the add-on removes that too.
+## Installing
 
-### Linking the hidden browser
+1. Go to the [Releases page](https://github.com/InfiArtt/whatsapp-access/releases/latest) and
+   download the file that ends in `.nvda-addon`.
+2. Open the file, for example by pressing Enter on it in File Explorer. NVDA asks whether to install
+   the add-on: choose Yes.
+3. Restart NVDA when it asks.
 
-1. Type your phone number with its country code and press Enter.
-2. The add-on reads out an 8-character code letter by letter, and shows it in a box with a Copy button.
+New versions come the same way, by themselves: see [Updates](#updates).
+
+## The first time
+
+Press **NVDA+Shift+W**. The add-on asks how to reach WhatsApp:
+
+- **A hidden browser of the add-on's own** (recommended). WhatsApp Web runs with no window, in its
+  own profile, so your own browser and its tabs are never touched. It can start with NVDA, so new
+  messages and calls reach you at any time. It uses about 400 to 600 MB of memory.
+- **WhatsApp Web in your own browser**, if you already keep it open there. See
+  [Using your own browser](#using-your-own-browser).
+
+Then link it to your phone, once:
+
+1. Type your phone number with its country code, such as +62 812 3456 7890, and press Enter.
+2. The add-on reads out an 8-character code letter by letter, and shows it with a Copy button.
 3. On your phone, open WhatsApp, then Settings, Linked devices, Link a device, and choose
-   **Link with phone number instead**. Type the code. Your phone may also show a notification asking for it.
+   **Link with phone number instead**. Type the code. Your phone may also show a notification asking
+   for it.
 4. When your phone accepts it, the add-on says "Linked" and opens your chats.
 
-## What you need for WhatsApp Web in your own browser
+The link stays. Closing the window, restarting NVDA or restarting Windows doesn't log you out. You
+link again only if you unlink this computer, remove it on your phone, or don't use WhatsApp on your
+phone for about 14 days, as for every linked device.
 
-- NVDA 2026.3 or later.
-- WhatsApp Web open and logged in at web.whatsapp.com, in Brave, Google Chrome or Microsoft Edge.
-- Remote debugging turned on in that browser, once:
-  1. Open a new tab with Control+T.
-  2. Type `brave://inspect/#remote-debugging` and press Enter.
-     In Chrome it is `chrome://inspect/#remote-debugging`, in Edge `edge://inspect/#remote-debugging`.
-  3. Check "Allow remote debugging for this browser instance".
+## The keys you need most
 
-## Using it
+| Key | Where | What it does |
+|---|---|---|
+| NVDA+Shift+W | Anywhere | Open the WhatsApp window. |
+| Enter | Chat list | Open the chat. |
+| Alt+E | In a chat | Go to **Type a message**; Enter sends. |
+| Ctrl+R | In a chat | Record a voice note; Ctrl+Shift+R sends it. |
+| Applications | On a message or chat | Its menu: reply, react, forward, delete and more. |
+| Alt+T | In a chat | Hear whether the person is online or when they were last seen. |
+| Ctrl+1 to Ctrl+8 | Window | Chats, Status, Calls, Archived, Starred, Channels, Communities, Settings. |
+| NVDA+Alt+A | Anywhere | Answer a call, or go back to the call window. |
+| NVDA+Alt+H | Anywhere | Decline a call, or end it. |
+| NVDA+Alt+M | Anywhere | Microphone off or on during a call. |
+| Escape | Window | Back to the chat list, or close the window. WhatsApp keeps running. |
 
-Press **NVDA+Shift+W** to open the WhatsApp window.
+Every key can be changed in NVDA's Input Gestures dialog, category WhatsApp Access.
 
-The first time after the browser starts, the add-on connects to it. The browser comes to the front
-and asks "Allow remote debugging?". The focus is on Cancel: press **Shift+Tab**, then **Enter** to
-choose Allow. While the add-on is connected, the browser shows a bar saying that it is being
-controlled by software. That is this add-on.
+## The window
 
-### The chat list
-
-- Type in **Search chats** (Alt+S) to find a chat by name.
-- In the **Chats** list (Alt+C), each chat says its name, how many messages you have not read, and
-  the last message. Press **Enter** to open it.
-- **Escape** closes the window. WhatsApp Web stays open, and new messages are still read out.
-
-### Sections
-
-The window has sections, as WhatsApp's sidebar does: **Chats** (Ctrl+1), **Status** (Ctrl+2),
-**Calls** (Ctrl+3) and **Archived** (Ctrl+4). Ctrl+Tab and Ctrl+Shift+Tab move to the next and
+The window has sections, like WhatsApp's sidebar: **Chats** (Ctrl+1), **Status** (Ctrl+2),
+**Calls** (Ctrl+3), **Archived** (Ctrl+4), **Starred** (Ctrl+5), **Channels** (Ctrl+6),
+**Communities** (Ctrl+7) and **Settings** (Ctrl+8). Ctrl+Tab and Ctrl+Shift+Tab move to the next and
 previous one. They are not tabs: press Tab past a section's controls to reach the **Sections** list,
 which says which one is current; choose another with the arrows and press Enter.
 
-- **Status** lists the people who posted, unseen first. Enter shows their statuses: arrows go to the
-  next and previous one, Ctrl+arrows to the next and previous person. Voice and video statuses play
-  by themselves, in the add-on, with no other program; Enter stops or plays them again, and describes
-  a photo. Alt+Y likes it, Alt+R replies (in their chat), Alt+D downloads its photo, video or voice
-  as a file, in a folder you choose.
-  Viewing a status shows you among its viewers, as in WhatsApp.
-- **Calls** lists recent calls, missed ones included. Enter calls back.
-- **Archived** lists your archived chats.
+While the window is in front, you are online for your contacts, as with WhatsApp Web. When you switch
+to another program or close the window, you are offline again; WhatsApp keeps running in the
+background for new messages and calls.
 
-### Calls
+### Chats
 
-When someone calls, the add-on plays a ring and says who it is. **NVDA+Alt+A** answers and
-**NVDA+Alt+H** declines, from anywhere; a call window shows the call without taking focus. During a call,
-Ctrl+M mutes the microphone and NVDA+Alt+H ends it. In a chat, **Ctrl+Shift+C** calls the person.
-Group calls are not supported yet. In NVDA's settings you choose the microphone and how much sound
-processing calls use.
+- Type in **Search chats** (Alt+S) to find a chat by name. Alt+1 to Alt+4 show all chats, unread
+  chats, groups or favorites.
+- Each chat in the list (Alt+C) says its name, how many messages you have not read, whether it is
+  pinned or muted, whether its messages disappear, whether a group call is going on, and the last
+  message. A message you started writing is kept as a draft, and the list says so.
+- **Enter** opens a chat. **Alt+U** selects the next chat with unread messages.
+- The Applications key opens the chat's menu: notifications for this chat, archive, mute, pin, mark
+  as read or unread. **Delete** deletes the chat after asking.
+- **Ctrl+N** starts a chat with a phone number, without saving the contact. **Ctrl+Shift+N** makes a
+  new group. **Ctrl+Shift+F** searches the messages of every chat.
 
-### Notifications
+### A chat
 
-New messages are read out with a sound. In NVDA's settings you choose the sound for personal chats and
-for groups, and whether to hear what a message says or only who it is from. In a chat's menu,
-**Notifications for this chat** sets that chat's own rule: always read out (even when muted) or never,
-its own sound (one of the add-on's or a WAV file of yours), and how much is said.
+- At the top is the chat's name, with what WhatsApp shows under it: online, last seen, or
+  disappearing messages. When someone starts typing or recording, NVDA says so; in groups it says
+  who. Press the name for the contact's or group's info.
+- Beside the name are **Voice call** (Ctrl+Shift+C) and **More options**. From the messages,
+  Shift+Tab reaches More options, then Voice call, then the name.
+- The **Messages** list (Alt+M) starts where you stopped reading, at the first unread message, or at
+  the newest one. Every message says who sent it ("You" for yours), what it says or holds, what it
+  answers, its reactions, its time and, for yours, whether it was delivered and read. Up Arrow on the
+  first message loads older ones. Opening a chat marks it as read.
+- Notices such as "Anas added Qisti" are read in WhatsApp's words. Photos and videos that can be
+  viewed once say to open them on your phone, since WhatsApp Web cannot.
 
-### Selecting several messages or chats
+**More options** holds what WhatsApp's chat menu and chat info hold:
 
-As in WhatsApp's Select mode, in the chat lists and in a chat's messages:
+- contact or group info, search in chat (Ctrl+F), select messages;
+- pinned messages, media, links and documents, and in groups unread mentions (Ctrl+Shift+M);
+- **Send**: a poll, a contact card, one of your stickers, or in a group an event;
+- in a group, start a group voice call or join the one going on;
+- notifications for this chat, archive, mute, pin, mark as read or unread, favorites (when your
+  account has them), and disappearing messages (off, 24 hours, 7 days, 90 days);
+- for a group's admins, **Manage group**: name, description, who may send or edit, approving new
+  members, the invite link (copy or reset), adding members, and each member's menu to make them an
+  admin or remove them;
+- block or unblock, report, clear chat, exit group or delete chat, each asked before it is done.
 
-- **Shift+Down** and **Shift+Up** select as you move; **Space** selects or unselects the current one;
-  **Ctrl+A** selects all. A soft tick plays when you reach a selected item.
-- **Escape** clears the selection.
-- With messages selected, **Ctrl+C** copies them as WhatsApp does (`[10:15, 8/11/2026] Name: text`, one
-  per line), **Alt+F** forwards them, **Delete** deletes them, and the context menu can also star them.
-- With chats selected, the context menu archives, mutes, pins, marks as read or unread, or deletes them
-  all, and **Delete** deletes them after asking. Groups you are still in are kept: exit them first.
+### Writing and sending
 
-In the message list, **Enter** plays or opens a message; Space now selects.
-
-### Anywhere in the window
-
-| Key | What it does |
-|---|---|
-| Alt+1 to Alt+4 | Show all chats, unread chats, groups or favorites, as WhatsApp's tabs. |
-| Alt+U | In a chat, go to its first unread message, where WhatsApp says "5 unread messages". In the chat list, select the next chat with unread messages. |
-| Ctrl+N | Start a chat with a phone number, without saving the contact. |
-
-A message you started writing is kept as a draft when you leave the chat, and the chat list says so.
-
-### A conversation
-
-- At the top, a button with the chat's name and what WhatsApp shows under it: online, when the person was last seen,
-  or "no info" when they hide it. When someone starts typing or recording a voice message, NVDA says
-  so right away; in groups it says who. Press **Alt+T** to hear it at any time. Press the button
-  for the contact's info: phone number, About and groups in common; for a group, its description,
-  who created it and its participants.
-- Beside the name, as in WhatsApp, are **Voice call** (Ctrl+Shift+C, not in groups) and **More options**.
-  From the messages, Shift+Tab reaches More options, then Voice call, then the name.
-  More options holds contact or group info, search in chat (Ctrl+F), select messages, notifications
-  for this chat, archive, mute, pin, mark as read or unread, and close chat.
-- The **Messages** list (Alt+M) starts at the newest message. Every message says who sent it:
-  "You" for yours, the contact's name for theirs. A reply also says what it answers, for example
-  `Anas: Oke, quoting You: "Jadi?"`. Opening a chat marks it as read, as in WhatsApp.
-- Press **Up Arrow** on the first message to load older ones.
-- Press **Enter** on a voice message to listen to it, and again to stop. **Ctrl+S** changes the
-  speed: 1x, 1.5x or 2x, as in WhatsApp.
-- Keys on a message:
-
-  | Key | What it does |
-  |---|---|
-  | Enter | Play a voice message or a video's sound in the add-on (Enter again stops); open a photo or document in its usual Windows program (the menu's Open does this for a video); vote in a poll. |
-  | Alt+C | Show the message's text alone, to read it by character, word or line. Long messages are always whole. |
-  | Ctrl+C | Copy the message's text. |
-  | Alt+Y | React with an emoji. |
-  | Alt+D | Download the message's file to a folder you choose. |
-  | Delete | Delete it, for you or for everyone. |
-  | Alt+R | Reply to it. |
-  | Alt+F | Forward it to one or more chats. |
-  | Alt+L | Open a link in it; with several links, choose one. |
-  | Alt+I | Message info for your own message: who received, read and played it, and when. |
-  | Alt+P | Describe a photo with the AI Content Describer add-on, if you have it. |
-  | Ctrl+F | Search this chat's messages, older ones too. |
-
-  While you write, the other person sees "typing…", as in WhatsApp. WhatsApp Web has no voice
-  message transcripts; they exist only in WhatsApp on phones.
-
+- Write in **Type a message** (Alt+E) and press **Enter** to send. Type @ in a group to mention
+  someone: Up and Down Arrow choose, Enter picks.
+- To answer one message, select it and press **Alt+R**; Escape cancels the reply.
 - To send files, press **Alt+A** to choose them, or copy them in File Explorer and press **Ctrl+V** in
-  the message box. Photos and videos go as photos and videos, audio as audio, anything else (apk, exe,
-  pdf, zip) as a document. What you type becomes the caption.
-- Press the **Applications** key or **Shift+F10** on a message for WhatsApp's menu: reply, react,
-  copy, star, edit your message, delete for you or for everyone.
-- Write in **Type a message** (Alt+E) and press **Enter** to send. While it is empty, the window offers
-  a voice note; once you write, it offers Send.
-- To answer one message, select it and press **Alt+R**. **Escape** cancels the reply.
-- **Escape** goes back to the chat list. In the chat list, the Applications key opens the chat's menu:
-  archive, mute, pin, mark as read or unread.
+  the message box. Photos and videos go as photos and videos, audio as audio, anything else as a
+  document. What you type becomes the caption.
+- While you write, the other person sees "typing…", as in WhatsApp.
 
 ### Voice notes
 
@@ -170,36 +139,157 @@ A message you started writing is kept as a draft when you leave the chat, and th
 
 Voice notes are recorded from your microphone's own sound, without the browser's echo
 cancellation, noise suppression and automatic volume, in stereo if the microphone has two
-channels, and at 128 kilobits per second. WhatsApp's own recorder uses much less. You can change
-all of this in NVDA's settings.
+channels, and at 128 kilobits per second, much clearer than WhatsApp's own recorder. You can change
+all of this in the add-on's settings.
 
-## Settings
+### Keys on a message
+
+| Key | What it does |
+|---|---|
+| Enter | Play a voice message or a video's sound (Enter again stops); open a photo or document; vote in a poll; an event's details. |
+| Ctrl+S | Voice messages at 1x, 1.5x or 2x, as in WhatsApp. |
+| Alt+C | Show the message's text alone, to read it by character, word or line. |
+| Ctrl+C | Copy the message's text. |
+| Alt+Y | React with an emoji. |
+| Alt+R | Reply to it. |
+| Alt+F | Forward it to one or more chats. |
+| Alt+D | Save its file to a folder you choose. |
+| Alt+L | Open a link in it. |
+| Alt+I | For your own message: who received, read and played it, and when. |
+| Alt+P | Describe a photo with the AI Content Describer add-on, if you have it. |
+| Delete | Delete it, for you or for everyone. |
+| Applications | Its menu: also star, edit, pin for 24 hours, 7 days or 30 days, reply privately in a group, see who reacted, and answer an event. |
+
+### Selecting several messages or chats
+
+As in WhatsApp's Select mode, in the chat lists and in a chat's messages:
+
+- **Shift+Down** and **Shift+Up** select as you move; **Space** selects or unselects one;
+  **Ctrl+A** selects all. A soft tick plays when you reach a selected item. **Escape** clears it.
+- With messages selected, **Ctrl+C** copies them as WhatsApp does (`[10:15, 8/11/2026] Name: text`),
+  **Alt+F** forwards them, **Delete** deletes them, and the Applications key can also star them.
+- With chats selected, the Applications key archives, mutes, pins, marks as read or unread, or
+  deletes them all. Groups you are still in are kept: exit them first.
+
+## Status
+
+**Status** (Ctrl+2) lists the people who posted, unseen first. Enter shows their statuses:
+
+- Arrows go to the next and previous status, Ctrl+arrows to the next and previous person.
+- Voice and video statuses play by themselves, inside the add-on. Enter stops or plays them again,
+  and describes a photo.
+- Alt+Y likes, Alt+R replies in their chat, Alt+D saves the photo, video or voice as a file.
+- Viewing a status shows you among its viewers, as in WhatsApp.
+
+Below the list: **Write a status** (text, with a background colour and font), **Post a photo or
+video**, and **My status**, which says who saw each of your statuses and can delete one.
+
+## Calls
+
+When someone calls, the add-on plays a ring and says who it is, wherever you are. **NVDA+Alt+A**
+answers and **NVDA+Alt+H** declines. The call window shows the call without taking your focus.
+
+During a call:
+
+- **NVDA+Alt+M** turns your microphone off or on from any program, with a small sound for each.
+  In the call window or the WhatsApp window, Ctrl+M does the same.
+- **Escape** hides the call window and the call goes on, so you can keep chatting. The WhatsApp
+  window then shows a bar at the top with **Return to call** and **Mute microphone**.
+- NVDA+Alt+H ends the call. If someone else mutes you, NVDA says so.
+
+To call: **Ctrl+Shift+C** in a chat, or More options, **Start a group voice call**, in a group.
+Groups with a call going on say "call in progress" in the chat list and at the top of **Calls**
+(Ctrl+3), where Enter joins it. When you are invited again, joining answers the call.
+
+In a group call, the call window also has:
+
+- the **Participants** list, those in the call first: who is muted, who raised a hand, who has not
+  joined; the Applications key on someone asks them to mute;
+- **Raise hand** (Ctrl+H) and **React**, which sends an emoji to everyone;
+- **Ctrl+Shift+G**, in the call window or the WhatsApp window: who is speaking now.
+
+NVDA says who joins, who leaves, who raises a hand and who reacts, each with its own small sound.
+
+Calls are answered with your microphone and without your camera. In the add-on's settings you choose
+the microphone and how much sound processing calls use.
+
+## Starred, Channels and Communities
+
+- **Starred** (Ctrl+5) lists your starred messages from every chat. Enter opens the chat at the
+  message; the Applications key copies or unstars.
+- **Channels** (Ctrl+6) lists the channels you follow. Enter opens one: posts read like messages,
+  Alt+Y reacts, and only a channel's admins can post. **Find channels** searches WhatsApp's
+  directory; a channel's menu unfollows it.
+- **Communities** (Ctrl+7) lists your communities. Enter shows a community's groups, announcements
+  first. Enter opens a group you are in, or asks to join one you are not in.
+
+## Your WhatsApp settings
+
+**Settings** (Ctrl+8) holds WhatsApp's own settings:
+
+- **Profile**: your name, About and photo.
+- **Privacy**: last seen, online, profile photo, About, who can add you to groups, read receipts,
+  and silencing unknown callers.
+- **Blocked contacts**: Enter unblocks one.
+- **Add-on settings**: opens the settings below.
+
+## Notifications, sounds and volumes
+
+New messages are read out with a sound, in place of WhatsApp's own notifications. In a chat's menu,
+**Notifications for this chat** sets that chat's own rule: always read out (even when muted) or
+never, its own sound (one of the add-on's or a WAV file of yours), and how much is said.
+
+There are five volumes: new message sounds and the ring; the add-on's other sounds; voice notes and
+videos in chats; statuses; and the other person in calls. In the WhatsApp window, the status window
+or the call window, **F6** chooses which volume, **F7** lowers it and **F8** raises it by 5 percent.
+The change applies at once and is kept.
+
+## The add-on's settings
 
 NVDA menu, Preferences, Settings, **WhatsApp Access**:
 
-- **Read out new messages from**: all chats that are not muted, personal chats only, only the chat
-  open in the window, or none.
-- **Microphone for voice notes**: connect first with NVDA+Shift+W to see all your microphones.
-- **Read out new messages instead of WhatsApp's notifications and sound**, **Play the add-on's sounds**
-  and **Use hints** (which keys to press, said after messages such as "Recording").
-- **Voice message playback speed**.
-- Five volumes, in percent: new message sounds and the ring; the other sounds (sent, recording,
-  selecting); voice notes and videos in chats; statuses; the other person in calls. 0 silences that
-  kind of sound. You can also change them without opening the settings: in the WhatsApp window, the
-  status window or the call window, **F6** chooses which volume (sound effects, notifications, voice
-  notes, statuses, in call), **F7** lowers it and **F8** raises it by 5 percent. The change applies at
-  once, to what is playing too, and is kept.
-- **Record voice notes in stereo**, **Use the microphone's own sound** and **Voice note quality**.
-- **Check for new versions on GitHub once a day** and **Check for updates now**.
+- how WhatsApp is reached (the hidden browser or your own), which browser, and starting with NVDA;
+- **Unlink this computer**: logs out of WhatsApp here and removes what the hidden browser kept;
+- which new messages are read out, their sounds, and whether to hear what they say;
+- the microphone, and its sound processing in calls;
+- voice notes: stereo, the microphone's own sound, quality;
+- playback speed, the five volumes, the add-on's sounds, and hints (which keys to press next);
+- checking for new versions.
 
 ## Updates
 
-WhatsApp Access is published on its [GitHub page](https://github.com/InfiArtt/whatsapp-access/releases),
-not in the NVDA Add-on Store. Once a day, a little after NVDA starts, the add-on looks there for a new
-version. When there is one, it shows what is new and offers **Download and install**; NVDA's own
-installer then installs it and asks to restart NVDA. **Not now** asks again the next day. The file is
-checked against the checksum GitHub publishes before it is installed. The add-on sends nothing about
-you: it only asks GitHub for the latest release.
+WhatsApp Access is published on its
+[GitHub page](https://github.com/InfiArtt/whatsapp-access/releases), not in the NVDA Add-on Store.
+Once a day, a little after NVDA starts, the add-on looks there for a new version. When there is one,
+it shows what is new and offers **Download and install**; NVDA installs it and asks to restart.
+**Not now** asks again the next day. You can also look now: add-on settings, **Check for updates
+now**. The file is checked against GitHub's checksum before it is installed, and the add-on sends
+nothing about you.
+
+## Using your own browser
+
+If you choose WhatsApp Web in your own browser instead of the hidden one:
+
+1. Open web.whatsapp.com and log in, in Brave, Google Chrome or Microsoft Edge.
+2. Turn on remote debugging there, once: open a new tab with Ctrl+T, type
+   `brave://inspect/#remote-debugging` (in Chrome `chrome://inspect/#remote-debugging`, in Edge
+   `edge://inspect/#remote-debugging`), and check "Allow remote debugging for this browser instance".
+3. Each time the browser starts, the first NVDA+Shift+W brings it to the front with the question
+   "Allow remote debugging?". The focus is on Cancel: press Shift+Tab, then Enter, to allow it.
+
+While the add-on is connected, the browser shows a bar saying it is being controlled by software:
+that is this add-on.
+
+## If something goes wrong
+
+- **"Still connecting to WhatsApp Web"**: WhatsApp is starting, which takes up to half a minute after
+  NVDA starts. Try again in a moment.
+- **WhatsApp lost its connection**: NVDA says so after a few seconds and again when it is back.
+  Messages you send meanwhile go when it is back.
+- **A question is open but you can't reach it**: go back to the WhatsApp window; the add-on takes you
+  to the open question.
+- **You were asked to link again**: WhatsApp removed this computer from your linked devices. Link it
+  again as the first time.
 
 ## Privacy
 
@@ -207,8 +297,8 @@ The add-on talks only to the browser on your own computer, and checks that the p
 really is that browser. It does not send your messages anywhere else.
 
 WhatsApp does not offer this kind of access officially. The add-on uses WhatsApp Web the way you do,
-from your own account and browser, but WhatsApp's terms do not allow changing how its apps work.
-Use it at your own judgement.
+from your own account, but WhatsApp's terms do not allow changing how its apps work. Use it at your
+own judgement.
 
 ## License
 

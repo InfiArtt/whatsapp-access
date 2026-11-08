@@ -26,6 +26,12 @@ PAUSE = "pause"
 DISCARD = "discard"
 RING = "ring"
 TICK = "tick"
+MIC_OFF = "micOff"
+MIC_ON = "micOn"
+CALL_JOIN = "callJoin"
+CALL_LEAVE = "callLeave"
+CALL_HAND = "callHand"
+CALL_REACTION = "callReaction"
 
 # Which volume setting a sound follows: new messages and the ring, or everything else.
 NOTIFICATION = "notificationVolume"

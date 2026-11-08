@@ -217,3 +217,81 @@ def test_several_messages_are_copied_as_whatsapp_does():
     assert messageText.copiedText(messages) == (
         "[08:15, 8/11/2026] Rexya: Gimana?\n[08:15, 8/11/2026] You: Oke\n[08:15, 8/11/2026] Rexya: Voice message, 8 sec"
     )
+
+
+def test_notices_are_read_in_whatsapps_words():
+    notice = {"type": "gp2", "text": "Anas added Qisti"}
+    assert messageText.content(notice) == "Anas added Qisti"
+    assert messageText.content({"type": "gp2"}) == "Message of type gp2"
+
+
+def test_view_once_says_to_open_it_on_the_phone():
+    message = {"type": "image", "viewOnce": True}
+    assert messageText.content(message) == "View once, open it on your phone: Photo"
+
+
+def test_event_details_list_who_answered():
+    event = {
+        "name": "Rapat Relawan",
+        "start": TODAY_0815,
+        "location": "Aula",
+        "going": ["Anas", "Qisti"],
+        "maybe": [],
+        "notGoing": ["Rexya"],
+    }
+    lines = messageText.eventText(event).split("\n")
+    assert lines[0] == "Rapat Relawan"
+    assert "Location: Aula" in lines
+    assert "Going (2): Anas, Qisti" in lines
+    assert "Not going (1): Rexya" in lines
+    assert not any(line.startswith("Maybe") for line in lines)
+
+
+def test_messages_from_several_chats_name_the_chat_once():
+    personal = {"type": "chat", "text": "Halo", "sender": "Gwen", "chatTitle": "Gwen", "t": TODAY_0815}
+    group = {"type": "chat", "text": "Halo", "sender": "Anas", "chatTitle": "Relawan", "t": TODAY_0815}
+    assert messageText.messageInChat(personal, now=NOW).startswith("Gwen: Halo")
+    assert messageText.messageInChat(group, now=NOW).startswith("Relawan: Anas: Halo")
+
+
+def test_chats_with_disappearing_messages_say_so():
+    chat = {"title": "Rafli", "disappearing": 604800}
+    assert messageText.chatLine(chat) == "Rafli, disappearing messages, 7 days"
+    assert messageText.disappearingText(86400) == "disappearing messages, 1 day"
+    assert messageText.disappearingText(7776000) == "disappearing messages, 90 days"
+
+
+def test_group_call_people_and_changes():
+    before = [
+        {"id": "1", "name": "Anas", "connected": True},
+        {"id": "2", "name": "Qisti", "connected": False},
+        {"id": "3", "name": "Rexya", "connected": True},
+    ]
+    after = [
+        {"id": "1", "name": "Anas", "connected": True, "hand": True},
+        {"id": "2", "name": "Qisti", "connected": True, "muted": True},
+        {"id": "3", "name": "Rexya", "connected": False},
+    ]
+    assert messageText.callChanges(before, after) == [
+        ("hand", "Anas"),
+        ("joined", "Qisti"),
+        ("left", "Rexya"),
+    ]
+    assert messageText.participantLine(after[0]) == "Anas, hand raised"
+    assert messageText.participantLine(after[1]) == "Qisti, muted"
+    assert messageText.participantLine(after[2]) == "Rexya, not joined"
+
+
+def test_group_call_reactions_are_noticed_once():
+    before = [{"id": "1", "name": "Anas", "connected": True, "reaction": ""}]
+    after = [{"id": "1", "name": "Anas", "connected": True, "reaction": "👍"}]
+    assert messageText.callChanges(before, after) == [("reaction", "Anas 👍")]
+    assert messageText.callChanges(after, after) == []
+
+
+def test_ongoing_group_calls_offer_to_join():
+    assert messageText.callLogLine({"name": "Relawan", "ongoing": True}) == "Relawan, call in progress, join"
+    assert messageText.callLogLine({"name": "Relawan", "ongoing": True, "joined": True}) == (
+        "Relawan, call in progress, you are in it"
+    )
+    assert messageText.chatLine({"title": "Relawan", "ongoingCall": True}) == "Relawan, call in progress"

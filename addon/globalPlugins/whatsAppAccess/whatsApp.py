@@ -462,6 +462,186 @@ class WhatsAppSession:
 		"""chatAction for several chats, and "delete". Returns done and skipped (groups still joined)."""
 		return self._bridge("chatsAction", chatIds, action, seconds, timeout=120)
 
+	# Starred messages, channels and communities
+
+	def starredMessages(self) -> list[dict]:
+		"""All starred messages, newest first, each with chatTitle."""
+		return self._bridge("starredMessages", timeout=60)
+
+	def channels(self) -> list[dict]:
+		"""The channels the user follows, as chats with isChannel, canPost, followers and verified."""
+		return self._bridge("channels")
+
+	def searchChannels(self, text: str) -> list[dict]:
+		return self._bridge("searchChannels", text, timeout=60)
+
+	def followChannel(self, channelId: str, follow: bool) -> None:
+		self._bridge("followChannel", channelId, follow, timeout=60)
+
+	def communities(self) -> list[dict]:
+		"""Communities with their groups: announcement, joined, needsApproval and requested for each."""
+		return self._bridge("communities", timeout=90)
+
+	def joinCommunityGroup(self, communityId: str, groupId: str) -> str:
+		"""Returns "joined", or "requested" when the community's admins approve new members."""
+		return self._bridge("joinCommunityGroup", communityId, groupId, timeout=60)
+
+	# Groups and chats
+
+	def chatAbilities(self, chatId: str) -> dict:
+		"""What the user may do in a chat: admin, canAdd, favorite, ephemeral, blocked and so on."""
+		return self._bridge("chatAbilities", chatId)
+
+	def contactChoices(self) -> list[dict]:
+		return self._bridge("contactChoices")
+
+	def createGroup(self, title: str, contactIds: list[str]) -> dict:
+		"""Returns chatId, and failed: how many people could not be added (WhatsApp offers to invite them)."""
+		return self._bridge("createGroup", title, contactIds, timeout=90)
+
+	def changeParticipants(self, chatId: str, action: str, ids: list[str]) -> int:
+		"""add, remove, promote or demote; returns how many could not be done."""
+		return int(self._bridge("changeParticipants", chatId, action, ids, timeout=60) or 0)
+
+	def setGroupInfo(self, chatId: str, field: str, value: str) -> None:
+		"""field is subject or description."""
+		self._bridge("setGroupInfo", chatId, field, value, timeout=60)
+
+	def setGroupSetting(self, chatId: str, setting: str, on: bool) -> None:
+		"""announcement, restrict, membership_approval_mode or member_add_mode."""
+		self._bridge("setGroupSetting", chatId, setting, on, timeout=60)
+
+	def inviteLink(self, chatId: str, reset: bool = False) -> str:
+		return self._bridge("inviteLink", chatId, reset, timeout=60)
+
+	def exitGroup(self, chatId: str, andDelete: bool = False) -> None:
+		self._bridge("exitGroup", chatId, andDelete, timeout=60)
+
+	def deleteChat(self, chatId: str) -> None:
+		self._bridge("deleteChat", chatId, timeout=60)
+
+	def clearChat(self, chatId: str, keepStarred: bool) -> None:
+		self._bridge("clearChat", chatId, keepStarred, timeout=60)
+
+	def setBlocked(self, chatId: str, blocked: bool) -> None:
+		self._bridge("setBlocked", chatId, blocked, timeout=60)
+
+	def reportChat(self, chatId: str, alsoBlockOrExit: bool) -> None:
+		self._bridge("reportChat", chatId, alsoBlockOrExit, timeout=60)
+
+	def setDisappearing(self, chatId: str, seconds: int) -> None:
+		"""0, 86400, 604800 or 7776000 seconds."""
+		self._bridge("setDisappearing", chatId, seconds, timeout=60)
+
+	def setFavorite(self, chatId: str, favorite: bool) -> None:
+		self._bridge("setFavorite", chatId, favorite, timeout=60)
+
+	# More for messages
+
+	def sendPoll(self, chatId: str, question: str, options: list[str], single: bool) -> None:
+		self._bridge("sendPoll", chatId, question, options, single, timeout=60)
+
+	def pinMessage(self, messageId: str, duration: str | None) -> None:
+		"""duration is day, week or month; None unpins."""
+		self._bridge("pinMessage", messageId, duration, timeout=60)
+
+	def pinnedMessages(self, chatId: str) -> list[dict]:
+		return self._bridge("pinnedMessages", chatId)
+
+	def replyPrivately(self, messageId: str, text: str) -> dict:
+		"""Sends text to the group message's sender, quoting it; returns that chat."""
+		return self._bridge("replyPrivately", messageId, text, timeout=60)
+
+	def reactionDetails(self, messageId: str) -> list[dict]:
+		"""Each emoji with its people: name, isMe, t."""
+		return self._bridge("reactionDetails", messageId, timeout=30)
+
+	def sendContacts(self, chatId: str, contactIds: list[str]) -> None:
+		self._bridge("sendContacts", chatId, contactIds, timeout=60)
+
+	def stickers(self) -> list[dict]:
+		"""Favorite, then recent stickers: kind, index, label, pack, animated."""
+		return self._bridge("stickers")
+
+	def sendSticker(self, chatId: str, kind: str, index: int) -> None:
+		self._bridge("sendSticker", chatId, kind, index, timeout=60)
+
+	def searchAll(self, query: str, page: int = 1) -> dict:
+		"""Messages in every chat containing query, each with chatTitle; done says there are no more."""
+		return self._bridge("searchAll", query, page, timeout=60)
+
+	def chatMedia(self, chatId: str, kind: str) -> list[dict]:
+		"""kind is media, links or docs; newest first."""
+		return self._bridge("chatMedia", chatId, kind, timeout=60)
+
+	def unreadMentions(self, chatId: str) -> list[dict]:
+		return self._bridge("unreadMentions", chatId, timeout=30)
+
+	def eventInfo(self, messageId: str) -> dict:
+		return self._bridge("eventInfo", messageId)
+
+	def respondToEvent(self, messageId: str, answer: str) -> None:
+		"""answer is going, maybe or notGoing."""
+		self._bridge("respondToEvent", messageId, answer, timeout=60)
+
+	def createEvent(self, chatId: str, options: dict) -> None:
+		"""options: name, start (Unix seconds), and optionally end, description, location, callType."""
+		self._bridge("createEvent", chatId, options, timeout=60)
+
+	# Your status, profile and privacy
+
+	def postTextStatus(self, text: str, colorIndex: int, font: int) -> None:
+		self._bridge("postTextStatus", text, colorIndex, font, timeout=60)
+
+	def myStatuses(self) -> list[dict]:
+		"""The user's own statuses, newest first, each with viewers (name, t)."""
+		return self._bridge("myStatuses", timeout=60)
+
+	def deleteMyStatus(self, messageId: str) -> None:
+		self._bridge("deleteMyStatus", messageId, timeout=60)
+
+	def profile(self) -> dict:
+		return self._bridge("profile", timeout=30)
+
+	def setProfile(self, field: str, value: str) -> None:
+		"""field is name or about."""
+		self._bridge("setProfile", field, value, timeout=60)
+
+	def setProfilePhoto(self, path: str | None) -> None:
+		"""A picture file, cropped square as WhatsApp does; None removes the photo."""
+		uploadId = self._upload(path) if path else None
+		self._bridge("setProfilePhoto", uploadId, timeout=120)
+
+	def privacy(self) -> dict:
+		return self._bridge("privacy", timeout=30)
+
+	def setPrivacy(self, key: str, value: str) -> None:
+		self._bridge("setPrivacy", key, value, timeout=60)
+
+	def blockedContacts(self) -> list[dict]:
+		return self._bridge("blockedContacts")
+
+	def unblock(self, contactId: str) -> None:
+		self._bridge("unblock", contactId, timeout=60)
+
+	# Group calls and the connection
+
+	def startGroupCall(self, chatId: str) -> None:
+		self._bridge("startGroupCall", chatId, timeout=60)
+
+	def ongoingGroupCall(self, chatId: str) -> bool:
+		return bool(self._bridge("ongoingGroupCall", chatId))
+
+	def joinGroupCall(self, chatId: str) -> None:
+		self._bridge("joinGroupCall", chatId, timeout=60)
+
+	def setOnline(self, online: bool) -> None:
+		"""Online while the add-on's window is open, as WhatsApp Web is while it is in front."""
+		self._bridge("setOnline", online)
+
+	def connectionState(self) -> dict:
+		return self._bridge("connectionState")
+
 	def chatAction(self, chatId: str, action: str, seconds: int = 0) -> None:
 		"""archive, unarchive, pin, unpin, markUnread, markRead, mute (seconds, or -1 for always), unmute."""
 		self._bridge("chatAction", chatId, action, seconds, timeout=60)
@@ -506,6 +686,24 @@ class WhatsAppSession:
 			except WhatsAppError:
 				pass
 			raise
+
+	def _upload(self, path: str) -> str:
+		"""Send a file to the page in pieces for a later bridge call; returns its upload id."""
+		if os.path.getsize(path) > MAX_FILE_BYTES:
+			raise WhatsAppError("fileTooLarge", str(MAX_FILE_BYTES // 2**20))
+		uploadId = uuid.uuid4().hex
+		self._bridge("uploadStart", uploadId)
+		try:
+			with open(path, "rb") as file:
+				while chunk := file.read(UPLOAD_CHUNK_BYTES):
+					self._bridge("uploadChunk", uploadId, base64.b64encode(chunk).decode("ascii"))
+		except BaseException:
+			try:
+				self._bridge("uploadCancel", uploadId)
+			except WhatsAppError:
+				pass
+			raise
+		return uploadId
 
 	def download(self, messageId: str, folder: str = "", path: str = "") -> str:
 		"""Save a message's photo, video, audio or document. Give a folder to use WhatsApp's name for the
@@ -595,6 +793,19 @@ class WhatsAppSession:
 
 	def muteCall(self, muted: bool) -> bool:
 		return bool(self._bridge("muteCall", muted))
+
+	def raiseHand(self, raised: bool) -> None:
+		self._bridge("raiseHand", raised, timeout=30)
+
+	def callReaction(self, emoji: str) -> None:
+		self._bridge("callReaction", emoji, timeout=30)
+
+	def speakers(self) -> list[str]:
+		"""Who was heard in the call in the last moments, the most recent first."""
+		return self._bridge("speakers") or []
+
+	def askToMute(self, participantId: str) -> None:
+		self._bridge("askToMute", participantId, timeout=30)
 
 	def startCall(self, chatId: str, video: bool = False) -> None:
 		self._bridge("startCall", chatId, video, timeout=60)

@@ -75,11 +75,60 @@ def content(message: dict) -> str:
 			question=text, options=poll.get("options", 0), votes=poll.get("votes", 0)
 		)
 		text = ""
+	elif kind == "event_creation":
+		event = message.get("event") or {}
+		# Translators: An event in a group, with its name and when it starts.
+		label = _("Event: {name}, {when}").format(name=text, when=timeText(event.get("start", 0)))
+		if event.get("canceled"):
+			# Translators: Added to an event that was canceled.
+			label += ", " + _("canceled")
+		text = ""
+	elif text:
+		# Notices and other kinds, in WhatsApp's own words.
+		return text
+	elif kind == "newsletter_notification":
+		# Translators: A notice from a channel, such as a change to its name or settings.
+		label = _("Channel update")
 	else:
 		# Translators: A message of a kind this add-on cannot show yet, with WhatsApp's name for the kind.
 		label = _("Message of type {type}").format(type=kind)
+	if message.get("viewOnce"):
+		# Translators: Before a photo, video or voice message that can be opened only once, on the phone.
+		label = _("View once, open it on your phone: {content}").format(content=label)
 	extra = caption or text
 	return f"{label}: {extra}" if extra else label
+
+
+def eventText(event: dict) -> str:
+	"""An event's details and who answered, one item per line, to read in a text box."""
+	lines = [event.get("name", "")]
+	if event.get("canceled"):
+		lines.append(_("canceled"))
+	# Translators: When an event starts, in its details.
+	lines.append(_("Starts: {when}").format(when=timeText(event.get("start", 0))))
+	if event.get("end"):
+		# Translators: When an event ends, in its details.
+		lines.append(_("Ends: {when}").format(when=timeText(event["end"])))
+	if event.get("location"):
+		# Translators: Where an event is, in its details.
+		lines.append(_("Location: {place}").format(place=event["location"]))
+	if event.get("link"):
+		# Translators: An event's call link, in its details.
+		lines.append(_("Call link: {link}").format(link=event["link"]))
+	if event.get("description"):
+		lines.append(event["description"])
+	for key, label in (
+		# Translators: Who answered an event, in its details, with their names.
+		("going", _("Going ({count}): {names}")),
+		# Translators: Who answered an event, in its details, with their names.
+		("maybe", _("Maybe ({count}): {names}")),
+		# Translators: Who answered an event, in its details, with their names.
+		("notGoing", _("Not going ({count}): {names}")),
+	):
+		people = event.get(key) or []
+		if people:
+			lines.append(label.format(count=len(people), names=", ".join(people)))
+	return "\n".join(line for line in lines if line)
 
 
 def sender(message: dict) -> str:
@@ -117,6 +166,16 @@ def ackText(ack: int | None) -> str:
 		return _("read")
 	# Translators: The state of a voice message the user sent: the other person listened to it.
 	return _("played")
+
+
+def messageInChat(message: dict, now: float | None = None) -> str:
+	"""A message in a list from several chats: the chat's name first, unless the sender already says it."""
+	line = messageLine(message, True, now)
+	chat = message.get("chatTitle", "")
+	if not chat or (not message.get("fromMe") and message.get("sender") == chat):
+		return line
+	# Translators: A message in a list from several chats, such as starred messages: the chat, then the message.
+	return _("{chat}: {message}").format(chat=chat, message=line)
 
 
 def messageLine(message: dict, isGroup: bool, now: float | None = None) -> str:
@@ -159,6 +218,19 @@ def reactionsText(reactions: list[dict] | None) -> str:
 	return _("reactions: {counts}").format(counts=counts)
 
 
+def disappearingText(seconds: int) -> str:
+	"""That a chat's new messages disappear, and after how long, as WhatsApp's timer says."""
+	days = round(seconds / 86400)
+	if days == 1:
+		# Translators: Said for a chat whose new messages disappear after a day.
+		return _("disappearing messages, 1 day")
+	if days >= 2:
+		# Translators: Said for a chat whose new messages disappear after some days, such as 7.
+		return _("disappearing messages, {count} days").format(count=days)
+	# Translators: Said for a chat whose new messages disappear after some hours, such as 24.
+	return _("disappearing messages, {count} hours").format(count=max(1, round(seconds / 3600)))
+
+
 def chatLine(chat: dict, now: float | None = None) -> str:
 	"""One chat in the list: name, unread count, then the last message."""
 	parts = [chat.get("title", "")]
@@ -172,6 +244,11 @@ def chatLine(chat: dict, now: float | None = None) -> str:
 	if chat.get("muted"):
 		# Translators: Said for a chat whose notifications the user turned off.
 		parts.append(_("muted"))
+	if chat.get("disappearing"):
+		parts.append(disappearingText(chat["disappearing"]))
+	if chat.get("ongoingCall"):
+		# Translators: Said for a group with a voice or video call going on now, which the user can join.
+		parts.append(_("call in progress"))
 	last = chat.get("last")
 	if last:
 		preview = content(last)
@@ -377,6 +454,12 @@ def statusItemText(person: dict, index: int, now: float | None = None) -> str:
 
 def callLogLine(call: dict, now: float | None = None) -> str:
 	"""One call in the recent calls: who, which way and kind, how long, and when."""
+	if call.get("ongoing"):
+		if call.get("joined"):
+			# Translators: The group call the user is in, at the top of the recent calls.
+			return _("{name}, call in progress, you are in it").format(name=call.get("name", ""))
+		# Translators: A group call going on now, at the top of the recent calls; Enter joins it.
+		return _("{name}, call in progress, join").format(name=call.get("name", ""))
 	kind = (
 		# Translators: A video call in the recent calls list.
 		_("video call")
@@ -409,3 +492,39 @@ def copiedText(messages: list[dict]) -> str:
 		text = message.get("text") or message.get("caption") or content(message)
 		lines.append(f"[{stamp}] {sender(message)}: {text}")
 	return "\n".join(lines)
+
+
+def participantLine(person: dict) -> str:
+	"""One person in a group call: their name, then whether they joined, are muted or raised a hand."""
+	parts = [person.get("name", "")]
+	if not person.get("connected"):
+		# Translators: Said for someone invited to a group call who has not joined.
+		parts.append(_("not joined"))
+	else:
+		if person.get("hand"):
+			# Translators: Said for someone in a group call who raised their hand.
+			parts.append(_("hand raised"))
+		if person.get("muted"):
+			# Translators: Said for someone in a group call whose microphone is off.
+			parts.append(_("muted"))
+	return ", ".join(p for p in parts if p)
+
+
+def callChanges(before: list[dict], after: list[dict]) -> list[tuple[str, str]]:
+	"""What changed among a group call's people: (kind, name) with kind joined, left, hand or reaction;
+	for a reaction, name also holds the emoji."""
+	old = {p["id"]: p for p in before}
+	changes = []
+	for person in after:
+		was = old.get(person["id"], {})
+		name = person.get("name", "")
+		if person.get("connected") and not was.get("connected"):
+			changes.append(("joined", name))
+		elif was.get("connected") and not person.get("connected"):
+			changes.append(("left", name))
+		if person.get("connected") and person.get("hand") and not was.get("hand"):
+			changes.append(("hand", name))
+		reaction = person.get("reaction") or ""
+		if person.get("connected") and reaction and reaction != was.get("reaction"):
+			changes.append(("reaction", f"{name} {reaction}"))
+	return changes

@@ -87,8 +87,15 @@
 		return chat.formattedTitle || chat.name || (chat.contact && chat.contact.formattedName) || chat.id.user || "";
 	}
 
+	// Sending to "status@broadcast" posts the user's own status; that chat is not in the chat list.
+	function chatOrStatus(chatId) {
+		return chatId === "status@broadcast" ? req("WAWebStatusJidUtils").getStatusChat() : getChat(chatId);
+	}
+
+	// Channels are not in Chat but in their own collection; they open, read and react like chats.
 	function getChat(chatId) {
-		const chat = collections().Chat.get(chatId);
+		const C = collections();
+		const chat = C.Chat.get(chatId) || (C.WAWebNewsletterCollection && C.WAWebNewsletterCollection.get(chatId));
 		if (!chat) {
 			throw new Error("chatNotFound");
 		}
@@ -123,7 +130,8 @@
 		if (!contact) {
 			return null;
 		}
-		return contact.formattedName || contact.name || contact.pushname || contact.verifiedName || null;
+		const name = contact.formattedName || contact.name || contact.pushname || contact.verifiedName || "";
+		return String(name).trim() || null;
 	}
 
 	// Mentions arrive as "@" and a number; show the person's name instead.
@@ -179,6 +187,9 @@
 
 	function reactionsOf(m) {
 		try {
+			if (m.id.remote && m.id.remote.server === "newsletter") {
+				return channelReactions(m);
+			}
 			return reactionSummary(collections().Reactions.get(m.id));
 		} catch (e) {
 			return [];
@@ -223,6 +234,27 @@
 				votes: pollVotes(m).length,
 			};
 		}
+		if (m.isViewOnce) {
+			info.viewOnce = true;
+		}
+		try {
+			const pin = req("WAWebPinInChatCollection").PinInChatCollection.getByParentMsgKey(m.id);
+			info.pinned = !!(pin && req("WAWebPinInChatCollection").isPinValid(pin));
+		} catch (e) {}
+		if (type === "event_creation") {
+			info.text = m.eventName || "";
+			info.event = {
+				start: m.eventStartTime || 0,
+				canceled: !!m.isEventCanceled,
+			};
+		}
+		if (!info.text && !info.caption && !MEDIA_TYPES.has(type) && type !== "chat") {
+			try {
+				info.text = String(req("WAWebFormatMsgText")({ msg: m }) || "");
+			} catch (e) {
+				// Left empty: the add-on names the type instead.
+			}
+		}
 		if (m.quotedMsg) {
 			try {
 				const q = m.quotedMsg;
@@ -239,6 +271,14 @@
 		return info;
 	}
 
+	// A channel post's reactions are counts only: channels do not say who reacted.
+	function channelReactions(m) {
+		const r = req("WAWebNewsletterReactionCollection").NewsletterMessageReactionsCollection.get(m.id);
+		return r && r.reactionCountMap
+			? [...r.reactionCountMap].map(([emoji, count]) => ({ emoji: emoji, count: count, mine: r.myReaction === emoji }))
+			: [];
+	}
+
 	function chatInfo(chat) {
 		const msgs = chat.msgs ? chat.msgs.getModelsArray() : [];
 		let last = null;
@@ -248,8 +288,8 @@
 				break;
 			}
 		}
-		return {
-			id: chat.id._serialized,
+		const info = {
+			id: chat.id._serialized || chat.id.toString(),
 			title: chatTitle(chat),
 			isGroup: isGroupChat(chat),
 			unread: Math.max(0, chat.unreadCount || 0),
@@ -259,7 +299,31 @@
 			muted: !!(chat.mute && chat.mute.isMuted),
 			favorite: !!chat.isFavorite,
 			last: last,
+			disappearing: 0,
+			ongoingCall: false,
 		};
+		if (isGroupChat(chat)) {
+			try {
+				info.ongoingCall = !!req("WAWebVoipOngoingCallCollection").WAWebVoipOngoingCallCollection.getByChat(chat);
+			} catch (e) {}
+		}
+		try {
+			// Seconds after which new messages disappear, when someone turned that on; 0 when off.
+			info.disappearing = Number(chat.ephemeralDuration) || 0;
+		} catch (e) {}
+		if (chat.id.server === "newsletter") {
+			const md = chat.newsletterMetadata || {};
+			const expiry = chat.muteExpiration || 0;
+			info.isChannel = true;
+			info.title = chat.name || md.name || "";
+			info.muted = expiry === -1 || expiry * 1000 > Date.now();
+			info.canPost = md.membershipType === "admin" || md.membershipType === "owner";
+			info.followers = md.size || 0;
+			info.verified = !!md.verified;
+		} else if (chat.groupType && chat.groupType !== "DEFAULT") {
+			info.groupType = String(chat.groupType);
+		}
+		return info;
 	}
 
 	function chats(options) {
@@ -340,6 +404,7 @@
 					id: p.id.toString(),
 					name: personName(contact) || p.id.user,
 					pushname: (contact && contact.pushname) || "",
+					isAdmin: !!(p.isAdmin || p.isSuperAdmin),
 					isMe: myIds.has(p.id.toString()) || !!(contact && contact.isMe),
 				};
 			})
@@ -719,6 +784,869 @@
 		return { done: done, skipped: skipped };
 	}
 
+	// Starred messages, channels and communities ------------------------------------------------------
+
+	// All starred messages, newest first; WhatsApp loads them 50 at a time from its database.
+	async function starredMessages() {
+		const starred = collections().StarredMsg;
+		for (let i = 0; i < 40 && !starred.isSynced; i++) {
+			const before = starred.length;
+			await starred.sync();
+			if (starred.length === before) {
+				break;
+			}
+		}
+		return starred.getModelsArray().map((m) => {
+			const info = messageInfo(m);
+			const chat = req("WAWebFrontendMsgGetters").getChat(m);
+			info.chatTitle = chat ? chatTitle(chat) : "";
+			return info;
+		});
+	}
+
+	const FOLLOWING = new Set(["subscriber", "admin", "owner"]);
+
+	// The channels the user follows. A directory search adds others as guests, which are left out.
+	function channels() {
+		const list = collections().WAWebNewsletterCollection;
+		return (list ? list.getModelsArray() : [])
+			.filter((n) => FOLLOWING.has(n.newsletterMetadata && n.newsletterMetadata.membershipType))
+			.sort((a, b) => (b.t || 0) - (a.t || 0))
+			.map(chatInfo);
+	}
+
+	async function searchChannels(text) {
+		const found = await req("WAWebNewsletterDirectorySearchAction").fetchNewsletterDirectories({
+			searchText: String(text || ""),
+			categories: [],
+			countryCodes: [],
+			cursorToken: undefined,
+			skipSubscribedNewsletters: false,
+			view: undefined,
+		});
+		return (found.newsletters || []).map((n) => {
+			const info = chatInfo(n);
+			const md = n.newsletterMetadata || {};
+			info.following = FOLLOWING.has(md.membershipType);
+			info.description = md.description || "";
+			return info;
+		});
+	}
+
+	async function followChannel(channelId, follow) {
+		const channel = getChat(channelId);
+		if (follow) {
+			await req("WAWebFollowNewsletter").followNewsletter(channel, {});
+		} else {
+			await req("WAWebNewsletterUnsubscribeAction").unsubscribeFromNewsletterAction(channel, {
+				eventSurface: req("WAWebWamEnumChannelEventSurface").CHANNEL_EVENT_SURFACE.CHANNEL_PROFILE,
+				discoverySurface: req("WAWebWamEnumTsSurface").TS_SURFACE.CHANNEL_PROFILE,
+			});
+		}
+		return true;
+	}
+
+	function groupKind(metadata) {
+		try {
+			return String(req("WAWebGroupMetadataGetters").getGroupType(metadata) || "DEFAULT");
+		} catch (e) {
+			return "DEFAULT";
+		}
+	}
+
+	// The user's communities, each with its announcement group, the groups the user is in, and the
+	// others they could join.
+	async function communities() {
+		const C = collections();
+		const metadata = C.WAWebGroupMetadataCollection;
+		const unjoined = C.WAWebUnjoinedSubgroupMetadataCollection;
+		const result = [];
+		for (const parent of metadata.getModelsArray().filter((g) => g.isParentGroup)) {
+			try {
+				await req("WAWebQuerySubGroupAction").queryAndUpdateSubgroupsMetadata(parent.id, parent.joinedSubgroups);
+			} catch (e) {
+				// The groups already known are shown.
+			}
+			const joined = (parent.joinedSubgroups || []).map((id) => metadata.get(id)).filter(Boolean);
+			const groupInfo = (g) => {
+				const chat = C.Chat.get(g.id);
+				const info = chat ? chatInfo(chat) : { id: g.id.toString(), title: g.subject || "", unread: 0 };
+				info.announcement = !!g.defaultSubgroup || groupKind(g) === "LINKED_ANNOUNCEMENT_GROUP";
+				info.joined = true;
+				return info;
+			};
+			const others = unjoined
+				? unjoined
+						.getModelsArray()
+						.filter((u) => u.parentGroupId && u.parentGroupId.equals(parent.id))
+						.map((u) => ({
+							id: u.id.toString(),
+							title: u.subject || "",
+							announcement: !!u.defaultSubgroup,
+							joined: false,
+							size: u.size || 0,
+							needsApproval: !!u.membershipApprovalMode,
+							requested: !!u.membershipApprovalRequest,
+						}))
+				: [];
+			const groups = joined.map(groupInfo).concat(others);
+			groups.sort((a, b) => Number(b.announcement) - Number(a.announcement));
+			result.push({
+				id: parent.id.toString(),
+				title: parent.subject || "",
+				description: parent.desc || "",
+				groups: groups,
+				unread: groups.reduce((sum, g) => sum + (g.unread || 0), 0),
+			});
+		}
+		return result;
+	}
+
+	// Joins a group of a community, or asks to when its admins approve new members.
+	async function joinCommunityGroup(communityId, groupId) {
+		const wf = req("WAWebWidFactory");
+		const parent = wf.createWid(communityId);
+		const group = wf.createWid(groupId);
+		try {
+			await req("JSResourceForInteraction")("WAWebSubgroupJoinModal.react").load();
+		} catch (e) {
+			// Already loaded, or loaded differently; the join below says if it is missing.
+		}
+		const join = req("WAWebJoinSubgroupAction");
+		const info = await req("WAWebQuerySubGroupAction").querySubgroupInfo(group, parent);
+		if (info && info.defaultSubgroup && join.joinAnnouncementGroup) {
+			await join.joinAnnouncementGroup(parent, group);
+			return "joined";
+		}
+		const request = !!(info && info.membershipApprovalMode);
+		try {
+			await join.joinSubgroup({ parentGroupId: parent, subgroupId: group, request: request });
+		} catch (e) {
+			if (e && e.membershipApprovalMode) {
+				await join.joinSubgroup({ parentGroupId: parent, subgroupId: group, request: true });
+				return "requested";
+			}
+			throw e;
+		}
+		return request ? "requested" : "joined";
+	}
+
+	// Groups and chats: what WhatsApp's chat and group info offer -------------------------------------
+
+	function serverError(e) {
+		const status = e && (e.status || e.statusCode);
+		return new Error(status ? "server" + status : (e && e.message) || "failed");
+	}
+
+	// What the user may do in a chat, for its More options and info.
+	function chatAbilities(chatId) {
+		const chat = getChat(chatId);
+		const result = {
+			isGroup: isGroupChat(chat),
+			isChannel: chat.id.server === "newsletter",
+			favoritesEnabled: false,
+			favorite: !!chat.isFavorite,
+			ephemeral: 0,
+			canSetEphemeral: false,
+			blocked: false,
+		};
+		try {
+			result.favoritesEnabled = !!req("WAWebInboxFiltersGatingUtils").inboxFavoritesEnabled();
+		} catch (e) {}
+		try {
+			result.ephemeral = chat.ephemeralDuration || 0;
+			result.canSetEphemeral = !!req("WAWebChatEphemerality").shouldShowEphemeralSetting(chat);
+		} catch (e) {}
+		if (!result.isGroup && chat.contact) {
+			result.blocked = !!chat.contact.isContactBlocked;
+		}
+		const gm = chat.groupMetadata;
+		if (result.isGroup && gm) {
+			const people = gm.participants;
+			const ask = (f) => {
+				try {
+					return !!f();
+				} catch (e) {
+					return false;
+				}
+			};
+			Object.assign(result, {
+				member: ask(() => people.iAmMember()),
+				admin: ask(() => people.iAmAdmin()),
+				canAdd: ask(() => people.canAdd()),
+				canSetSubject: ask(() => gm.canSetSubject()),
+				canSetDescription: ask(() => gm.canSetDescription()),
+				canSetSettings: ask(() => gm.canSetGroupProperty()),
+				announce: !!gm.announce,
+				restrict: !!gm.restrict,
+				approval: !!gm.membershipApprovalMode,
+				memberAdd: String(gm.memberAddMode || "") === "all_member_add",
+				readOnly: !!chat.isReadOnly,
+				groupType: groupKind(gm),
+			});
+		}
+		return result;
+	}
+
+	function contactsOf(ids) {
+		const C = collections();
+		return ids.map((id) => C.Contact.get(id)).filter(Boolean);
+	}
+
+	// Contacts to choose from when making a group or adding people: saved contacts with WhatsApp.
+	function contactChoices() {
+		return collections()
+			.Contact.getModelsArray()
+			.filter((c) => c.id && c.id.server === "c.us" && c.name && !c.isMe && !c.isBot)
+			.map((c) => ({ id: c.id.toString(), title: personName(c) || c.id.user }))
+			.sort((a, b) => a.title.localeCompare(b.title));
+	}
+
+	async function createGroup(title, contactIds) {
+		await req("WAWebNewGroupFlowLoadable").requireBundle();
+		const result = await req("WAWebCreateGroupAction").createGroup(
+			{
+				title: String(title),
+				ephemeralDuration: 0,
+				restrict: true,
+				announce: true,
+				membershipApprovalMode: false,
+				memberAddMode: true,
+				memberShareGroupHistoryMode: true,
+			},
+			contactsOf(contactIds),
+			[],
+			req("WAWebWamEnumGroupCreateEntryPoint").GROUP_CREATE_ENTRY_POINT.MENU
+		);
+		if (!result) {
+			throw new Error("createFailed");
+		}
+		return {
+			chatId: result.gid.toString(),
+			failed: (result.participants || []).filter((x) => String(x.code) !== "200").length,
+		};
+	}
+
+	function participantModels(chat, ids) {
+		const people = chat.groupMetadata.participants;
+		return ids.map((id) => people.get(id)).filter(Boolean);
+	}
+
+	// add, remove, promote or demote. Returns how many could not be done, such as people whose privacy
+	// asks for an invite instead (WhatsApp then offers to send them one).
+	async function changeParticipants(chatId, action, ids) {
+		const chat = getChat(chatId);
+		const M = req("WAWebModifyParticipantsGroupAction");
+		try {
+			if (action === "add") {
+				const result = await M.addParticipants(
+					chat,
+					contactsOf(ids),
+					[],
+					req("WAWebWamEnumAddMembersEntrypointType").ADD_MEMBERS_ENTRYPOINT_TYPE.GROUP_INFO_ACTION_BUTTON
+				);
+				return ((result && result.participants) || []).filter((x) => String(x.code) !== "200").length;
+			}
+			const models = participantModels(chat, ids);
+			if (action === "remove") {
+				await M.removeParticipants(chat, models);
+			} else if (action === "promote") {
+				await M.promoteParticipants(chat, models);
+			} else if (action === "demote") {
+				await M.demoteParticipants(chat, models);
+			}
+			return 0;
+		} catch (e) {
+			throw serverError(e);
+		}
+	}
+
+	async function setGroupInfo(chatId, field, value) {
+		const chat = getChat(chatId);
+		if (field === "subject") {
+			await req("WAWebSetSubjectGroupAction").setGroupSubject(chat, String(value));
+		} else if (field === "description") {
+			await req("WAWebSetDescAction").setDesc(chat, String(value));
+		}
+		return true;
+	}
+
+	// announcement, restrict, membership_approval_mode or member_add_mode, on (1) or off (0).
+	async function setGroupSetting(chatId, type, on) {
+		const result = await req("WAWebSetPropertyGroupAction").setGroupProperty(getChat(chatId), type, on ? 1 : 0);
+		if (result && result.name && result.name !== "SetPropertyResponseSuccess") {
+			throw new Error("settingFailed");
+		}
+		return true;
+	}
+
+	async function inviteLink(chatId, reset) {
+		const gm = getChat(chatId).groupMetadata;
+		const invites = req("WAWebGroupInviteAction");
+		try {
+			if (reset) {
+				await invites.revokeGroupInvite(gm);
+			} else {
+				await invites.queryGroupInviteCode(gm);
+			}
+		} catch (e) {
+			throw serverError(e);
+		}
+		return gm.inviteCode ? "https://chat.whatsapp.com/" + gm.inviteCode : "";
+	}
+
+	async function exitGroup(chatId, andDelete) {
+		const chat = getChat(chatId);
+		const left = await req("WAWebExitGroupAction").sendExitGroup(chat);
+		if (!left) {
+			throw new Error("exitFailed");
+		}
+		if (andDelete) {
+			await req("WAWebDeleteChatAction").sendDelete(chat);
+		}
+		return true;
+	}
+
+	async function deleteChat(chatId) {
+		await req("WAWebDeleteChatAction").sendDelete(getChat(chatId));
+		return true;
+	}
+
+	async function clearChat(chatId, keepStarred) {
+		await req("WAWebSendClearChatAction").sendClear(getChat(chatId), !!keepStarred);
+		return true;
+	}
+
+	async function setBlocked(chatId, blocked) {
+		const contact = getChat(chatId).contact;
+		const B = req("WAWebBlockContactAction");
+		if (blocked) {
+			await B.blockContact({ contact: contact, blockEntryPoint: "chat" });
+		} else {
+			await B.unblockContact(contact, "chat");
+		}
+		return true;
+	}
+
+	// Reports a chat to WhatsApp, as its Report dialog does; a group is left first, a person can be
+	// blocked as well.
+	async function reportChat(chatId, alsoBlockOrExit) {
+		const chat = getChat(chatId);
+		const S = req("WAWebSendSpamChatAction");
+		if (isGroupChat(chat)) {
+			const spamFlow = "group_info_report";
+			if (alsoBlockOrExit) {
+				const left = await req("WAWebExitGroupAction").sendExitGroup(chat);
+				if (!left) {
+					throw new Error("exitFailed");
+				}
+			}
+			await S.sendReport({ chat: chat, spamFlow: spamFlow });
+		} else if (alsoBlockOrExit) {
+			await S.sendReportBlock({ chat: chat, spamFlow: "account_info_report" });
+		} else {
+			await S.sendReport({ chat: chat, spamFlow: "account_info_report" });
+		}
+		return true;
+	}
+
+	const EPHEMERAL_DURATIONS = [0, 86400, 604800, 7776000];
+
+	async function setDisappearing(chatId, seconds) {
+		const duration = Number(seconds) || 0;
+		if (!EPHEMERAL_DURATIONS.includes(duration)) {
+			throw new Error("badDuration");
+		}
+		await req("WAWebChangeEphemeralDurationChatAction").changeEphemeralDuration(
+			getChat(chatId),
+			duration,
+			req("WAWebWamEnumEphemeralSettingEntryPointType").EPHEMERAL_SETTING_ENTRY_POINT_TYPE.CHAT_INFO,
+			req("WAWebEphemeralityTypes").DisappearingModeTrigger.ChatSettings
+		);
+		return true;
+	}
+
+	async function setFavorite(chatId, favorite) {
+		const chat = getChat(chatId);
+		const options = { entryPoint: 3, suppressToast: true };
+		if (favorite) {
+			await req("WAWebAddToFavoritesAction").addToFavoritesAction([chat.id], options);
+		} else {
+			await req("WAWebRemoveFromFavoritesAction").removeFromFavoritesAction([chat.id], options);
+		}
+		return true;
+	}
+
+	// More for messages: polls, pins, private replies, contacts, stickers, search, media ---------------
+
+	async function loadBundle(name) {
+		try {
+			await req("JSResourceForInteraction")(name).load();
+		} catch (e) {
+			// Already loaded, or loaded another way.
+		}
+	}
+
+	async function sendPoll(chatId, question, options, single) {
+		try {
+			await req("JSResourceForInteraction")("WAWebPollsCreatePollModal")
+				.__setRef("WAWebPollsCreatePollModalLoadable.react")
+				.load();
+		} catch (e) {}
+		await req("WAWebPollsSendPollCreationMsgAction").sendPollCreation({
+			chat: getChat(chatId),
+			poll: {
+				name: String(question),
+				options: options.map((name) => ({ name: String(name) })),
+				selectableOptionsCount: single ? 1 : 0,
+				contentType: "TEXT",
+				pollType: "POLL",
+				endTime: undefined,
+				hideVoterNames: undefined,
+			},
+		});
+		return true;
+	}
+
+	const PIN_DURATIONS = { day: "OneDay", week: "SevenDays", month: "ThirtyDays" };
+
+	// Pins a message for everyone for a day, a week or a month, or unpins it. When the chat already has
+	// as many pins as WhatsApp allows, the oldest is unpinned first, as WhatsApp does.
+	async function pinMessage(messageId, duration) {
+		const m = getMsg(messageId);
+		const T = req("WAWebProtobufsE2E.pb").Message$PinInChatMessage$Type;
+		const send = req("WAWebSendPinMessageAction").sendPinInChatMsg;
+		if (!duration) {
+			await send({ msg: m, pinType: T.UNPIN_FOR_ALL });
+			return true;
+		}
+		if (!req("WAWebMsgActionCapability").canPinMsg(m)) {
+			throw new Error("cannotPin");
+		}
+		const pins = pinnedOf(m.id.remote.toString());
+		if (pins.length >= req("WAWebPinMsgGatingUtils").getMaxPins()) {
+			const oldest = collections().Msg.get(pins[0].parentKey);
+			if (oldest) {
+				await send({ msg: oldest, pinType: T.UNPIN_FOR_ALL });
+			}
+		}
+		await send({ msg: m, pinType: T.PIN_FOR_ALL, pinExpiryDurationOption: PIN_DURATIONS[duration] || "SevenDays" });
+		return true;
+	}
+
+	function pinnedOf(chatId) {
+		const P = req("WAWebPinInChatCollection");
+		const C = collections();
+		return P.PinInChatCollection.getModelsArray()
+			.filter((p) => String(p.chatId) === chatId && P.isPinValid(p))
+			.map((p) => ({ parentKey: p.parentMsgKey, msg: C.Msg.get(p.parentMsgKey) }))
+			.sort((a, b) => ((a.msg && a.msg.t) || 0) - ((b.msg && b.msg.t) || 0));
+	}
+
+	function pinnedMessages(chatId) {
+		return pinnedOf(chatId)
+			.filter((p) => p.msg)
+			.map((p) => messageInfo(p.msg));
+	}
+
+	async function replyPrivately(messageId, text) {
+		const m = getMsg(messageId);
+		if (!req("WAWebMsgReply").canPrivateReply(m)) {
+			throw new Error("cannotReplyPrivately");
+		}
+		const wid = req("WAWebGroupAgentOneToOneContact").getGroupAgentAwareOneToOneContact(
+			m.author,
+			req("WAWebFrontendMsgGetters").getChat(m),
+			"private_reply"
+		);
+		const found = await req("WAWebFindChatAction").findOrCreateLatestChat(wid, "privateReplyToMsg");
+		await req("WAWebSendTextMsgChatAction").sendTextMsgToChat(found.chat, String(text), { quotedMsg: m });
+		return chatInfo(found.chat);
+	}
+
+	// Who reacted with what, with names.
+	async function reactionDetails(messageId) {
+		const all = await collections().Reactions.find(getMsg(messageId).id);
+		const me = myIdSet();
+		const C = collections();
+		return ((all && all.reactions && all.reactions.getModelsArray()) || []).map((r) => ({
+			emoji: r.aggregateEmoji,
+			people: r.senders.getModelsArray().map((s) => ({
+				name:
+					personName(s.senderObj || C.Contact.get(s.senderUserJid)) || String(s.senderUserJid).split("@")[0],
+				isMe: me.has(String(s.senderUserJid)),
+				t: Math.floor((s.timestamp || 0) / 1000),
+			})),
+		}));
+	}
+
+	async function sendContacts(chatId, contactIds) {
+		await req("WAWebAttachVcardsFlowLoadable").requireBundle();
+		req("WAWebSendContactsAction")({ chat: getChat(chatId), contacts: contactsOf(contactIds) });
+		return true;
+	}
+
+	function stickerList() {
+		const recent = req("WAWebRecentStickerCollectionMd").RecentStickerCollectionMd.map((r) => r.sticker);
+		let favorite = [];
+		try {
+			favorite = req("WAWebFavoriteStickerCollection").FavoriteStickerCollection.map((r) => r.sticker);
+		} catch (e) {}
+		return { recent: recent.filter(Boolean), favorite: favorite.filter(Boolean) };
+	}
+
+	function stickers() {
+		const list = stickerList();
+		const describe = (s, i, kind) => ({
+			index: i,
+			kind: kind,
+			label: (s.mediaData && s.mediaData.accessibilityLabel) || "",
+			pack: s.stickerPackName || "",
+			animated: !!(s.mediaData && s.mediaData.isAnimated),
+		});
+		return list.favorite.map((s, i) => describe(s, i, "favorite")).concat(list.recent.map((s, i) => describe(s, i, "recent")));
+	}
+
+	async function sendSticker(chatId, kind, index) {
+		const sticker = stickerList()[kind][index];
+		if (!sticker) {
+			throw new Error("stickerNotFound");
+		}
+		try {
+			await sticker.downloadMedia();
+		} catch (e) {}
+		await req("WAWebSendStickerAction").sendStickerToChat(getChat(chatId), sticker, {
+			stickerSendOrigin: kind === "favorite" ? 4 : 3,
+		});
+		return true;
+	}
+
+	// WhatsApp's own search over every chat, from its index on this computer.
+	async function searchAll(query, page) {
+		const found = await req("WAWebMsgCollection").MsgCollection.search(String(query), page || 1, 40);
+		return {
+			done: !!found.eof,
+			messages: (found.messages || []).map((m) => {
+				const info = messageInfo(m);
+				const chat = req("WAWebFrontendMsgGetters").getChat(m);
+				info.chatTitle = chat ? chatTitle(chat) : "";
+				return info;
+			}),
+		};
+	}
+
+	// A chat's photos and videos, links, or documents, newest first, as its info shows them.
+	async function chatMedia(chatId, kind) {
+		const chat = getChat(chatId);
+		let list;
+		if (kind === "links") {
+			list = chat.getLinkMsgs();
+			await list.queryLinks(chat);
+		} else if (kind === "docs") {
+			list = chat.getDocMsgs();
+			await list.queryDocs(chat);
+		} else {
+			list = chat.getMediaMsgs();
+			await list.queryMedia({ chat: chat });
+		}
+		return list
+			.getModelsArray()
+			.slice()
+			.sort((a, b) => (b.t || 0) - (a.t || 0))
+			.map(messageInfo);
+	}
+
+	// The messages that mention the user and are not read yet, oldest first, as WhatsApp's @ button.
+	async function unreadMentions(chatId) {
+		const chat = getChat(chatId);
+		const md = chat.unreadMentionMetadata;
+		if (!md || !md.unreadMentionCollection) {
+			return [];
+		}
+		const ids = md.unreadMentionCollection
+			.getModelsArray()
+			.map((x) => x.id)
+			.reverse();
+		if (!ids.length) {
+			return [];
+		}
+		const found = await collections().Msg.getMessagesById(ids);
+		return ((found && found.messages) || []).map(messageInfo);
+	}
+
+	// Events ----------------------------------------------------------------------------------------------
+
+	function eventInfo(messageId) {
+		const m = getMsg(messageId);
+		const key = req("WAWebReferentialMsgKey").getReferentialMsgKey(m);
+		const T = req("WAWebProtobufsE2E.pb")["Message$EventResponseMessage$EventResponseType"];
+		const groups = { going: [], maybe: [], notGoing: [] };
+		let responses = [];
+		try {
+			responses = req("WAWebEventResponseCollection").EventResponseCollection.byParent(key).toArray();
+		} catch (e) {}
+		for (const r of responses) {
+			const who = contactName(r.sender);
+			if (r.eventResponse === T.GOING) {
+				groups.going.push(who);
+			} else if (r.eventResponse === T.MAYBE) {
+				groups.maybe.push(who);
+			} else if (r.eventResponse === T.NOT_GOING) {
+				groups.notGoing.push(who);
+			}
+		}
+		const location = m.eventLocation || {};
+		return Object.assign(
+			{
+				name: m.eventName || "",
+				description: m.eventDescription || "",
+				start: m.eventStartTime || 0,
+				end: m.eventEndTime || 0,
+				location: location.name || location.address || "",
+				link: m.eventJoinLink || "",
+				canceled: !!m.isEventCanceled,
+			},
+			groups
+		);
+	}
+
+	async function respondToEvent(messageId, answer) {
+		const T = req("WAWebProtobufsE2E.pb")["Message$EventResponseMessage$EventResponseType"];
+		const value = { going: T.GOING, maybe: T.MAYBE, notGoing: T.NOT_GOING }[answer];
+		await req("WAWebSendEventResponseMsgAction").sendEventResponseMsg(
+			value,
+			req("WAWebFrontendMsgGetters").getAsEventCreation(getMsg(messageId))
+		);
+		return true;
+	}
+
+	async function createEvent(chatId, options) {
+		await loadBundle("WAWebEventsCreateEventModalFlow.react");
+		const opts = { name: String(options.name), startTime: Math.floor(Number(options.start)) };
+		if (options.description) {
+			opts.description = String(options.description);
+		}
+		if (options.end) {
+			opts.endTime = Math.floor(Number(options.end));
+		}
+		if (options.location) {
+			opts.location = String(options.location);
+		}
+		if (options.callType) {
+			opts.callType = options.callType;
+		}
+		await req("WAWebSendEventCreationMsgAction").sendEventCreationMessage({ chat: getChat(chatId), eventCreationOpts: opts });
+		return true;
+	}
+
+	// Your status, profile and privacy --------------------------------------------------------------------
+
+	const STATUS_COLORS = [
+		4289080433, 4287670337, 4290879551, 4286128440, 4289628020, 4293964592, 4290163495, 4291207116, 4287326608,
+		4294937228, 4283744869, 4294933355, 4280730844, 4283943423, 4285818730, 4286484643, 4283864831, 4285408638,
+		4286237605, 4280563264, 4286747850,
+	];
+
+	async function postTextStatus(text, colorIndex, font) {
+		const color = STATUS_COLORS[Math.abs(Number(colorIndex) || 0) % STATUS_COLORS.length];
+		const result = await req("WAWebSendStatusMsgAction").sendStatusTextMsgAction({
+			text: String(text),
+			color: color,
+			font: Number(font) || 0,
+		});
+		if (result && result.messageSendResult && result.messageSendResult !== "OK") {
+			throw new Error("sendFailed");
+		}
+		return true;
+	}
+
+	async function myStatuses() {
+		const C = collections();
+		const mine = C.Status.getMyStatus();
+		if (!mine) {
+			return [];
+		}
+		const result = [];
+		for (const m of mine.msgs.getModelsArray().filter((x) => x.type !== "revoked" && !x.isNotification)) {
+			let viewers = [];
+			try {
+				const info = await C.MsgInfo.find(m.id);
+				const read = info && info.read && info.read.getModelsArray ? info.read.getModelsArray() : [];
+				viewers = read.map((r) => ({ name: contactName(r.id), t: r.t || 0 }));
+			} catch (e) {}
+			const item = messageInfo(m);
+			item.viewers = viewers;
+			result.push(item);
+		}
+		return result.reverse();
+	}
+
+	async function deleteMyStatus(messageId) {
+		await req("WAWebRevokeStatusAction").sendStatusRevokeMsgAction(collections().Status.getMyStatus(), getMsg(messageId));
+		return true;
+	}
+
+	function meWid() {
+		return req("WAWebUserPrefsMeUser").getMeUserOrThrow();
+	}
+
+	async function profile() {
+		let about = "";
+		try {
+			const status = await req("WAWebStatusContactAction").getStatus(meWid());
+			about = (status && status.status) || "";
+		} catch (e) {}
+		return { name: req("WAWebConnModel").Conn.pushname || "", about: about };
+	}
+
+	async function setProfile(field, value) {
+		if (field === "name") {
+			await loadBundle("WAWebProfileDrawer.react");
+			await req("WAWebSetPushnameConnAction").setPushname(String(value));
+		} else if (field === "about") {
+			await req("WAWebStatusContactAction").setMyStatus(String(value));
+		}
+		return true;
+	}
+
+	// A square 640-pixel JPEG made from the uploaded picture, as WhatsApp's own cropper makes.
+	async function setProfilePhoto(uploadId) {
+		const thumb = req("WAWebProfilePicThumbCollection").ProfilePicThumbCollection.gadd(meWid());
+		const action = req("WAWebProfilePicThumbAction");
+		if (!uploadId) {
+			await action.deleteProfilePic(thumb);
+			return true;
+		}
+		const blob = new Blob(uploads.get(uploadId));
+		uploads.delete(uploadId);
+		const bitmap = await createImageBitmap(blob);
+		const side = Math.min(bitmap.width, bitmap.height);
+		const canvas = document.createElement("canvas");
+		canvas.width = 640;
+		canvas.height = 640;
+		canvas.getContext("2d").drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 640, 640);
+		const full = canvas.toDataURL("image/jpeg", 0.9);
+		await action.setProfilePic({ full: full, thumb: full, profilePicThumb: thumb });
+		return true;
+	}
+
+	const PRIVACY_NAMES = {
+		lastSeen: "last",
+		online: "online",
+		profilePicture: "profile",
+		about: "status",
+		readReceipts: "readreceipts",
+		groupAdd: "groupadd",
+		callAdd: "calladd",
+		messages: "messages",
+	};
+
+	async function privacy() {
+		let settings = null;
+		try {
+			settings = await req("WAWebQueryPrivacySettingsJob").getPrivacy();
+		} catch (e) {
+			settings = req("WAWebUserPrefsGeneral").getUserPrivacySettings();
+		}
+		const result = {};
+		for (const key of Object.keys(PRIVACY_NAMES)) {
+			result[key] = settings && settings[key] != null ? String(settings[key]) : "";
+		}
+		return result;
+	}
+
+	async function setPrivacy(key, value) {
+		const name = PRIVACY_NAMES[key];
+		if (!name) {
+			throw new Error("badSetting");
+		}
+		await req("WAWebSetPrivacyForOneCategoryAction").setPrivacyForOneCategory({ name: name, value: String(value) });
+		return true;
+	}
+
+	function blockedContacts() {
+		return req("WAWebBlocklistCollection")
+			.BlocklistCollection.getModelsArray()
+			.map((b) => {
+				let name = contactName(b.id);
+				if (!name || /^[0-9]+$/.test(name)) {
+					// People known only by their newer id: show their phone number instead.
+					try {
+						name = "+" + req("WAWebApiContact").getPhoneNumber(b.id).user;
+					} catch (e) {}
+				}
+				return { id: b.id.toString(), name: name };
+			});
+	}
+
+	async function unblock(contactId) {
+		const C = collections();
+		const contact = C.Contact.get(contactId) || C.Contact.gadd(req("WAWebWidFactory").createWid(contactId));
+		await req("WAWebBlockContactAction").unblockContact(contact, "profile");
+		return true;
+	}
+
+	// Group calls -------------------------------------------------------------------------------------------
+
+	async function startGroupCall(chatId) {
+		await req("WAWebVoipStartCall").startWAWebVoipGroupCallFromChat(getChat(chatId), false, 0, 0);
+		return true;
+	}
+
+	function ongoingGroupCall(chatId) {
+		try {
+			if (ringingGroupCall(getChat(chatId))) {
+				return true;
+			}
+			const ongoing = req("WAWebVoipOngoingCallCollection").WAWebVoipOngoingCallCollection.getByChat(getChat(chatId));
+			return !!ongoing;
+		} catch (e) {
+			return false;
+		}
+	}
+
+	// The group's call when it is ringing for the user: being invited again rings, and then it is answered,
+	// not joined; WhatsApp's join does nothing for a call that rings.
+	function ringingGroupCall(chat) {
+		let call = null;
+		try {
+			call = req("WAWebCallCollection").activeCall;
+		} catch (e) {
+			return null;
+		}
+		if (!call || !call.isGroup || String(call.groupJid) !== String(chat.id)) {
+			return null;
+		}
+		const state = typeof call.getState === "function" ? call.getState() : call.state;
+		const S = req("WAWebVoipCallStateUtils");
+		return S.isCallRinging(state) || S.isCallIncoming(state) ? call : null;
+	}
+
+	async function joinGroupCall(chatId) {
+		const chat = getChat(chatId);
+		if (ringingGroupCall(chat)) {
+			return answerCall();
+		}
+		const ongoing = req("WAWebVoipOngoingCallCollection").WAWebVoipOngoingCallCollection.getByChat(chat);
+		if (!ongoing) {
+			throw new Error("noOngoingCall");
+		}
+		await req("WAWebVoipStartCall").joinOngoingWAWebVoipGroupCallPN({ callId: ongoing.id.id, chat: chat, isVideo: false });
+		return true;
+	}
+
+	// Connection --------------------------------------------------------------------------------------------
+
+	function connectionState() {
+		const socket = req("WAWebSocketModel").Socket;
+		const stream = req("WAWebStreamModel").Stream;
+		let online = true;
+		try {
+			online = req("WAWebNetworkStatus").online !== false;
+		} catch (e) {}
+		return { info: String(stream.info || ""), mode: String(stream.mode || ""), socket: String(socket.state || ""), online: online };
+	}
+
 	async function chatAction(chatId, action, seconds) {
 		const chat = getChat(chatId);
 		if (action === "archive" || action === "unarchive") {
@@ -1056,7 +1984,7 @@
 		if (!recorded) {
 			throw new Error("noRecording");
 		}
-		const chat = getChat(chatId);
+		const chat = chatOrStatus(chatId);
 		const note = recorded;
 		const data = await req("WAWebMediaOpaqueData").createFromData(note.file, note.file.type);
 		const prep = req("WAWebPrepRawMedia").prepRawMedia(data, { isPtt: true });
@@ -1110,7 +2038,7 @@
 		if (!parts) {
 			throw new Error("noUpload");
 		}
-		const chat = getChat(chatId);
+		const chat = chatOrStatus(chatId);
 		const file = new File(parts, name, { type: mime || "application/octet-stream" });
 		const prepOptions = kind === "document" ? { asDocument: true } : kind === "audio" ? { isAudio: true } : {};
 		const data = await req("WAWebMediaOpaqueData").createFromData(file, file.type);
@@ -1412,8 +2340,46 @@
 	}
 
 	// Recent calls, newest first, from the call entries WhatsApp keeps in chats.
+	// The group calls going on now that the user could join, as WhatsApp's Join buttons show them.
+	function ongoingCalls() {
+		const C = collections();
+		let list = [];
+		try {
+			list = req("WAWebVoipOngoingCallCollection").WAWebVoipOngoingCallCollection.getModelsArray();
+		} catch (e) {
+			return [];
+		}
+		let active = null;
+		try {
+			active = req("WAWebCallCollection").activeCall;
+		} catch (e) {}
+		const result = [];
+		for (const m of list) {
+			const chat = m.id && m.id.remote && C.Chat.get(m.id.remote);
+			if (!chat) {
+				continue;
+			}
+			const joined = !!(active && active.isGroup && String(active.groupJid) === String(chat.id) && !ringingGroupCall(chat));
+			result.push({
+				id: "ongoing_" + msgId(m),
+				chatId: String(chat.id),
+				name: chatTitle(chat),
+				group: true,
+				ongoing: true,
+				joined: joined,
+				video: !!m.isVideoCall,
+				t: m.t || 0,
+			});
+		}
+		return result;
+	}
+
 	function recentCalls(limit) {
 		const C = collections();
+		return ongoingCalls().concat(recentCallLog(C, limit));
+	}
+
+	function recentCallLog(C, limit) {
 		return C.Msg.getModelsArray()
 			.filter((m) => m.type === "call_log")
 			.sort((a, b) => (b.t || 0) - (a.t || 0))
@@ -1577,7 +2543,9 @@
 		const C = collections();
 		let name = null;
 		try {
-			name = personName(C.Contact.get(peer));
+			// A group call is named after its group, as WhatsApp shows it.
+			const group = call.isGroup && call.groupJid ? C.Chat.get(call.groupJid) : null;
+			name = group ? chatTitle(group) : personName(C.Contact.get(peer));
 			if (!name) {
 				const chat = C.Chat.get(peer);
 				name = chat ? chatTitle(chat) : null;
@@ -1605,7 +2573,121 @@
 			name: name || (peer && peer.user ? "+" + peer.user : ""),
 			chatId: peer ? String(peer) : "",
 			since: call.offerTime || 0,
+			muted: !!call.selfMicMuted,
+			participants: call.isGroup ? callParticipants(call) : [],
+			myHand: call.isGroup ? callFlag(call, "isHandRaisedForParticipant", meWid()) : false,
 		};
+	}
+
+	// Who spoke when, in the group call: WhatsApp tells the call each time someone's voice is heard.
+	const lastSpoke = new Map();
+	let speakerCall = null;
+
+	function noteSpeaker(data) {
+		if (data && data.participantJid) {
+			lastSpoke.set(String(data.participantJid), Date.now());
+		}
+	}
+
+	function watchSpeakers(call) {
+		if (speakerCall === call) {
+			return;
+		}
+		if (speakerCall && speakerCall.off) {
+			speakerCall.off("participantAudioLevelChange", noteSpeaker);
+		}
+		speakerCall = call;
+		lastSpoke.clear();
+		if (call && call.on) {
+			call.on("participantAudioLevelChange", noteSpeaker);
+		}
+	}
+
+	const SPEAKING_MS = 2500;
+
+	// The people heard in the last moments, the most recent first.
+	function speakers() {
+		let call;
+		try {
+			call = req("WAWebCallCollection").activeCall;
+		} catch (e) {
+			return [];
+		}
+		if (!call) {
+			return [];
+		}
+		if (!call.isGroup) {
+			return call.peerAudioLevel > 0 ? [callState().name] : [];
+		}
+		const now = Date.now();
+		const mine = myIdSet();
+		return [...lastSpoke]
+			.filter(([jid, at]) => now - at < SPEAKING_MS && !mine.has(jid))
+			.sort((a, b) => b[1] - a[1])
+			.map(([jid]) => contactName(jid));
+	}
+
+	function callFlag(call, method, jid) {
+		try {
+			return !!call[method](jid);
+		} catch (e) {
+			return false;
+		}
+	}
+
+	// Everyone invited to a group call: whether they are in it, muted, or have a hand raised.
+	function callParticipants(call) {
+		watchSpeakers(call);
+		const connected = new Set((call.groupCallParticipantsConnected || []).map(String));
+		const mine = myIdSet();
+		const people = [];
+		for (const jid of call.groupCallParticipants || []) {
+			const id = String(jid);
+			if (mine.has(id)) {
+				continue;
+			}
+			people.push({
+				id: id,
+				name: contactName(jid),
+				connected: connected.has(id),
+				muted: callFlag(call, "isParticipantMicMuted", jid),
+				hand: callFlag(call, "isHandRaisedForParticipant", jid),
+				reaction: callReactionOf(call, jid),
+			});
+		}
+		return people;
+	}
+
+	// The emoji someone just sent in the call; WhatsApp shows it for a few seconds, then clears it.
+	function callReactionOf(call, jid) {
+		try {
+			const value = call.getReactionForParticipant(jid);
+			if (!value) {
+				return "";
+			}
+			return String(typeof value === "string" ? value : value.reaction || value.emoji || value.reactionText || "");
+		} catch (e) {
+			return "";
+		}
+	}
+
+	async function raiseHand(raised) {
+		const stack = await voipStack();
+		await stack.raiseHand(!!raised);
+		return !!raised;
+	}
+
+	async function callReaction(emoji) {
+		const stack = await voipStack();
+		await stack.sendReaction(String(emoji || ""));
+		return true;
+	}
+
+	// Asks someone in the group call to mute their microphone, as WhatsApp's participant menu does.
+	async function askToMute(jid) {
+		const stack = await voipStack();
+		await stack.requestPeerMute(req("WAWebWidFactory").createWid(jid));
+		return true;
 	}
 
 	// Answers with the microphone on and the camera off, as a voice call even when it is a video call.
@@ -1660,10 +2742,25 @@
 
 	// Who is online, typing or recording --------------------------------------------------------------
 
+	// A person's name, as WhatsApp shows it. People known only by their newer id (lid) are found by
+	// their phone number: the contact saved under it, or else the number itself.
 	function contactName(wid) {
 		try {
-			const contact = collections().Contact.get(wid);
-			return personName(contact) || String(wid.user || wid);
+			const C = collections();
+			const name = personName(C.Contact.get(wid));
+			if (name) {
+				return name;
+			}
+			const id = typeof wid === "string" ? req("WAWebWidFactory").createWid(wid) : wid;
+			if (id.server === "lid") {
+				try {
+					const phone = req("WAWebApiContact").getPhoneNumber(id);
+					if (phone) {
+						return personName(C.Contact.get(phone)) || "+" + phone.user;
+					}
+				} catch (e) {}
+			}
+			return String(id.user || id);
 		} catch (e) {
 			return String(wid);
 		}
@@ -1692,11 +2789,42 @@
 
 	let watched = null;
 
+	// Others' online state and last seen reach only someone who is online. WhatsApp Web is online while it
+	// is in front; the add-on is online while its window is open.
+	function setOnline(on) {
+		const action = req("WAWebPresenceChatAction");
+		if (on) {
+			action.sendPresenceAvailable();
+			// Back in front: ask again for the open chat's state, which was not sent while offline.
+			if (watched) {
+				try {
+					const chat = getChat(watched.chatId);
+					const bridge = req("WAWebContactPresenceBridge");
+					if (isGroupChat(chat)) {
+						bridge.subscribeGroupPresence(chat.id);
+					} else {
+						bridge.subscribeUserPresence(chat.id);
+					}
+				} catch (e) {}
+			}
+		} else {
+			action.sendPresenceUnavailable();
+		}
+		return true;
+	}
+
 	async function presence(chatId) {
 		const chat = getChat(chatId);
 		if (chat.presence && !chat.presence.isSubscribed) {
 			try {
-				await chat.presence.subscribe();
+				setOnline(true);
+				const bridge = req("WAWebContactPresenceBridge");
+				if (isGroupChat(chat)) {
+					bridge.subscribeGroupPresence(chat.id);
+				} else {
+					await bridge.subscribeUserPresence(chat.id);
+				}
+				// The answer comes a moment later; the watcher below reports it when it does.
 			} catch (e) {
 				// Without a subscription WhatsApp may still know something.
 			}
@@ -1842,6 +2970,9 @@
 				emit({ type: "call", call: now });
 			}
 		}, 300);
+		const connectionChanged = () => emit({ type: "connection", state: connectionState() });
+		on(req("WAWebStreamModel").Stream, "change:info", connectionChanged);
+		on(req("WAWebStreamModel").Stream, "change:mode", connectionChanged);
 		on(C.Chat, "change:unreadCount", chatsChanged);
 		on(C.Chat, "change:t", chatsChanged);
 		on(C.Chat, "add", chatsChanged);
@@ -1949,6 +3080,59 @@
 		deleteMessages: deleteMessages,
 		starMessages: starMessages,
 		chatsAction: chatsAction,
+		starredMessages: starredMessages,
+		channels: channels,
+		searchChannels: searchChannels,
+		followChannel: followChannel,
+		communities: communities,
+		joinCommunityGroup: joinCommunityGroup,
+		chatAbilities: chatAbilities,
+		contactChoices: contactChoices,
+		createGroup: createGroup,
+		changeParticipants: changeParticipants,
+		setGroupInfo: setGroupInfo,
+		setGroupSetting: setGroupSetting,
+		inviteLink: inviteLink,
+		exitGroup: exitGroup,
+		deleteChat: deleteChat,
+		clearChat: clearChat,
+		setBlocked: setBlocked,
+		reportChat: reportChat,
+		setDisappearing: setDisappearing,
+		setFavorite: setFavorite,
+		sendPoll: sendPoll,
+		pinMessage: pinMessage,
+		pinnedMessages: pinnedMessages,
+		replyPrivately: replyPrivately,
+		reactionDetails: reactionDetails,
+		sendContacts: sendContacts,
+		stickers: stickers,
+		sendSticker: sendSticker,
+		searchAll: searchAll,
+		chatMedia: chatMedia,
+		unreadMentions: unreadMentions,
+		eventInfo: eventInfo,
+		respondToEvent: respondToEvent,
+		createEvent: createEvent,
+		postTextStatus: postTextStatus,
+		myStatuses: myStatuses,
+		deleteMyStatus: deleteMyStatus,
+		profile: profile,
+		setProfile: setProfile,
+		setProfilePhoto: setProfilePhoto,
+		privacy: privacy,
+		setPrivacy: setPrivacy,
+		blockedContacts: blockedContacts,
+		unblock: unblock,
+		startGroupCall: startGroupCall,
+		ongoingGroupCall: ongoingGroupCall,
+		joinGroupCall: joinGroupCall,
+		connectionState: connectionState,
+		setOnline: setOnline,
+		raiseHand: raiseHand,
+		callReaction: callReaction,
+		askToMute: askToMute,
+		speakers: speakers,
 		stopAudio: stopAudio,
 		setPlaybackRate: setPlaybackRate,
 		setPlaybackVolume: setPlaybackVolume,
