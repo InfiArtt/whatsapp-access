@@ -23,6 +23,8 @@ def sections() -> list[tuple[str, list[tuple[str, str]]]]:
 				("NVDA+Alt+H", _("Decline or end the call")),
 				# Translators: In the keyboard shortcuts list.
 				("NVDA+Alt+M", _("Mute or unmute the microphone")),
+				# Translators: In the keyboard shortcuts list.
+				("NVDA+Alt+Backspace", _("Close WhatsApp fully, after asking")),
 			],
 		),
 		(

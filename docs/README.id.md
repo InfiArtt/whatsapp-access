@@ -66,11 +66,12 @@ atau tidak memakai WhatsApp di ponsel sekitar 14 hari, seperti semua perangkat t
 | NVDA+Alt+A | Di mana saja | Mengangkat panggilan, atau kembali ke jendela panggilan. |
 | NVDA+Alt+H | Di mana saja | Menolak panggilan, atau mengakhirinya. |
 | NVDA+Alt+M | Di mana saja | Mematikan atau menyalakan mikrofon saat panggilan. |
+| NVDA+Alt+Backspace | Di mana saja | Menutup WhatsApp sepenuhnya, setelah menjelaskan artinya: tidak ada pesan atau panggilan sampai dibuka lagi. |
 | Ctrl+/ | Jendela | Semua pintasan keyboard, per bagian. |
 | Escape | Jendela | Kembali ke daftar chat, atau menutup jendela. WhatsApp tetap berjalan. |
 
-Empat tombol yang bekerja di mana saja (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H, dan NVDA+Alt+M) bisa
-diganti di dialog Input Gestures NVDA, kategori WhatsApp Access. Tombol di dalam jendela WhatsApp tidak
+Lima tombol yang bekerja di mana saja (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H, NVDA+Alt+M, dan
+NVDA+Alt+Backspace) bisa diganti di dialog Input Gestures NVDA, kategori WhatsApp Access. Tombol di dalam jendela WhatsApp tidak
 bisa diganti.
 
 ## Jendela

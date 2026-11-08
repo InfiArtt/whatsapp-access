@@ -2596,3 +2596,59 @@ msgstr "Enter mengirimnya, Ctrl+T mengembalikan kata-kata Anda"
 #. Translators: Said when Ctrl+T could not reach Google Translate.
 msgid "Could not translate. Check the internet connection and try again"
 msgstr "Tidak bisa menerjemahkan. Periksa koneksi internet lalu coba lagi"
+
+#. Translators: Said when the user asks to close WhatsApp but it is not running.
+msgid "WhatsApp is not running. NVDA+Shift+W opens it"
+msgstr "WhatsApp tidak sedang berjalan. NVDA+Shift+W membukanya"
+
+#. Translators: The button that closes WhatsApp fully.
+msgid "&Close WhatsApp"
+msgstr "&Tutup WhatsApp"
+
+#. Translators: In the dialog before closing WhatsApp fully.
+msgid "- You stay linked: NVDA+Shift+W opens WhatsApp again, without linking the phone."
+msgstr "- Anda tetap tertaut: NVDA+Shift+W membuka WhatsApp lagi, tanpa menautkan HP."
+
+#. Translators: In the dialog before closing WhatsApp fully.
+msgid "- The hidden browser stops, and the memory it used is given back."
+msgstr "- Browser tersembunyi berhenti, dan memori yang dipakainya dikembalikan."
+
+#. Translators: Said after WhatsApp was closed fully.
+msgid "WhatsApp closed. NVDA+Shift+W opens it again"
+msgstr "WhatsApp ditutup. NVDA+Shift+W membukanya lagi"
+
+#. Translators: In the dialog before closing WhatsApp fully.
+msgid "- No new messages, calls or notifications reach you here. Your phone still gets them."
+msgstr "- Tidak ada pesan, panggilan, atau notifikasi baru yang sampai di sini. HP Anda tetap menerimanya."
+
+#. Translators: In the dialog before closing WhatsApp fully.
+msgid "- A call going on now ends."
+msgstr "- Panggilan yang sedang berlangsung berakhir."
+
+#. Translators: The label of the explanation in the dialog before closing WhatsApp fully.
+msgid "What happens:"
+msgstr "Yang terjadi:"
+
+#. Translators: The title of the dialog that asks before closing WhatsApp fully.
+msgid "Close WhatsApp"
+msgstr "Tutup WhatsApp"
+
+#. Translators: In the dialog before closing WhatsApp fully: what it means, one point per line.
+msgid "Closing WhatsApp stops it on this computer until you open it again:"
+msgstr "Menutup WhatsApp menghentikannya di komputer ini sampai Anda membukanya lagi:"
+
+#. Translators: A button in this add-on's settings: stops WhatsApp on this computer, after explaining.
+msgid "Close Wh&atsApp fully (NVDA+Alt+Backspace)…"
+msgstr "Tutup WhatsApp sepenuhn&ya (NVDA+Alt+Backspace)…"
+
+#. Translators: In the keyboard shortcuts list.
+msgid "Close WhatsApp fully, after asking"
+msgstr "Tutup WhatsApp sepenuhnya, setelah bertanya"
+
+#. Translators: Describes a command in the Input Gestures dialog.
+msgid "Closes WhatsApp fully, after asking: no messages or calls arrive until it is opened again"
+msgstr "Menutup WhatsApp sepenuhnya, setelah bertanya: tidak ada pesan atau panggilan yang masuk sampai dibuka lagi"
+
+#. Translators: In the dialog before closing WhatsApp fully.
+msgid "- If WhatsApp starts with NVDA, it starts again the next time NVDA starts."
+msgstr "- Kalau WhatsApp diatur menyala bersama NVDA, ia menyala lagi saat NVDA dimulai berikutnya."

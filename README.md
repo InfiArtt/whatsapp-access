@@ -64,11 +64,12 @@ phone for about 14 days, as for every linked device.
 | NVDA+Alt+A | Anywhere | Answer a call, or go back to the call window. |
 | NVDA+Alt+H | Anywhere | Decline a call, or end it. |
 | NVDA+Alt+M | Anywhere | Microphone off or on during a call. |
+| NVDA+Alt+Backspace | Anywhere | Close WhatsApp fully, after saying what that means: no messages or calls until you open it again. |
 | Escape | Window | Back to the chat list, or close the window. WhatsApp keeps running. |
 | Ctrl+/ | Window | Every keyboard shortcut, by section. |
 
-The four keys that work anywhere (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H and NVDA+Alt+M) can be changed in
-NVDA's Input Gestures dialog, category WhatsApp Access. The keys inside the WhatsApp window can't be changed.
+The five keys that work anywhere (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H, NVDA+Alt+M and
+NVDA+Alt+Backspace) can be changed in NVDA's Input Gestures dialog, category WhatsApp Access. The keys inside the WhatsApp window can't be changed.
 
 ## The window
 

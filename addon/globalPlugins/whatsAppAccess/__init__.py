@@ -84,6 +84,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.calls = CallAnnouncer(self.session, lambda: config.conf[CONFIG_SECTION]["hints"])
 		self._restarts: list[float] = []
 		self._stopping = False
+		self._closeDialog: wx.Dialog | None = None
 		self._connectionLost = False
 		self._saidLost = False
 		self._lostTimer: wx.CallLater | None = None
@@ -207,6 +208,52 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			self._startHidden(announce=True, thenShow=True)
 		else:
 			self._connectOwnBrowser()
+
+	@script(
+		# Translators: Describes a command in the Input Gestures dialog.
+		description=_(
+			"Closes WhatsApp fully, after asking: no messages or calls arrive until it is opened again"
+		),
+		category=SCRCAT_WHATSAPP,
+		gesture="kb:NVDA+alt+backspace",
+	)
+	def script_closeFully(self, gesture) -> None:
+		# After this command has finished, as with opening the window: a dialog would hold NVDA's queue.
+		wx.CallAfter(self.askToCloseFully, gui.mainFrame)
+
+	def isRunning(self) -> bool:
+		return self.session.connected or self._connecting or bool(self.hidden and self.hidden.running)
+
+	def askToCloseFully(self, parent: wx.Window) -> None:
+		"""Explain what closing WhatsApp means, then close it if the user says so."""
+		if not self.isRunning():
+			# Translators: Said when the user asks to close WhatsApp but it is not running.
+			ui.message(_("WhatsApp is not running. NVDA+Shift+W opens it"))
+			return
+		if self._closeDialog:
+			# Already asking: bring that question back rather than asking twice.
+			self._closeDialog.Raise()
+			return
+		dialog = self._closeDialog = CloseFullyDialog(parent)
+		if parent is gui.mainFrame:
+			gui.mainFrame.prePopup()
+		try:
+			answer = dialog.ShowModal()
+		finally:
+			self._closeDialog = None
+			dialog.Destroy()
+			if parent is gui.mainFrame:
+				gui.mainFrame.postPopup()
+		if answer == wx.ID_OK:
+			self.closeFully()
+
+	def closeFully(self) -> None:
+		"""Stop WhatsApp on this computer: the window, the connection and the hidden browser. The login stays."""
+		sounds.stopRing()
+		self.disconnectForChange()
+		self._connecting = False
+		# Translators: Said after WhatsApp was closed fully.
+		ui.message(_("WhatsApp closed. NVDA+Shift+W opens it again"))
 
 	@script(
 		# Translators: Describes a command in the Input Gestures dialog.
@@ -626,6 +673,49 @@ def openOwnSoundsFolder() -> None:
 		ui.message(_("The folder for your own sounds could not be opened"))
 
 
+class CloseFullyDialog(wx.Dialog):
+	"""What closing WhatsApp means, to read before choosing Close WhatsApp or Cancel."""
+
+	def __init__(self, parent: wx.Window) -> None:
+		# Translators: The title of the dialog that asks before closing WhatsApp fully.
+		super().__init__(parent, title=_("Close WhatsApp"))
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		text = "\n".join(
+			[
+				# Translators: In the dialog before closing WhatsApp fully: what it means, one point per line.
+				_("Closing WhatsApp stops it on this computer until you open it again:"),
+				# Translators: In the dialog before closing WhatsApp fully.
+				_("- No new messages, calls or notifications reach you here. Your phone still gets them."),
+				# Translators: In the dialog before closing WhatsApp fully.
+				_("- A call going on now ends."),
+				# Translators: In the dialog before closing WhatsApp fully.
+				_("- The hidden browser stops, and the memory it used is given back."),
+				# Translators: In the dialog before closing WhatsApp fully.
+				_("- You stay linked: NVDA+Shift+W opens WhatsApp again, without linking the phone."),
+				# Translators: In the dialog before closing WhatsApp fully.
+				_("- If WhatsApp starts with NVDA, it starts again the next time NVDA starts."),
+			]
+		)
+		# Translators: The label of the explanation in the dialog before closing WhatsApp fully.
+		sizer.Add(wx.StaticText(self, label=_("What happens:")), 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
+		box = wx.TextCtrl(
+			self, value=text, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2, size=(520, 140)
+		)
+		sizer.Add(box, 1, wx.EXPAND | wx.ALL, 10)
+		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: The button that closes WhatsApp fully.
+		closeButton = wx.Button(self, wx.ID_OK, label=_("&Close WhatsApp"))
+		cancelButton = wx.Button(self, wx.ID_CANCEL)
+		buttons.Add(closeButton, 0, wx.RIGHT, 6)
+		buttons.Add(cancelButton)
+		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+		self.SetSizerAndFit(sizer)
+		# Cancel is the safe choice for Enter.
+		cancelButton.SetDefault()
+		self.CentreOnScreen()
+		box.SetFocus()
+
+
 class SoundSetting:
 	"""A choice of the add-on's sounds, None, or a WAV file of the user's own, with a button that picks
 	the file. Moving through the choices plays each sound, so the user hears what they choose."""
@@ -751,6 +841,13 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			wx.Button(self, label=_("Unlin&k this computer and remove its WhatsApp data…"))
 		)
 		self.unlinkButton.Bind(wx.EVT_BUTTON, self._onUnlink)
+		self.closeFullyButton = helper.addItem(
+			# Translators: A button in this add-on's settings: stops WhatsApp on this computer, after explaining.
+			wx.Button(self, label=_("Close Wh&atsApp fully (NVDA+Alt+Backspace)…"))
+		)
+		self.closeFullyButton.Bind(
+			wx.EVT_BUTTON, lambda evt: self.plugin and self.plugin.askToCloseFully(self)
+		)
 		announceLabels = (
 			# Translators: A choice for which new messages NVDA reads out.
 			_("All chats that are not muted"),

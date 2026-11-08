@@ -3,6 +3,13 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.4.1]
+
+- Close WhatsApp fully with NVDA+Alt+Backspace, or with a button in the add-on's settings. A dialog
+  says first what that means: no new messages or calls on this computer, a call going on ends, and you
+  stay linked, so NVDA+Shift+W opens WhatsApp again. Close WhatsApp or Cancel. The key can be changed in
+  Input Gestures.
+
 ## [0.4.0]
 
 - Translate, only when you ask. Ctrl+T on a message reads it in your language; twice shows the
