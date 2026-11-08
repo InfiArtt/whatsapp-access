@@ -1,6 +1,6 @@
 [project]
 name = "whatsapp-access"
-version = "0.3.0"
+version = "0.3.1"
 description = "Development tools for the WhatsApp Access NVDA add-on."
 requires-python = ">=3.11"
 license = "GPL-2.0-or-later"

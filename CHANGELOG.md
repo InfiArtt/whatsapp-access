@@ -3,6 +3,14 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.3.1]
+
+Fixed:
+
+- Updating the add-on removed the WhatsApp login, so the phone had to be linked again, and the folder of
+  your own sounds went with it. Both now stay through updates, starting with this one. Removing the
+  add-on still removes them.
+
 ## [0.3.0]
 
 Writing as in WhatsApp, your own choice of sounds, and the speaker you want for calls.

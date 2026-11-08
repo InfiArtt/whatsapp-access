@@ -26,7 +26,7 @@ from gui.settingsDialogs import NVDASettingsDialog, SettingsPanel
 from logHandler import log
 from scriptHandler import script
 
-from . import browserLauncher, messageText, notifications, sounds, updateCheck
+from . import browserLauncher, dataFolder, messageText, notifications, sounds, updateCheck
 from .callWindow import CallAnnouncer
 from .chatWindow import ChatWindow, errorText
 from .configSpec import ANNOUNCE_CHOICES, CONFIG_SECTION, CONFIG_SPEC
@@ -70,6 +70,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self) -> None:
 		super().__init__()
 		_ensureConfigSection()
+		# After an update the WhatsApp login waits aside; it must be back before the browser starts.
+		try:
+			if dataFolder.restoreAfterUpdate(globalVars.appArgs.configPath):
+				log.info("WhatsApp Access: the WhatsApp data was kept through the update")
+		except OSError:
+			log.exception("WhatsApp Access: putting the WhatsApp data back after the update")
 		self.session = WhatsAppSession(onEvent=self._onEvent, onDisconnect=self._onDisconnect)
 		self.window: ChatWindow | None = None
 		self._connecting = False
