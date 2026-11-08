@@ -5,10 +5,23 @@ notes the add-on shows before it installs an update.
 
 ## [0.4.1]
 
+Translation, closing WhatsApp fully, and fixes for groups. This includes everything from 0.4.0.
+
+- Translate, only when you ask. Ctrl+T on a message reads it in your language; twice shows the
+  translation to read line by line. Ctrl+T in the message box puts what you wrote into the language you
+  chose, such as English, to check before sending; Ctrl+T again gives back your own words. Both
+  languages are chosen in the settings. The text goes to Google Translate only when you press Ctrl+T.
 - Close WhatsApp fully with NVDA+Alt+Backspace, or with a button in the add-on's settings. A dialog
   says first what that means: no new messages or calls on this computer, a call going on ends, and you
   stay linked, so NVDA+Shift+W opens WhatsApp again. Close WhatsApp or Cancel. The key can be changed in
   Input Gestures.
+
+Fixed:
+
+- Saving a group's description in Manage group failed, as WhatsApp moved how it is saved.
+- People not in your contacts showed as a long hidden number in group participants, group info, poll
+  voters, who read a message, reactions and status viewers; they now show their phone number, after
+  the people with names.
 
 ## [0.4.0]
 
