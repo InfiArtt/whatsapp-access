@@ -85,6 +85,25 @@ def test_announcements():
     )
 
 
+def test_the_open_chat_says_the_message_even_when_content_is_off():
+    message = {"type": "chat", "text": "Halo", "sender": "Claude"}
+    assert (
+        messageText.announcement(message, "Claude", isGroup=False, inOpenChat=True, withContent=False)
+        == "Claude: Halo"
+    )
+    assert (
+        messageText.announcement(message, "Claude", isGroup=False, inOpenChat=False, withContent=False)
+        == "New message from Claude"
+    )
+
+
+def test_messages_read_together_are_said_once():
+    assert messageText.acksText([3, 3, 3, 3, 3]) == "read"
+    assert messageText.acksText([2, 3]) == "read"
+    assert messageText.acksText([2]) == "delivered"
+    assert messageText.acksText([]) == ""
+
+
 def test_reply_to_own_message_says_you():
     message = {
         "type": "chat",

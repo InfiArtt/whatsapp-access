@@ -70,6 +70,8 @@ def _formatName(kind: str) -> str:
 
 # Delivered, read and played are read out for messages sent this long ago at most.
 ACK_ANNOUNCE_SECONDS = 15 * 60
+# When someone opens the chat, every unread message the user sent turns read at once; they are said as one.
+ACK_GROUP_MS = 700
 
 
 PLAYBACK_SPEEDS = ("1", "1.5", "2")
@@ -883,6 +885,8 @@ class ChatWindow(wx.Dialog):
 		self._unreadAtOpen = 0
 		self._firstUnreadId: str | None = None
 		self._seenTimer: wx.CallLater | None = None
+		self._ackTimer: wx.CallLater | None = None
+		self._acksToSay: list[int] = []
 		# Translators: The label of the list of messages in a conversation.
 		sizer.Add(wx.StaticText(panel, label=_("&Messages:")))
 		self.messageList = wx.ListBox(panel, style=wx.LB_SINGLE)
@@ -3789,8 +3793,22 @@ class ChatWindow(wx.Dialog):
 				self._refreshMessageLine(message)
 				recent = time.time() - (message.get("t") or 0) < ACK_ANNOUNCE_SECONDS
 				if ack > before and recent and messageText.ackText(ack):
-					ui.message(messageText.ackText(ack))
+					self._sayAckSoon(ack)
 				return
+
+	def _sayAckSoon(self, ack: int) -> None:
+		"""Say a message's new state, once for all those that change together, such as five messages read."""
+		self._acksToSay.append(ack)
+		if self._ackTimer is not None:
+			self._ackTimer.Stop()
+		self._ackTimer = wx.CallLater(ACK_GROUP_MS, self._sayAcks)
+
+	def _sayAcks(self) -> None:
+		self._ackTimer = None
+		acks, self._acksToSay = self._acksToSay, []
+		text = messageText.acksText(acks)
+		if text:
+			ui.message(text)
 
 	def _nextSpeed(self) -> None:
 		"""Ctrl+S: voice messages play at 1, 1.5 or 2 times, as in WhatsApp. Kept for next time."""
@@ -4437,6 +4455,9 @@ class ChatWindow(wx.Dialog):
 		if self._recording or self._hasRecording:
 			self._run(self.session.cancelRecording)
 		self._stopPlayback()
+		if self._ackTimer is not None:
+			self._ackTimer.Stop()
+			self._ackTimer = None
 		# Offline again, as WhatsApp Web is when it is no longer in front.
 		if self._online:
 			self._online = False

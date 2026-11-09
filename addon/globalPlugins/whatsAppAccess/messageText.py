@@ -183,6 +183,15 @@ def ackText(ack: int | None) -> str:
 	return _("played")
 
 
+def acksText(acks: list[int]) -> str:
+	"""What to say when several messages change state together: the furthest state, once.
+
+	When someone opens the chat, all the user's unread messages turn read at the same moment; "read" is
+	said once, not once a message.
+	"""
+	return ackText(max(acks)) if acks else ""
+
+
 def messageInChat(message: dict, now: float | None = None) -> str:
 	"""A message in a list from several chats: the chat's name first, unless the sender already says it."""
 	line = messageLine(message, True, now)
@@ -282,17 +291,18 @@ def announcement(
 ) -> str:
 	"""What to say when a message arrives, in place of WhatsApp's notification.
 
-	In the open chat it is just the message, as in the list; elsewhere it says where it came from.
-	Without content, only who it is from is said.
+	In the open chat it is just the message, as in the list, even when the user chose not to hear what
+	messages say: that choice is for messages from elsewhere. Elsewhere it says where it came from, and
+	without content only who it is from.
 	"""
+	if inOpenChat:
+		return f"{sender(message)}: {content(message)}"
 	if not withContent:
 		if isGroup:
 			# Translators: Read out for a new group message when the user chose not to hear what it says.
 			return _("New message in {chat} from {sender}").format(chat=chatTitle, sender=sender(message))
 		# Translators: Read out for a new message when the user chose not to hear what it says.
 		return _("New message from {sender}").format(sender=chatTitle)
-	if inOpenChat:
-		return f"{sender(message)}: {content(message)}"
 	if isGroup:
 		# Translators: Read out when a message arrives in a group that is not open in the add-on's window.
 		return _("New message in {chat} from {sender}: {message}").format(

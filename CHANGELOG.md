@@ -7,6 +7,11 @@ notes the add-on shows before it installs an update.
 
 Safer files and a safer place for your WhatsApp login.
 
+- In the chat you have open, a new message is read as "name: message" even when you chose to hear
+  only who messages are from. That choice now applies only to messages from other chats.
+- When someone opens your chat and reads several of your messages at once, "read" is said once, not
+  once for each message. The same goes for "delivered".
+
 - Enter on a file opens it only when it is a picture, video, sound or document. Anyone can send a
   program named like a document, such as "invoice.pdf.exe", so the add-on no longer opens programs,
   scripts, shortcuts, archives or Office files with macros; it says so, and Alt+D still saves them.
