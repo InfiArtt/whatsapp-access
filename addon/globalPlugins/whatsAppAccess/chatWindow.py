@@ -81,6 +81,11 @@ FILE_TYPES = ("image", "video", "ptv", "document", "sticker", "audio", "ptt")
 OPENED_TYPES = ("image", "video", "ptv", "document", "sticker")
 # Played in the hidden browser, with no other program: voice notes, audio, and the sound of videos.
 PLAYED_TYPES = ("ptt", "audio", "video", "ptv")
+# Voice messages and audio have the position slider.
+SEEKABLE_TYPES = ("ptt", "audio")
+POSITION_STEP_SECONDS = 5
+POSITION_PAGE_SECONDS = 30
+POSITION_FOLLOW_MS = 1000
 # How long after the messages list moves to the next voice message its focus change may be kept quiet.
 QUIET_FOCUS_SECONDS = 1.0
 # The moment between one voice message of a run and the next, for the small sound between them.
@@ -944,6 +949,23 @@ class ChatWindow(wx.Dialog):
 		self.messageList.Bind(wx.EVT_CONTEXT_MENU, self._onMessageMenu)
 		self.messageList.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: self._activateMessage())
 		sizer.Add(self.messageList, 1, wx.EXPAND | wx.BOTTOM, 6)
+		# On a voice message, Tab from the messages reaches where it is playing, as WhatsApp's slider:
+		# Left and Right go back and on 5 seconds, Page Up and Page Down 30.
+		# Translators: The label of the slider for where a voice message plays, in seconds.
+		self.positionLabel = wx.StaticText(panel, label=_("Voice message position, seconds:"))
+		sizer.Add(self.positionLabel)
+		self.positionSlider = wx.Slider(panel, value=0, minValue=0, maxValue=1)
+		self.positionSlider.SetLineSize(POSITION_STEP_SECONDS)
+		self.positionSlider.SetPageSize(POSITION_PAGE_SECONDS)
+		self.positionSlider.Bind(wx.EVT_SLIDER, lambda evt: self._seek())
+		sizer.Add(self.positionSlider, 0, wx.EXPAND | wx.BOTTOM, 6)
+		self.positionLabel.Hide()
+		self.positionSlider.Hide()
+		self.messageList.Bind(wx.EVT_LISTBOX, self._onMessageMoved)
+		self._positionTimer = wx.Timer(self)
+		self.Bind(wx.EVT_TIMER, lambda evt: self._followPosition(), self._positionTimer)
+		# A position chosen on the slider before playing: (message id, seconds).
+		self._startAt: tuple[str, float] | None = None
 		self.replyingText = wx.StaticText(panel, label="")
 		sizer.Add(self.replyingText, 0, wx.BOTTOM, 3)
 		# Translators: The label of the box where the user writes a message. Enter sends it.
@@ -1541,6 +1563,8 @@ class ChatWindow(wx.Dialog):
 		self._messages = messages
 		isGroup = self.chat.get("isGroup", False)
 		self.messageList.Set([messageText.messageLine(m, isGroup) for m in messages])
+		# Once the selection below is made, which sends no event: the slider follows the message chosen.
+		wx.CallAfter(self._showPositionSlider)
 		# Opened from a starred message or a search result: go to that message.
 		goTo, self._goToMessageId = self._goToMessageId, None
 		if opening and goTo:
@@ -1591,7 +1615,9 @@ class ChatWindow(wx.Dialog):
 			return
 		if message.get("type") in PLAYED_TYPES:
 			if self._playingId == message["id"]:
-				self._stopPlayback()
+				# Enter again pauses, and once more goes on from there, as WhatsApp's play button does.
+				# Escape stops.
+				self._togglePause(message)
 				return
 			# Started by the user: a new run of voice messages, if more follow.
 			self._voiceRun = False
@@ -2081,6 +2107,16 @@ class ChatWindow(wx.Dialog):
 			self._run(lambda: self.session.deleteMessage(message["id"], forEveryone), done)
 
 		self._run(lambda: self.session.messageActions(message["id"]), ask)
+
+	def _togglePause(self, message: dict) -> None:
+		def done(state: str) -> None:
+			if state == "stopped":
+				# It had ended meanwhile: play it again from the start.
+				self._playVoice(message)
+			elif state == "paused":
+				sounds.play(sounds.PAUSE)
+
+		self._run(self.session.togglePause, done)
 
 	def _stopPlayback(self) -> None:
 		self._voiceRun = False
@@ -4264,14 +4300,72 @@ class ChatWindow(wx.Dialog):
 		self._playingId = message["id"]
 		settings = config.conf[CONFIG_SECTION]
 		speed, volume = float(settings["playbackSpeed"]), int(settings["voiceVolume"])
+		startAt = self._startAt[1] if self._startAt and self._startAt[0] == message["id"] else 0
+		self._startAt = None
 		self._run(
 			lambda: (
 				self.session.setPlaybackRate(speed),
 				self.session.setPlaybackVolume(volume),
-				self.session.playMessage(message["id"]),
+				self.session.playMessage(message["id"], startAt),
 			),
 			onError=lambda e: self._playbackEnded(),
 		)
+		self._positionTimer.Start(POSITION_FOLLOW_MS)
+
+	# The position slider -----------------------------------------------------------------------------------
+
+	def _onMessageMoved(self, evt: wx.CommandEvent) -> None:
+		self._showPositionSlider()
+		evt.Skip()
+
+	def _showPositionSlider(self) -> None:
+		"""The slider is there only on a voice message or audio, its range that message's length."""
+		message = self._selectedMessage()
+		show = bool(message and message.get("type") in SEEKABLE_TYPES and message.get("duration"))
+		if show:
+			self.positionSlider.SetRange(0, max(1, int(message["duration"])))
+			if message["id"] != self._playingId:
+				start = self._startAt[1] if self._startAt and self._startAt[0] == message["id"] else 0
+				self.positionSlider.SetValue(int(start))
+		if self.positionSlider.IsShown() != show:
+			self.positionLabel.Show(show)
+			self.positionSlider.Show(show)
+			self.conversationPanel.Layout()
+
+	def _seek(self) -> None:
+		message = self._selectedMessage()
+		if not message or message.get("type") not in SEEKABLE_TYPES:
+			return
+		seconds = self.positionSlider.GetValue()
+		if message["id"] == self._playingId:
+
+			def done(moved: bool) -> None:
+				if not moved and self._playingId == message["id"]:
+					# It had ended meanwhile: play it from there.
+					self._startAt = (message["id"], seconds)
+					self._playVoice(message)
+
+			self._run(lambda: self.session.seekAudio(seconds), done)
+		else:
+			# Not playing: Enter plays it from here.
+			self._startAt = (message["id"], seconds)
+
+	def _followPosition(self) -> None:
+		"""While a voice message plays, the slider follows it, unless the user is on it."""
+		if self._playingId is None or not self:
+			self._positionTimer.Stop()
+			return
+		message = self._selectedMessage()
+		if not message or message["id"] != self._playingId or not self.positionSlider.IsShown():
+			return
+		if wx.Window.FindFocus() is self.positionSlider:
+			return
+
+		def show(position: dict) -> None:
+			if self and position.get("loaded") and self._playingId == message["id"]:
+				self.positionSlider.SetValue(int(position.get("time") or 0))
+
+		self._run(self.session.audioPosition, show, onError=lambda e: None)
 
 	def onPlaybackEnded(self, messageId: str | None = None) -> None:
 		"""A voice message ended: as in WhatsApp, the voice message right after it plays next."""
@@ -4296,6 +4390,7 @@ class ChatWindow(wx.Dialog):
 			if not config.conf[CONFIG_SECTION]["sayNextVoiceMessage"]:
 				self._quietFocusUntil = time.monotonic() + QUIET_FOCUS_SECONDS
 			self.messageList.SetSelection(index + 1)
+			self._showPositionSlider()
 		# After the small sound, as WhatsApp leaves a moment between them. Enter meanwhile stops the run.
 		self._playingId = following["id"]
 

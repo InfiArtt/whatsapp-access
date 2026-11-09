@@ -2417,8 +2417,8 @@ msgid "Cancel reply or edit"
 msgstr "Batalkan balasan atau edit"
 
 #. Translators: In the keyboard shortcuts list.
-msgid "Play or stop a voice message; open a photo, video or document"
-msgstr "Putar atau hentikan pesan suara; buka foto, video, atau dokumen"
+msgid "Play or pause a voice message; open a photo, video or document"
+msgstr "Putar atau jeda pesan suara; buka foto, video, atau dokumen"
 
 #. Translators: In the keyboard shortcuts list.
 msgid "Voice message speed: 1x, 1.5x, 2x"
@@ -2944,3 +2944,6 @@ msgstr "&Pertanyaan untuk Meta AI saat mendeskripsikan foto (Alt+P):"
 
 msgid "WhatsApp Web did not open in {browser}. The page said: {detail} Check the internet connection, and whether a firewall or antivirus blocks {browser}."
 msgstr "WhatsApp Web tidak terbuka di {browser}. Halamannya menyebutkan: {detail} Periksa koneksi internet, dan apakah firewall atau antivirus memblokir {browser}."
+
+msgid "Voice message position, seconds:"
+msgstr "Posisi pesan suara, detik:"

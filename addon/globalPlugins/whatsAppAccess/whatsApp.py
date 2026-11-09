@@ -1126,8 +1126,17 @@ class WhatsAppSession:
 	def playRecording(self) -> None:
 		self._bridge("playRecording")
 
-	def playMessage(self, messageId: str) -> None:
-		self._bridge("playMessage", messageId, timeout=60)
+	def playMessage(self, messageId: str, startAt: float = 0) -> None:
+		"""Play a voice message or a video's sound, from startAt seconds."""
+		self._bridge("playMessage", messageId, startAt, timeout=60)
+
+	def audioPosition(self) -> dict:
+		"""Where the sound playing is: loaded, and then time and duration in seconds, and paused."""
+		return self._bridge("audioPosition") or {}
+
+	def seekAudio(self, seconds: float) -> bool:
+		"""Move the sound playing, or paused, to a point in seconds. False when none is loaded."""
+		return bool(self._bridge("seekAudio", seconds))
 
 	def setPlaybackRate(self, rate: float) -> float:
 		"""How fast voice messages and the user's recording play, now and from now on."""
@@ -1139,3 +1148,7 @@ class WhatsAppSession:
 
 	def stopAudio(self) -> bool:
 		return bool(self._bridge("stopAudio"))
+
+	def togglePause(self) -> str:
+		"""Pause the sound playing, or go on with it: "paused", "playing", or "stopped" if none is loaded."""
+		return str(self._bridge("togglePause"))

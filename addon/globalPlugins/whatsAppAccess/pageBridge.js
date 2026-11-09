@@ -2724,21 +2724,79 @@
 		return wasPlaying;
 	}
 
-	async function play(blob, messageId) {
+	// Plays a voice message or other sound. Returns false when it was stopped, or replaced by another,
+	// before it started: the user pressed Enter or Escape again while it was being got ready, which is
+	// no error.
+	async function play(blob, messageId, startAt) {
 		stopAudio();
-		playerUrl = URL.createObjectURL(blob);
-		player = new Audio(playerUrl);
-		player.preservesPitch = true;
-		player.playbackRate = playbackRate;
-		player.volume = playbackVolume;
+		const url = URL.createObjectURL(blob);
+		const audio = new Audio(url);
+		player = audio;
+		playerUrl = url;
+		audio.preservesPitch = true;
+		audio.playbackRate = playbackRate;
+		audio.volume = playbackVolume;
 		// Voice notes and statuses play on the speaker chosen for calls too.
 		const sink = callAudio.speaker ? await deviceIdFor("audiooutput", callAudio.speaker) : null;
-		if (sink && player.setSinkId) {
-			await player.setSinkId(sink).catch(() => {});
+		if (player !== audio) {
+			return false;
 		}
-		player.onended = () => emit({ type: "playbackEnded", messageId: messageId || null });
-		await player.play();
+		if (sink && audio.setSinkId) {
+			await audio.setSinkId(sink).catch(() => {});
+			if (player !== audio) {
+				return false;
+			}
+		}
+		audio.onended = () => emit({ type: "playbackEnded", messageId: messageId || null });
+		if (startAt > 0) {
+			// From where the user moved the position slider to before playing it.
+			audio.currentTime = Number(startAt);
+		}
+		try {
+			await audio.play();
+		} catch (e) {
+			if (player !== audio || (e && e.name === "AbortError")) {
+				return false;
+			}
+			throw e;
+		}
 		return true;
+	}
+
+	// Where the sound playing is, in seconds, for the position slider.
+	function audioPosition() {
+		const audio = player;
+		if (!audio) {
+			return { loaded: false };
+		}
+		const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+		return { loaded: true, time: audio.currentTime || 0, duration: duration, paused: audio.paused };
+	}
+
+	// Moves the sound playing, or paused, to a point in seconds. false when none is loaded.
+	function seekAudio(seconds) {
+		const audio = player;
+		if (!audio) {
+			return false;
+		}
+		const end = Number.isFinite(audio.duration) ? audio.duration : Infinity;
+		audio.currentTime = Math.max(0, Math.min(Number(seconds) || 0, end));
+		return true;
+	}
+
+	// Enter on the voice message playing: pause it, or go on from where it was. "stopped" when nothing
+	// is loaded, as after it ended, so the add-on plays it again from the start.
+	function togglePause() {
+		const audio = player;
+		if (!audio) {
+			return "stopped";
+		}
+		if (audio.paused) {
+			audio.play().catch(() => {});
+			return "playing";
+		}
+		audio.pause();
+		return "paused";
 	}
 
 	// The HKDF "info" WhatsApp uses to derive each kind of media's keys.
@@ -3003,11 +3061,11 @@
 	// A voice note or audio file longer than this is not a real one: 64 MB is hours of speech.
 	const MAX_AUDIO_PLAY_BYTES = 64 * 1024 * 1024;
 
-	async function playMessage(messageId) {
+	async function playMessage(messageId, startAt) {
 		// getMsg also finds statuses, which are not in the chats' messages.
 		const m = getMsg(messageId);
 		const limit = m.type === "ptt" || m.type === "audio" ? MAX_AUDIO_PLAY_BYTES : MAX_FILE_BYTES;
-		return play(await downloadMedia(m, limit), messageId);
+		return play(await downloadMedia(m, limit), messageId, startAt);
 	}
 
 	async function playRecording() {
@@ -4052,6 +4110,9 @@
 		chatWithNumber: chatWithNumber,
 		linkInfo: linkInfo,
 		describePhoto: describePhoto,
+		togglePause: togglePause,
+		audioPosition: audioPosition,
+		seekAudio: seekAudio,
 		replies: replies,
 		sendReply: sendReply,
 		joinGroupLink: joinGroupLink,

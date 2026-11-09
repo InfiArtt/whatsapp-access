@@ -5,6 +5,13 @@ notes the add-on shows before it installs an update.
 
 ## [Unreleased]
 
+- Enter on the voice message playing pauses it, and Enter again goes on from there, as WhatsApp's
+  play button does; Escape stops. Before, Enter stopped it.
+- On a voice message, Tab from the messages reaches a slider with where it plays, in seconds: Left
+  and Right go back and on 5 seconds, Page Up and Page Down 30. Moved before playing, Enter plays
+  from there.
+- Pressing Enter again while a voice message was still being got ready said "Something went wrong";
+  playing is now simply stopped, or paused.
 - Linking a new computer works with WhatsApp's new login page. WhatsApp is moving logging in to a page
   of its own (web.whatsapp.com/login/), which some people already get; there the add-on said "Still
   connecting" forever instead of offering to link with a phone number.
