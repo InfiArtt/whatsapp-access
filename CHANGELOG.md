@@ -3,7 +3,7 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
-## [Unreleased]
+## [0.6.1]
 
 - When the hidden browser cannot open WhatsApp Web, for example because there is no connection or a
   firewall or antivirus blocks the browser, the add-on says so, with what the browser's page says,
