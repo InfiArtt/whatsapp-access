@@ -155,3 +155,103 @@ def test_media_larger_than_the_limit_is_not_read(mode):
     assert result["ok"] is False
     assert result["error"] == "mediaGone:tooLarge"
     assert result["readTooMuch"] is False
+
+
+NAMES_HELPER = r"""
+const fs = require("fs");
+const source = fs.readFileSync(process.argv[1], "utf8");
+// Each function from "\tfunction name(" to the tab and brace that close it.
+const take = (name) => {
+    const start = source.indexOf("\tfunction " + name + "(");
+    return source.slice(start, source.indexOf("\n\t}\n", start) + 4);
+};
+const wid = (text) => {
+    const [user, server] = text.split("@");
+    return { user, server, toString: () => text };
+};
+const [contacts, phones, ask] = JSON.parse(process.argv[2]);
+const Contact = { get: (id) => {
+    const found = contacts[String(id)];
+    return found ? Object.assign({ id: wid(String(id)) }, found) : undefined;
+} };
+const req = (module) => ({
+    WAWebApiContact: { getPhoneNumber: (id) => (phones[String(id)] ? wid(phones[String(id)]) : null) },
+    WAWebWidFactory: { createWid: wid },
+})[module];
+const collections = () => ({ Contact });
+const code = "const VERIFIED_HIGH = 2;" +
+    ["phoneWidOf", "contactOf", "personName", "contactName", "withMentionNames", "senderName"].map(take).join("\n") +
+    "; return { contactName, withMentionNames, senderName };";
+const f = new Function("req", "collections", code)(req, collections);
+const out = {};
+for (const [key, call] of Object.entries(ask)) {
+    if (call.contactName) out[key] = f.contactName(call.contactName);
+    if (call.mention) out[key] = f.withMentionNames({ mentionedJidList: call.mention[1].map(wid) }, call.mention[0]);
+    if (call.sender) out[key] = f.senderName({ id: { fromMe: false }, author: call.sender[0] && wid(call.sender[0]), notifyName: call.sender[1] });
+}
+process.stdout.write(JSON.stringify(out));
+"""
+
+CONTACTS = {
+    "111@c.us": {"name": "Mom", "pushname": "Siti"},
+    "222@c.us": {"pushname": "Mom"},
+    "333@c.us": {"verifiedName": "Bank BCA", "verifiedLevel": 2},
+    "444@c.us": {"verifiedName": "Bank BCA", "verifiedLevel": 0},
+    "900@lid": {"pushname": "Budi"},
+    "62812@c.us": {"name": "Andi"},
+    "901@lid": {},
+}
+PHONES = {"900@lid": "6281234567890@c.us", "901@lid": "62812@c.us"}
+
+
+def names(ask: dict) -> dict:
+    result = subprocess.run(
+        [NODE, "-e", NAMES_HELPER, str(PACKAGE_DIR / "pageBridge.js"), json.dumps([CONTACTS, PHONES, ask])],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+@pytest.mark.parametrize(
+    ("wid", "name"),
+    [
+        # Saved contacts keep the name the user gave them.
+        ("111@c.us", "Mom"),
+        # Anyone else is their number, then "~" and the name they chose, as in WhatsApp.
+        ("222@c.us", "+222 ~Mom"),
+        ("900@lid", "+6281234567890 ~Budi"),
+        # A name saved under the number counts for the newer id too.
+        ("901@lid", "Andi"),
+        # Only a business name WhatsApp has verified is shown as a name.
+        ("333@c.us", "Bank BCA"),
+        ("444@c.us", "+444 ~Bank BCA"),
+        ("555@c.us", "+555"),
+    ],
+)
+def test_names_people_choose_are_not_taken_for_saved_ones(wid, name):
+    assert names({"x": {"contactName": wid}}) == {"x": name}
+
+
+def test_group_senders_are_named_the_same_way():
+    assert names(
+        {
+            "stranger": {"sender": ["777@c.us", "Bank"]},
+            "saved": {"sender": ["111@c.us", "Ibu"]},
+        }
+    ) == {"stranger": "+777 ~Bank", "saved": "Mom"}
+
+
+@pytest.mark.parametrize(
+    ("text", "sent"),
+    [
+        ("halo @62812", "halo @Andi"),
+        ("@62812, ok", "@Andi, ok"),
+        # A longer number that starts with the same digits is someone else.
+        ("@6281234567 dan @62812", "@6281234567 dan @Andi"),
+    ],
+)
+def test_mentions_replace_whole_numbers_only(text, sent):
+    assert names({"x": {"mention": [text, ["62812@c.us"]]}}) == {"x": sent}
