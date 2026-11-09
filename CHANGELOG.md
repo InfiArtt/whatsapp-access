@@ -40,6 +40,20 @@ Fixed, so nothing goes to the wrong chat or twice:
   the list updates by itself, so Enter, Delete or the menu act on the item you last heard.
 - In groups, mentioning "An" no longer changes "@Andi" into a mention of An.
 
+Steadier:
+
+- NVDA no longer goes quiet for up to half a minute when the add-on's settings or the call's Microphone
+  and speaker dialog open while WhatsApp is slow: the devices are listed in the background, and the
+  lists fill in when WhatsApp answers.
+- When a WhatsApp update breaks one feature, such as reactions or calls, only that feature stops, and
+  NVDA says once which ones are off. Before, new messages could be read out twice, or nothing could be
+  heard at all without a word why.
+- After the add-on is updated, a WhatsApp Web page that stayed open gets the new version's code instead
+  of keeping the old one, and a page that reloads is picked up again without failing the next action.
+- A connection that fails halfway is closed properly, so trying again works, and the hidden browser is
+  no longer started twice.
+- Reloading NVDA's plugins right after NVDA starts no longer leaves an extra hidden browser running.
+
 ## [0.4.1]
 
 Translation, closing WhatsApp fully, and fixes for groups. This includes everything from 0.4.0.
