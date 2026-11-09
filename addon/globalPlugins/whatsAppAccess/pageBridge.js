@@ -1435,6 +1435,7 @@
 		const list = stickerList();
 		const describe = (s, i, kind) => ({
 			index: i,
+			key: stickerKey(s),
 			kind: kind,
 			label: (s.mediaData && s.mediaData.accessibilityLabel) || "",
 			pack: s.stickerPackName || "",
@@ -1443,8 +1444,18 @@
 		return list.favorite.map((s, i) => describe(s, i, "favorite")).concat(list.recent.map((s, i) => describe(s, i, "recent")));
 	}
 
-	async function sendSticker(chatId, kind, index) {
-		const sticker = stickerList()[kind][index];
+	// What stays the same for a sticker when the lists change: a sticker sent from the phone meanwhile moves
+	// the recent ones along, and the one at the same place would be a different sticker.
+	function stickerKey(s) {
+		return String(s.filehash || (s.mediaData && s.mediaData.filehash) || (s.id && String(s.id)) || "");
+	}
+
+	async function sendSticker(chatId, kind, index, key) {
+		const list = stickerList()[kind] || [];
+		let sticker = list[index];
+		if (key && (!sticker || stickerKey(sticker) !== key)) {
+			sticker = list.find((s) => stickerKey(s) === key);
+		}
 		if (!sticker) {
 			throw new Error("stickerNotFound");
 		}
@@ -2297,16 +2308,27 @@
 		document: "WhatsApp Document Keys",
 	};
 
+	const MEDIA_HOST = "https://mmg.whatsapp.net";
+
 	async function downloadMedia(m) {
 		const info = MEDIA_KEY_INFO[m.type];
 		if (!info || !m.directPath || !m.mediaKey) {
 			throw new Error("noMedia");
 		}
-		const response = await fetch("https://mmg.whatsapp.net" + m.directPath);
+		// The path comes with the message, so it is resolved, not glued on: ".evil.example/x" glued to the
+		// host would change the host.
+		const url = new URL(m.directPath, MEDIA_HOST);
+		if (url.origin !== MEDIA_HOST) {
+			throw new Error("noMedia");
+		}
+		const response = await fetch(url.href);
 		if (!response.ok) {
 			throw new Error("mediaGone:" + response.status);
 		}
 		const encrypted = new Uint8Array(await response.arrayBuffer());
+		if (encrypted.length < 26) {
+			throw new Error("mediaGone:short");
+		}
 		const keyBytes = Uint8Array.from(atob(m.mediaKey), (c) => c.charCodeAt(0));
 		const base = await crypto.subtle.importKey("raw", keyBytes, "HKDF", false, ["deriveBits"]);
 		const expanded = new Uint8Array(
@@ -2316,9 +2338,25 @@
 				112 * 8,
 			),
 		);
+		// The last 10 bytes are an HMAC-SHA256 of the IV and the encrypted file, under the media's MAC key.
+		// Checked before decrypting, so a damaged or altered file is refused rather than played or saved.
+		const iv = expanded.slice(0, 16);
+		const macKey = await crypto.subtle.importKey("raw", expanded.slice(48, 80), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+		const signed = new Uint8Array(encrypted.length - 10 + 16);
+		signed.set(iv, 0);
+		signed.set(encrypted.subarray(0, -10), 16);
+		const mac = new Uint8Array(await crypto.subtle.sign("HMAC", macKey, signed)).subarray(0, 10);
+		const given = encrypted.subarray(encrypted.length - 10);
+		let difference = 0;
+		for (let i = 0; i < 10; i++) {
+			difference |= mac[i] ^ given[i];
+		}
+		if (difference !== 0) {
+			throw new Error("mediaGone:damaged");
+		}
 		const key = await crypto.subtle.importKey("raw", expanded.slice(16, 48), "AES-CBC", false, ["decrypt"]);
 		const plain = await crypto.subtle.decrypt(
-			{ name: "AES-CBC", iv: expanded.slice(0, 16) },
+			{ name: "AES-CBC", iv: iv },
 			key,
 			encrypted.slice(0, -10),
 		);
