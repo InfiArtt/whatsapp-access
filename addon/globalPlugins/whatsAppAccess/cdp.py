@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .webSocket import HandshakeRefused, WebSocket, WebSocketError
+from .webSocket import MAX_MESSAGE_BYTES, HandshakeRefused, WebSocket, WebSocketError
 
 __all__ = ["HandshakeRefused", "WebSocketError"]
 
@@ -207,6 +207,127 @@ def findDebuggableBrowsers(
 	return [item[1] for item in found]
 
 
+# A pipe to the add-on's own browser -----------------------------------------------------------------------------
+
+
+class PipeTransport:
+	"""DevTools over a pair of anonymous pipes, as Chromium's --remote-debugging-pipe offers.
+
+	Unlike a debugging port, a pipe can't be reached by any other program on the computer: only the
+	process that started the browser holds its ends. Each message is JSON followed by a NUL byte. When the
+	add-on closes its end, or NVDA exits for any reason, the browser sees the pipe close and exits too.
+	send() may be called from any thread; receive() from one reader thread. The same methods as WebSocket,
+	so CdpConnection can use either.
+	"""
+
+	def __init__(self, readFd: int, writeFd: int) -> None:
+		"""
+		:param readFd: Our end of the pipe the browser writes to.
+		:param writeFd: Our end of the pipe the browser reads from.
+		"""
+		self._readFd: int | None = readFd
+		self._writeFd: int | None = writeFd
+		self._buffer = b""
+		self._sendLock = threading.Lock()
+		self._childFds: tuple[int, ...] = ()
+		self.closed = False
+
+	@classmethod
+	def forChild(cls) -> "tuple[PipeTransport, tuple[int, int]]":
+		"""Two pipes: our transport, and the browser's two Windows handles, already inheritable.
+
+		The caller passes the handles as --remote-debugging-io-pipes=<read>,<write>, lets only them be
+		inherited, and calls childStarted() once the browser runs.
+
+		:return: The transport, and the browser's (read, write) handles.
+		"""
+		import msvcrt
+
+		toChildRead, toChildWrite = os.pipe()
+		fromChildRead, fromChildWrite = os.pipe()
+		transport = cls(fromChildRead, toChildWrite)
+		transport._childFds = (toChildRead, fromChildWrite)
+		handles = (msvcrt.get_osfhandle(toChildRead), msvcrt.get_osfhandle(fromChildWrite))
+		for handle in handles:
+			os.set_handle_inheritable(handle, True)
+		return transport, handles
+
+	def childStarted(self) -> None:
+		"""Close our copies of the browser's ends, so its exit shows as the end of the pipe."""
+		for fd in self._childFds:
+			try:
+				os.close(fd)
+			except OSError:
+				pass
+		self._childFds = ()
+
+	def send(self, text: str) -> None:
+		with self._sendLock:
+			if self.closed or self._writeFd is None:
+				raise WebSocketError("Connection closed")
+			data = text.encode("utf-8") + b"\0"
+			try:
+				while data:
+					written = os.write(self._writeFd, data)
+					data = data[written:]
+			except OSError as e:
+				self.closed = True
+				raise WebSocketError(str(e)) from e
+
+	def receive(self) -> str:
+		"""The next message. Raises WebSocketError when the browser has gone."""
+		while b"\0" not in self._buffer:
+			if self._readFd is None:
+				raise WebSocketError("Connection closed")
+			try:
+				chunk = os.read(self._readFd, 65536)
+			except OSError as e:
+				self.closed = True
+				raise WebSocketError(str(e)) from e
+			if not chunk:
+				self.closed = True
+				raise WebSocketError("The browser closed the pipe")
+			self._buffer += chunk
+			if len(self._buffer) > MAX_MESSAGE_BYTES:
+				self.closed = True
+				raise WebSocketError("Message too large")
+		message, _, self._buffer = self._buffer.partition(b"\0")
+		return message.decode("utf-8", errors="replace")
+
+	def close(self) -> None:
+		"""Close our sending end; the browser then closes its own, which ends receive().
+
+		The reading end is closed by the reader thread itself, once receive() has ended, since closing a
+		pipe another thread is reading from does not wake that thread on Windows.
+		"""
+		self.childStarted()
+		with self._sendLock:
+			self.closed = True
+			if self._writeFd is not None:
+				try:
+					os.close(self._writeFd)
+				except OSError:
+					pass
+				self._writeFd = None
+
+	def closeReader(self) -> None:
+		"""Close the reading end. Only for the reader thread, after receive() has ended."""
+		if self._readFd is not None:
+			try:
+				os.close(self._readFd)
+			except OSError:
+				pass
+			self._readFd = None
+
+
+@dataclass(frozen=True)
+class PipeBrowser:
+	"""The add-on's own browser, reached through a pipe rather than a port."""
+
+	browser: Browser
+	transport: PipeTransport
+
+
 # The connection -----------------------------------------------------------------------------------------------
 
 
@@ -226,7 +347,7 @@ class CdpConnection:
 
 	def __init__(
 		self,
-		ws: WebSocket,
+		ws: WebSocket | PipeTransport,
 		onEvent: Callable[[str, dict, str | None], None] | None = None,
 		onClose: Callable[[], None] | None = None,
 	) -> None:
@@ -241,7 +362,11 @@ class CdpConnection:
 		self._reader.start()
 
 	@classmethod
-	def open(cls, target: DebuggableBrowser, **kwargs) -> "CdpConnection":
+	def open(cls, target: "DebuggableBrowser | PipeBrowser", **kwargs) -> "CdpConnection":
+		if isinstance(target, PipeBrowser):
+			if target.transport.closed:
+				raise Disconnected("The pipe to the browser is closed")
+			return cls(target.transport, **kwargs)
 		ws = WebSocket.connect("127.0.0.1", target.port, target.wsPath, APPROVAL_TIMEOUT_SECONDS)
 		return cls(ws, **kwargs)
 
@@ -268,6 +393,8 @@ class CdpConnection:
 		finally:
 			self.closed = True
 			self._ws.close()
+			if isinstance(self._ws, PipeTransport):
+				self._ws.closeReader()
 			with self._lock:
 				for slot in self._pending.values():
 					slot["done"].set()

@@ -4,14 +4,16 @@
 
 """Runs WhatsApp Web in a hidden Chromium-based browser of the add-on's own.
 
-The browser runs headless, with its own profile in NVDA's configuration folder, so the user's own browser
-and its profile are never touched, and no "Allow remote debugging?" question is asked: browsers ask that
-only for their default profile. The DevTools port is chosen by the browser at random and read from the
-DevToolsActivePort file in the profile.
+The browser runs headless, with its own profile, so the user's own browser and its profile are never
+touched. The add-on talks to it over a pair of anonymous pipes (--remote-debugging-pipe), not a debugging
+port: a port on 127.0.0.1 can be reached by every program on the computer, and through it, read the chats
+and send messages. Only the add-on holds the pipes, and the browser exits by itself when they close, even
+if NVDA does not exit cleanly.
 It imports nothing from NVDA, so it can be tested on its own.
 """
 
 import ctypes
+import json
 import os
 import re
 import subprocess
@@ -25,7 +27,8 @@ from pathlib import Path
 
 from . import cdp
 
-# Headless "new" mode (a whole browser with no window) and everything the add-on uses arrived before this.
+# Headless "new" mode (a whole browser with no window), --remote-debugging-io-pipes on Windows (Chromium
+# 117) and everything else the add-on uses arrived before this.
 MINIMUM_MAJOR_VERSION = 120
 START_TIMEOUT_SECONDS = 45.0
 WHATSAPP_URL = "https://web.whatsapp.com/"
@@ -192,14 +195,18 @@ def chromeUserAgentMetadata(version: tuple[int, ...]) -> dict:
 	}
 
 
-def launchArguments(browser: InstalledBrowser, profileDir: str) -> list[str]:
+def launchArguments(browser: InstalledBrowser, profileDir: str, pipeHandles: tuple[int, int]) -> list[str]:
+	"""The hidden browser's command line.
+
+	:param pipeHandles: The Windows handles the browser reads DevTools commands from and writes answers to.
+	"""
 	return [
 		browser.path,
 		"--headless=new",
 		f"--user-data-dir={profileDir}",
-		# 0: the browser picks a free port and writes it to DevToolsActivePort in the profile.
-		"--remote-debugging-port=0",
-		"--remote-debugging-address=127.0.0.1",
+		# DevTools over the two pipes only; no port is opened.
+		"--remote-debugging-pipe",
+		f"--remote-debugging-io-pipes={pipeHandles[0]},{pipeHandles[1]}",
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--disable-gpu",
@@ -316,71 +323,114 @@ def closeLeftovers(profileDir: str, executable: str) -> str:
 
 
 class HiddenBrowser:
-	"""One hidden browser process with the add-on's profile. start() waits until DevTools is reachable."""
+	"""One hidden browser process with the add-on's profile. start() waits until it answers on its pipe."""
 
 	def __init__(self, browser: InstalledBrowser, profileDir: str) -> None:
 		self.browser = browser
 		self.profileDir = profileDir
 		self.process: subprocess.Popen | None = None
+		self._transport: cdp.PipeTransport | None = None
 		self._lock = threading.Lock()
 
 	@property
 	def running(self) -> bool:
 		return self.process is not None and self.process.poll() is None
 
-	def start(self) -> cdp.DebuggableBrowser:
+	def start(self) -> cdp.PipeBrowser:
+		"""Start the browser, or give the one already running, and wait until it answers.
+
+		A pipe serves one connection for the browser's whole life. When the last connection closed it, the
+		browser is on its way out, so a new one is started.
+		"""
 		with self._lock:
+			target = cdp.Browser(
+				self.browser.name, Path(self.profileDir), os.path.basename(self.browser.path), ""
+			)
+			if self.running and self._transport is not None and not self._transport.closed:
+				return cdp.PipeBrowser(target, self._transport)
+			if self.running:
+				self._stopLocked()
 			os.makedirs(self.profileDir, exist_ok=True)
-			portFile = Path(self.profileDir) / "DevToolsActivePort"
-			if not self.running:
-				leftover = closeLeftovers(self.profileDir, os.path.basename(self.browser.path))
-				try:
-					portFile.unlink()
-				except OSError:
-					pass
-				flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+			leftover = closeLeftovers(self.profileDir, os.path.basename(self.browser.path))
+			transport, handles = cdp.PipeTransport.forChild()
+			info = subprocess.STARTUPINFO()
+			# Only the two pipe ends (and the standard handles subprocess adds) reach the browser.
+			info.lpAttributeList = {"handle_list": list(handles)}
+			try:
 				self.process = subprocess.Popen(
-					launchArguments(self.browser, self.profileDir),
+					launchArguments(self.browser, self.profileDir, handles),
 					stdin=subprocess.DEVNULL,
 					stdout=subprocess.DEVNULL,
 					stderr=subprocess.DEVNULL,
-					creationflags=flags,
+					startupinfo=info,
+					close_fds=True,
+					creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
 				)
-				try:
-					(Path(self.profileDir) / PID_FILE).write_text(str(self.process.pid), encoding="ascii")
-				except OSError:
-					pass
-			else:
-				leftover = ""
-			deadline = time.monotonic() + START_TIMEOUT_SECONDS
-			while time.monotonic() < deadline:
-				if self.process.poll() is not None:
-					reason = (
-						f"{self.browser.name} closed while starting (exit code {self.process.returncode})"
-					)
-					if leftover:
-						reason += f"; the last hidden browser could not be closed: {leftover}"
-					raise OSError(reason)
-				active = cdp.readActivePort(portFile)
-				executable = os.path.basename(self.browser.path)
-				if active is not None and cdp.portBelongsTo(active[0], executable):
-					port, wsPath = active
-					target = cdp.Browser(self.browser.name, Path(self.profileDir), executable, "")
-					return cdp.DebuggableBrowser(target, port, wsPath)
-				time.sleep(0.2)
-			raise TimeoutError(f"{self.browser.name} did not start within {START_TIMEOUT_SECONDS:g} seconds")
+			except BaseException:
+				transport.close()
+				transport.closeReader()
+				raise
+			finally:
+				transport.childStarted()
+			self._transport = transport
+			try:
+				(Path(self.profileDir) / PID_FILE).write_text(str(self.process.pid), encoding="ascii")
+			except OSError:
+				pass
+			try:
+				self._waitForAnswer(transport, leftover)
+			except BaseException:
+				self._stopLocked()
+				raise
+			return cdp.PipeBrowser(target, transport)
+
+	def _waitForAnswer(self, transport: cdp.PipeTransport, leftover: str) -> None:
+		"""Ask the browser its version over the pipe, and wait for the answer before anything else is sent."""
+		transport.send(json.dumps({"id": 0, "method": "Browser.getVersion"}))
+		outcome: dict[str, BaseException | str] = {}
+
+		def read() -> None:
+			try:
+				outcome["answer"] = transport.receive()
+			except BaseException as e:  # noqa: BLE001 - handed to the waiting thread
+				outcome["error"] = e
+
+		reader = threading.Thread(target=read, name="whatsAppAccess.browserStart", daemon=True)
+		reader.start()
+		deadline = time.monotonic() + START_TIMEOUT_SECONDS
+		while reader.is_alive() and time.monotonic() < deadline:
+			reader.join(0.2)
+		process = self.process
+		if "answer" in outcome:
+			return
+		if process is not None and process.poll() is not None:
+			reason = f"{self.browser.name} closed while starting (exit code {process.returncode})"
+			if leftover:
+				reason += f"; the last hidden browser could not be closed: {leftover}"
+			raise OSError(reason)
+		if "error" in outcome:
+			raise OSError(f"{self.browser.name} did not answer on its pipe: {outcome['error']}")
+		raise TimeoutError(f"{self.browser.name} did not start within {START_TIMEOUT_SECONDS:g} seconds")
 
 	def stop(self) -> None:
 		"""Close the browser and the processes it started."""
 		with self._lock:
-			process, self.process = self.process, None
+			self._stopLocked()
+
+	def _stopLocked(self) -> None:
+		process, self.process = self.process, None
+		transport, self._transport = self._transport, None
+		if transport is not None:
+			# The browser exits by itself once its pipe closes; taskkill below makes sure.
+			transport.close()
 		if process is None or process.poll() is not None:
 			return
 		if sys.platform == "win32":
 			flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+			taskkill = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "taskkill.exe")
 			try:
 				subprocess.run(
-					["taskkill", "/PID", str(process.pid), "/T", "/F"],
+					[taskkill, "/PID", str(process.pid), "/T", "/F"],
 					# All three: NVDA has no console, and while it closes, handles it would pass on are invalid.
 					stdin=subprocess.DEVNULL,
 					stdout=subprocess.DEVNULL,
