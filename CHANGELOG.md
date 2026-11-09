@@ -3,6 +3,27 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [Unreleased]
+
+Safer files and a safer place for your WhatsApp login.
+
+- Enter on a file opens it only when it is a picture, video, sound or document. Anyone can send a
+  program named like a document, such as "invoice.pdf.exe", so the add-on no longer opens programs,
+  scripts, shortcuts, archives or Office files with macros; it says so, and Alt+D still saves them.
+- Every file the add-on downloads gets the mark Windows gives files from the internet, so SmartScreen
+  and Office's Protected View check it, as they do for files from a browser.
+- File names from messages are cleaned more carefully: hidden characters that can disguise a name's
+  real ending are removed, Windows device names such as NUL can no longer be used, long names are
+  shortened, a file that is already there is never replaced, and a download that fails halfway leaves
+  nothing behind.
+- With an installed NVDA, the WhatsApp login now lives in your Windows account's own folder
+  (LocalAppData\NVDA WhatsApp Access), and is moved there by itself the first time. In NVDA's
+  configuration folder it was copied, with the rest of that folder, when you chose "Use currently saved
+  settings during sign-in and on secure screens", to a place every account on the computer can read.
+  If you ever pressed that button, press it again once after updating, so the old copy is replaced.
+  A portable NVDA keeps the login with its own settings, as before.
+- The add-on does nothing on the Windows sign-in screen and other secure screens.
+
 ## [0.4.1]
 
 Translation, closing WhatsApp fully, and fixes for groups. This includes everything from 0.4.0.
