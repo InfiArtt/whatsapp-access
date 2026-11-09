@@ -121,3 +121,46 @@ def test_an_interrupted_download_is_not_left_behind(tmp_path, monkeypatch):
     with pytest.raises(updates.UpdateError, match="network"):
         updates.download(updates.parseRelease(release_data()), str(path))
     assert not path.exists()
+
+
+def listed(version, body="", **changes):
+    tag = "v" + version
+    asset = f"whatsAppAccess-{version}.nvda-addon"
+    url = f"https://github.com/InfiArtt/whatsapp-access/releases/download/{tag}/{asset}"
+    return release_data(
+        tag_name=tag,
+        body=body,
+        assets=[{"name": asset, "browser_download_url": url, "digest": "sha256:AB"}],
+        **changes,
+    )
+
+
+def test_a_required_update_is_marked_in_its_notes():
+    assert updates.isRequired("**Required update.** WhatsApp Web changed how chats load.")
+    assert updates.isRequired("Fixed things.\n\nRequired update: WhatsApp Web changed.")
+    assert not updates.isRequired("This is not a required update.")
+    assert not updates.isRequired("")
+
+
+def test_a_required_release_between_yours_and_the_newest_still_counts():
+    releases = [
+        listed("0.5.1", "Small fixes."),
+        listed("0.5.0", "**Required update.** WhatsApp Web changed."),
+        listed("0.4.1", "**Required update.** An older change."),
+    ]
+    newest = updates.newestRelease(releases, "0.4.1")
+    assert (newest.version, newest.required) == ("0.5.1", True)
+    # Already past the required one: the newest is an ordinary update.
+    assert not updates.newestRelease(releases, "0.5.0").required
+
+
+def test_drafts_and_prereleases_neither_count_nor_require():
+    releases = [
+        listed("0.6.0", "**Required update.**", prerelease=True),
+        listed("0.5.0", "**Required update.**", draft=True),
+        listed("0.4.2", "Fixes."),
+    ]
+    newest = updates.newestRelease(releases, "0.4.1")
+    assert (newest.version, newest.required) == ("0.4.2", False)
+    with pytest.raises(updates.UpdateError, match="noRelease"):
+        updates.newestRelease([listed("0.6.0", prerelease=True)], "0.4.1")

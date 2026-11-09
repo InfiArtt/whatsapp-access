@@ -85,6 +85,40 @@ def test_announcements():
     )
 
 
+def test_the_open_chat_says_the_message_even_when_content_is_off():
+    message = {"type": "chat", "text": "Halo", "sender": "Claude"}
+    assert (
+        messageText.announcement(message, "Claude", isGroup=False, inOpenChat=True, withContent=False)
+        == "Claude: Halo"
+    )
+    assert (
+        messageText.announcement(message, "Claude", isGroup=False, inOpenChat=False, withContent=False)
+        == "New message from Claude"
+    )
+
+
+def test_the_window_title_names_the_chat_without_a_phone_number():
+    assert messageText.windowTitleName("Qisti") == "Qisti"
+    assert messageText.windowTitleName("+6285640306004 ~Prima Agus Setiyawan") == "~Prima Agus Setiyawan"
+    assert messageText.windowTitleName("~Prima Agus Setiyawan") == "~Prima Agus Setiyawan"
+    assert messageText.windowTitleName("+6285640306004") == "+6285640306004"
+    assert messageText.windowTitleName("Tim ~Kreatif") == "Tim ~Kreatif"
+
+
+def test_a_deleted_message_is_said_deleted_once():
+    deleted = {"type": "revoked", "text": "This message was deleted", "sender": "~Ali"}
+    assert messageText.content(deleted) == "This message was deleted"
+    chat = {"title": "VoiceOver Accessibility", "isGroup": True, "last": deleted}
+    assert messageText.chatLine(chat).count("This message was deleted") == 1
+
+
+def test_messages_read_together_are_said_once():
+    assert messageText.acksText([3, 3, 3, 3, 3]) == "read"
+    assert messageText.acksText([2, 3]) == "read"
+    assert messageText.acksText([2]) == "delivered"
+    assert messageText.acksText([]) == ""
+
+
 def test_reply_to_own_message_says_you():
     message = {
         "type": "chat",
@@ -333,3 +367,13 @@ def test_formatting_ends_at_the_line():
 def test_a_formatted_message_is_read_without_marks():
     message = {"type": "chat", "text": "*Rapat* jam 9", "t": TODAY_0815, "sender": "Budi"}
     assert messageText.messageLine(message, isGroup=False, now=NOW) == "Budi: Rapat jam 9, 08:15"
+
+
+def test_polls_whatsapp_would_refuse_are_caught_first():
+    assert messageText.pollProblem("Makan?", ["Nasi", "Mie"]) == ""
+    assert "two options" in messageText.pollProblem("Makan?", ["Nasi"])
+    assert "at most 12" in messageText.pollProblem("Makan?", [str(n) for n in range(13)])
+    assert messageText.pollProblem("Makan?", [str(n) for n in range(12)]) == ""
+    assert "the same" in messageText.pollProblem("Makan?", ["Nasi", "nasi"])
+    assert "255 characters" in messageText.pollProblem("x" * 256, ["a", "b"])
+    assert "100 characters" in messageText.pollProblem("Makan?", ["a", "b" * 101])

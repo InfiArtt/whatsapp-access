@@ -67,7 +67,7 @@ class CreatePollDialog(wx.Dialog):
 
 	def values(self) -> tuple[str, list[str], bool]:
 		options = [line.strip() for line in self.options.GetValue().splitlines() if line.strip()]
-		return self.question.GetValue().strip(), options[:12], not self.multiple.GetValue()
+		return self.question.GetValue().strip(), options, not self.multiple.GetValue()
 
 
 class CreateEventDialog(wx.Dialog):

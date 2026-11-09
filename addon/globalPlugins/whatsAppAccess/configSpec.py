@@ -45,6 +45,8 @@ CONFIG_SPEC = {
 	"ringSound": 'string(default="ring")',
 	# Read out what a new message says, or only who it is from.
 	"readContent": "boolean(default=True)",
+	# Name people outside the contacts with their phone number too, such as "+62812… ~Budi", not just "~Budi".
+	"showNumbers": "boolean(default=False)",
 	# Each chat's own notification rule, as JSON; see notifications.py.
 	"chatRules": 'string(default="{}")',
 	# Play the add-on's sounds: sent, new message, recording and so on.
@@ -58,6 +60,8 @@ CONFIG_SPEC = {
 	# Look for new versions on the add-on's GitHub page once a day, and when the last look was.
 	"checkUpdates": "boolean(default=True)",
 	"lastUpdateCheck": "integer(default=0)",
+	# A required update that is not installed yet: WhatsApp cannot be used until it is. See updates.py.
+	"requiredVersion": 'string(default="")',
 	# How loud the other person is in calls.
 	"callVolume": "integer(min=0, max=100, default=100)",
 	# Sound processing on the microphone during calls: WhatsApp's own, echo cancellation only, or none

@@ -15,11 +15,16 @@ import urllib.request
 from dataclasses import dataclass
 
 REPOSITORY = "InfiArtt/whatsapp-access"
-LATEST_URL = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
+# The newest releases, newest first: one of them may be a required update even when it is not the latest.
+RELEASES_URL = f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=30"
 USER_AGENT = "WhatsAppAccess-NVDA-addon"
 # Release files are only taken from GitHub itself.
 DOWNLOAD_PREFIX = f"https://github.com/{REPOSITORY}/releases/download/"
 MAX_NOTES = 4000
+# A release whose notes have a line starting with these words must be installed before WhatsApp can be
+# used again, for when WhatsApp Web changed in a way older versions cannot follow. In CHANGELOG.md:
+# "**Required update.** WhatsApp Web changed how …".
+REQUIRED_MARK = re.compile(r"^\W*required update\b", re.IGNORECASE | re.MULTILINE)
 
 
 class UpdateError(Exception):
@@ -33,6 +38,8 @@ class Release:
 	url: str
 	fileName: str
 	sha256: str
+	required: bool = False
+	"""Whether this release, or one between the installed version and it, is a required update."""
 
 
 def versionTuple(version: str) -> tuple[int, ...]:
@@ -80,15 +87,51 @@ def _open(url: str, accept: str, timeout: float):
 	return urllib.request.urlopen(request, timeout=timeout)
 
 
-def latestRelease(timeout: float = 15) -> Release:
+def isRequired(notes: str) -> bool:
+	return bool(REQUIRED_MARK.search(notes or ""))
+
+
+def _published(data: dict) -> bool:
+	if data.get("draft") or data.get("prerelease"):
+		return False
 	try:
-		with _open(LATEST_URL, "application/vnd.github+json", timeout) as response:
+		versionTuple(str(data.get("tag_name") or ""))
+	except UpdateError:
+		return False
+	return True
+
+
+def newestRelease(releases: list[dict], current: str) -> Release:
+	"""The newest published release, from GitHub's list, and whether updating to it is required.
+
+	It is required when any published release newer than current says so: someone on 0.4 must update
+	when 0.5 was required, even if 0.5.1, the newest, was not.
+	"""
+	published = [data for data in releases if isinstance(data, dict) and _published(data)]
+	if not published:
+		raise UpdateError("noRelease")
+	newest = max(published, key=lambda data: versionTuple(str(data["tag_name"])))
+	release = parseRelease(newest)
+	release.required = any(
+		isNewer(str(data["tag_name"]), current) and isRequired(str(data.get("body") or ""))
+		for data in published
+	)
+	return release
+
+
+def latestRelease(current: str, timeout: float = 15) -> Release:
+	try:
+		with _open(RELEASES_URL, "application/vnd.github+json", timeout) as response:
 			data = json.load(response)
 	except OSError as e:
 		code = getattr(e, "code", None)
-		# 404: the repository has no published release yet, or is not public.
+		# 404: the repository is not public.
 		raise UpdateError("noRelease" if code == 404 else f"network: {e}") from e
-	return parseRelease(data)
+	except ValueError as e:
+		raise UpdateError(f"network: {e}") from e
+	if not isinstance(data, list):
+		raise UpdateError("noRelease")
+	return newestRelease(data, current)
 
 
 def download(release: Release, path: str, timeout: float = 60) -> str:

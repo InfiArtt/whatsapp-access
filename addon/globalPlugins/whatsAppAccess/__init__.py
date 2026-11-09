@@ -98,6 +98,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		)
 		self._dataMoved.start()
 		self.session = WhatsAppSession(onEvent=self._onEvent, onDisconnect=self._onDisconnect)
+		# Translators: Said after the name of someone who is not in the user's contacts, such as
+		# "~Budi (not a contact)", so that a stranger calling themselves "Mom" is not taken for a contact.
+		self.session.notContactWords = _("not a contact")
 		self.window: ChatWindow | None = None
 		self._connecting = False
 		self._connectingSince = 0.0
@@ -119,6 +122,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		settings = config.conf[CONFIG_SECTION]
 		if settings["setupDone"] and settings["connection"] == "hidden" and settings["startWithNVDA"]:
 			self._autoStartTimer = wx.CallLater(AUTO_START_DELAY_MS, self._startHidden, False, False)
+		updateCheck.onRequired = self._requiredUpdateFound
 		self._updateTimer = updateCheck.scheduleAutoCheck()
 		WhatsAppSettingsPanel.plugin = self
 		NVDASettingsDialog.categoryClasses.append(WhatsAppSettingsPanel)
@@ -206,6 +210,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			if timer is not None and timer.IsRunning():
 				timer.Stop()
 		self._autoStartTimer = self._updateTimer = self._lostTimer = None
+		if updateCheck.onRequired == self._requiredUpdateFound:
+			updateCheck.onRequired = None
 		sounds.stopRing()
 		self.calls.connectionGone(announce=False)
 		if WhatsAppSettingsPanel in NVDASettingsDialog.categoryClasses:
@@ -229,6 +235,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	)
 	def script_openWindow(self, gesture) -> None:
 		settings = config.conf[CONFIG_SECTION]
+		if self._waitForRequiredUpdate():
+			return
 		# Dialogs open after this command has finished: a modal dialog opened from inside a command would hold
 		# NVDA's queue, and NVDA would say nothing until the dialog closed.
 		if not settings["setupDone"]:
@@ -267,6 +275,23 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def script_closeFully(self, gesture) -> None:
 		# After this command has finished, as with opening the window: a dialog would hold NVDA's queue.
 		wx.CallAfter(self.askToCloseFully, gui.mainFrame)
+
+	def _waitForRequiredUpdate(self) -> bool:
+		"""When a required update is not installed yet, say so and offer it. Returns whether one is."""
+		if not updateCheck.isUpdateRequired():
+			return False
+		# Translators: Said when the user opens WhatsApp but a required update of the add-on is not installed.
+		ui.message(_("WhatsApp Access must be updated before WhatsApp can be used again"))
+		wx.CallAfter(updateCheck.offerRequired)
+		return True
+
+	def _requiredUpdateFound(self) -> None:
+		"""A required update was found: WhatsApp stops until it is installed, except during a call, which
+		goes on; WhatsApp then stays closed when it is opened next."""
+		if self.calls.inCall or not self.isRunning():
+			return
+		self.disconnectForChange()
+		self._connecting = False
 
 	def isRunning(self) -> bool:
 		return self.session.connected or self._connecting or bool(self.hidden and self.hidden.running)
@@ -372,6 +397,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._autoStartTimer = None
 		if self._terminated:
 			return
+		if updateCheck.isUpdateRequired():
+			# Not even by itself with NVDA: WhatsApp Web changed so that this version no longer works.
+			if announce:
+				self._waitForRequiredUpdate()
+			return
 		if getattr(self, "_updateInstalled", False):
 			# Translators: Said when WhatsApp is asked to start after an update was installed but before NVDA
 			# restarted.
@@ -397,6 +427,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._connecting = True
 		self._connectingSince = time.monotonic()
 		self.session.quietWhatsAppNotifications = config.conf[CONFIG_SECTION]["replaceNotifications"]
+		self.session.showNumbers = config.conf[CONFIG_SECTION]["showNumbers"]
 		self._applyCallAudio(connect=False)
 		if announce:
 			# Translators: Reported while the add-on starts its hidden browser with WhatsApp.
@@ -566,6 +597,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._connecting = True
 		self._connectingSince = time.monotonic()
 		self.session.quietWhatsAppNotifications = config.conf[CONFIG_SECTION]["replaceNotifications"]
+		self.session.showNumbers = config.conf[CONFIG_SECTION]["showNumbers"]
 		self._applyCallAudio(connect=False)
 		ui.message(
 			# Translators: Reported when the add-on starts connecting. The browser then asks the user.
@@ -1132,6 +1164,12 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			wx.CheckBox(self, label=_("Read out what new messages say, not only who they are &from"))
 		)
 		self.contentBox.SetValue(settings["readContent"])
+		self.numbersBox = helper.addItem(
+			# Translators: A checkbox in this add-on's settings. People who are not in the contacts are named with "~"
+			# and the name they chose; checked, their phone number comes first, such as "+62812… ~Budi".
+			wx.CheckBox(self, label=_("Show the phone number of people who are not in your &contacts"))
+		)
+		self.numbersBox.SetValue(settings["showNumbers"])
 		self.hintsBox = helper.addItem(
 			# Translators: A checkbox in this add-on's settings: say which keys to press after messages.
 			wx.CheckBox(self, label=_("Use &hints, such as which keys send or throw away a voice note"))
@@ -1220,8 +1258,14 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			)
 
 		self.checkUpdatesBox = helper.addItem(
-			# Translators: A checkbox in this add-on's settings.
-			wx.CheckBox(self, label=_("Check for new versions on GitHub once a day"))
+			wx.CheckBox(
+				self,
+				label=_(
+					# Translators: A checkbox in this add-on's settings. Required updates, needed when WhatsApp
+					# Web changed, are looked for at every start whether it is checked or not.
+					"Check for new versions on GitHub once a day (required updates are always looked for)"
+				),
+			)
 		)
 		self.checkUpdatesBox.SetValue(settings["checkUpdates"])
 		# Translators: A button in this add-on's settings that looks for a new version now.
@@ -1328,6 +1372,8 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		settings["playbackSpeed"] = ("1", "1.5", "2")[self.speedChoice.GetSelection()]
 		replace = self.replaceBox.GetValue()
 		settings["replaceNotifications"] = replace
+		showNumbers = self.numbersBox.GetValue()
+		settings["showNumbers"] = showNumbers
 		plugin = self.plugin
 		if plugin is not None:
 			session = plugin.session
@@ -1335,6 +1381,7 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			def apply() -> None:
 				try:
 					session.setQuietNotifications(replace)
+					session.setShowNumbers(showNumbers)
 				except WhatsAppError as e:
 					log.debugWarning(f"WhatsApp Access: could not change WhatsApp's notifications: {e}")
 

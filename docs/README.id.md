@@ -11,7 +11,7 @@ mengirim apa pun sendiri.
 
 ## Yang Anda perlukan
 
-- Windows 10 atau 11, dan NVDA 2026.3 atau lebih baru.
+- Windows 10 atau 11, dan NVDA 2025.1 atau lebih baru, baik NVDA 32-bit tahun 2025 maupun yang 64-bit.
 - Salah satu browser ini terpasang, versi 120 atau lebih baru: Brave, Google Chrome, Chromium,
   Vivaldi, Opera, atau Microsoft Edge. Anda tidak perlu memakainya sendiri; add-on hanya meminjamnya.
 - WhatsApp di ponsel Anda, untuk menautkan komputer ini sekali, seperti WhatsApp Web.
@@ -68,7 +68,8 @@ atau tidak memakai WhatsApp di ponsel sekitar 14 hari, seperti semua perangkat t
 | NVDA+Alt+M | Di mana saja | Mematikan atau menyalakan mikrofon saat panggilan. |
 | NVDA+Alt+Backspace | Di mana saja | Menutup WhatsApp sepenuhnya, setelah menjelaskan artinya: tidak ada pesan atau panggilan sampai dibuka lagi. |
 | Ctrl+/ | Jendela | Semua pintasan keyboard, per bagian. |
-| Escape | Jendela | Kembali ke daftar chat, atau menutup jendela. WhatsApp tetap berjalan. |
+| Escape | Jendela | Menutup chat yang terbuka, atau menutup jendela. WhatsApp tetap berjalan. |
+| Ctrl+W | Jendela | Menutup chat yang terbuka. Daftar chat tetap ada di sampingnya. |
 
 Lima tombol yang bekerja di mana saja (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H, NVDA+Alt+M, dan
 NVDA+Alt+Backspace) bisa diganti di dialog Input Gestures NVDA, kategori WhatsApp Access. Tombol di dalam jendela WhatsApp tidak
@@ -82,6 +83,11 @@ Jendela punya bagian, seperti bilah samping WhatsApp: **Chat** (Ctrl+1), **Statu
 berikutnya dan sebelumnya; di dalam chat, keduanya pindah ke chat berikutnya dan sebelumnya. Bagian ini bukan tab: tekan Tab melewati kontrol sebuah bagian untuk
 sampai ke daftar **Bagian**, yang menyebut bagian mana yang sedang dibuka; pilih yang lain dengan
 panah lalu tekan Enter.
+
+Seperti WhatsApp di komputer, chat yang dibuka ada di samping daftar chat, dan daftar chat tetap ada.
+Tab berjalan di dalam chat, dari nama dan tombolnya ke pesan, kotak pesan, dan tombol voice note,
+lalu lanjut ke daftar chat. **Escape** atau **Ctrl+W** menutup chat. Selama chat terbuka, judul
+jendela adalah namanya, misalnya "Budi - WhatsApp".
 
 Selama jendela ada di depan, Anda online bagi kontak Anda, seperti di WhatsApp Web. Saat Anda pindah
 ke program lain atau menutup jendela, Anda offline lagi; WhatsApp tetap berjalan di belakang untuk
@@ -120,7 +126,6 @@ pesan baru dan panggilan.
 - info kontak atau grup, cari di chat (Ctrl+F), pilih pesan;
 - pesan yang disematkan, media, tautan, dan dokumen, dan di grup sebutan yang belum dibaca
   (Ctrl+Shift+M);
-- **Kirim**: polling, kartu kontak, salah satu stiker Anda, atau acara di grup;
 - di grup, memulai panggilan suara grup atau bergabung ke panggilan yang sedang berlangsung;
 - notifikasi untuk chat ini, arsipkan, bisukan, sematkan, tandai sudah atau belum dibaca, favorit
   (kalau akun Anda punya), dan pesan sementara (mati, 24 jam, 7 hari, 90 hari);
@@ -140,9 +145,11 @@ pesan baru dan panggilan.
   dipilih tebal, miring, atau dicoret, seperti di WhatsApp; ditekan lagi, formatnya dilepas. Pesan
   dibacakan tanpa tanda formatnya; Alt+C menampilkannya seperti yang ditulis.
 - Untuk membalas satu pesan, pilih pesannya lalu tekan **Alt+R**; Escape membatalkan balasan.
-- Untuk mengirim file, tekan **Alt+A** untuk memilihnya, atau salin di File Explorer lalu tekan
-  **Ctrl+V** di kotak pesan. Foto dan video dikirim sebagai foto dan video, audio sebagai audio,
-  selain itu sebagai dokumen. Yang Anda ketik menjadi keterangannya.
+- **Lampirkan** (Alt+A) membuka menu lampiran seperti di WhatsApp: **Dokumen**, **Foto dan video**,
+  **Audio**, **Kontak**, **Polling**, di grup **Acara**, dan **Stiker**. File yang dipilih lewat
+  Dokumen dikirim sebagai dokumen, termasuk foto; lewat yang lain dikirim sebagai foto, video, atau
+  audio. Anda juga bisa menyalin file di File Explorer lalu menekan **Ctrl+V** di kotak pesan. Yang
+  Anda ketik menjadi keterangannya.
 - Selama Anda menulis, lawan bicara melihat "mengetik…", seperti di WhatsApp.
 - **Menerjemahkan**, hanya saat Anda minta: **Ctrl+T** di sebuah pesan membacakannya dalam bahasa Anda
   (tekan dua kali untuk menampilkan terjemahannya dan membacanya baris demi baris). **Ctrl+T** di kotak
@@ -304,6 +311,13 @@ add-on menampilkan apa yang baru dan menawarkan **Unduh dan pasang**; NVDA memas
 dimulai ulang. **Nanti saja** menanyakan lagi keesokan harinya. Anda juga bisa memeriksa sekarang:
 pengaturan add-on, **Periksa pembaruan sekarang**. File-nya dicocokkan dengan checksum dari GitHub
 sebelum dipasang, dan add-on tidak mengirim apa pun tentang Anda.
+
+Kadang WhatsApp Web berubah sehingga versi add-on yang lama tidak bisa dipakai lagi. Versi barunya
+lalu menjadi **update wajib**: setiap kali NVDA menyala, walaupun pemeriksaan harian dimatikan,
+add-on mencarinya, dan kalau ada, WhatsApp ditutup (kecuali saat panggilan, yang tetap berjalan) dan
+tetap tertutup sampai update dipasang. NVDA+Shift+W menawarkan update itu lagi. Pemeriksaan ini
+hanya meminta daftar rilis dari GitHub; seperti saat membuka halaman web mana pun, GitHub melihat
+alamat internet komputer Anda.
 
 ## Memakai browser Anda sendiri
 

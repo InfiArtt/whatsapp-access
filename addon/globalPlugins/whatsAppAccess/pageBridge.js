@@ -159,11 +159,14 @@
 	}
 
 	// A person's name as WhatsApp shows it: the name the user saved, else a business name WhatsApp has
-	// verified, else the phone number. The name people give themselves only follows the number after "~",
-	// as in WhatsApp, so a stranger calling themselves "Mom" or "Bank" is not taken for a saved contact.
+	// verified, else "~" and the name people give themselves, so a stranger calling themselves "Mom" or
+	// "Bank" is not taken for a saved contact. The phone number comes before "~" when the user wants it, as
+	// in WhatsApp; someone with no name of their own is always their number.
 	// (Contacts no longer have formattedName; WhatsApp works it out in WAWebFrontendContactGetters.)
-	// pushname is the name a message came with, for when the contact has none.
-	function personName(contact, pushname) {
+	// pushname is the name a message came with, for when the contact has none. Unless plain is set, a
+	// name people gave themselves ends in words saying they are not a contact: NVDA reads "~" only at its
+	// higher punctuation levels, and "~Mom" would otherwise sound like a contact saved as "Mom".
+	function personName(contact, pushname, plain) {
 		if (!contact) {
 			return null;
 		}
@@ -196,10 +199,25 @@
 			own = own || text(c.verifiedName);
 		}
 		const number = phone && phone.user ? "+" + phone.user : "";
-		if (number) {
-			return own ? number + " ~" + own : number;
+		if (own) {
+			// The number before "~" is the user's choice.
+			const name = showNumbers && number ? number + " ~" + own : "~" + own;
+			return plain || !notContact ? name : name + " (" + notContact + ")";
 		}
-		return own ? "~" + own : null;
+		return number || null;
+	}
+
+	// Whether people outside the contacts are named with their phone number before "~" and their name.
+	let showNumbers = false;
+	// The words after a name people gave themselves, in the user's language, such as "not a contact".
+	let notContact = "";
+
+	function setShowNumbers(on, notContactWords) {
+		showNumbers = !!on;
+		if (typeof notContactWords === "string") {
+			notContact = notContactWords.trim();
+		}
+		return showNumbers;
 	}
 
 	// Mentions arrive as "@" and a number; show the person's name instead.
@@ -491,6 +509,8 @@
 					id: p.id.toString(),
 					// Not in the contacts: their phone number and "~" their own name, as WhatsApp shows it, not the hidden id.
 					name: contactName(p.id),
+					// What an @mention writes in the message box: the name without "not a contact".
+					mention: personName(contactOf(p.id), "", true) || String(p.id.user || p.id),
 					pushname: (contact && contact.pushname) || "",
 					isAdmin: !!(p.isAdmin || p.isSuperAdmin),
 					isMe: myIds.has(p.id.toString()) || !!(contact && contact.isMe),
@@ -1496,7 +1516,15 @@
 
 	async function sendContacts(chatId, contactIds) {
 		await req("WAWebAttachVcardsFlowLoadable").requireBundle();
-		await settled(req("WAWebSendContactsAction")({ chat: getChat(chatId), contacts: contactsOf(contactIds) }));
+		const contacts = contactsOf(contactIds);
+		// As WhatsApp's own attach menu sends them: each card with its phone number and username.
+		await settled(
+			req("WAWebSendContactsAction")({
+				chat: getChat(chatId),
+				contacts: contacts,
+				options: contacts.map(() => ({ includePhoneNumber: true, includeUsername: true })),
+			})
+		);
 		return true;
 	}
 
@@ -3558,6 +3586,7 @@
 		pauseRecording: pauseRecording,
 		participants: participants,
 		quietNotifications: quietNotifications,
+		setShowNumbers: setShowNumbers,
 		heartbeat: heartbeat,
 		presence: presence,
 		callState: callState,

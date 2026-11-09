@@ -10,7 +10,7 @@ record or choose, when you choose to send it. It never answers or sends anything
 
 ## What you need
 
-- Windows 10 or 11, and NVDA 2026.3 or later.
+- Windows 10 or 11, and NVDA 2025.1 or later, the 32-bit NVDA of 2025 as well as the 64-bit one.
 - One of these browsers installed, version 120 or newer: Brave, Google Chrome, Chromium, Vivaldi,
   Opera or Microsoft Edge. You don't have to use it yourself; the add-on only borrows it.
 - WhatsApp on your phone, to link this computer once, as for WhatsApp Web.
@@ -65,7 +65,8 @@ phone for about 14 days, as for every linked device.
 | NVDA+Alt+H | Anywhere | Decline a call, or end it. |
 | NVDA+Alt+M | Anywhere | Microphone off or on during a call. |
 | NVDA+Alt+Backspace | Anywhere | Close WhatsApp fully, after saying what that means: no messages or calls until you open it again. |
-| Escape | Window | Back to the chat list, or close the window. WhatsApp keeps running. |
+| Escape | Window | Close the open chat, or close the window. WhatsApp keeps running. |
+| Ctrl+W | Window | Close the open chat. The chat list stays beside it. |
 | Ctrl+/ | Window | Every keyboard shortcut, by section. |
 
 The five keys that work anywhere (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H, NVDA+Alt+M and
@@ -78,6 +79,11 @@ The window has sections, like WhatsApp's sidebar: **Chats** (Ctrl+1), **Status**
 **Communities** (Ctrl+7) and **Settings** (Ctrl+8). Ctrl+Tab and Ctrl+Shift+Tab move to the next and
 previous one; in a chat they move to the next and previous chat instead. They are not tabs: press Tab past a section's controls to reach the **Sections** list,
 which says which one is current; choose another with the arrows and press Enter.
+
+As in WhatsApp on a computer, an open chat sits beside the chat list, which stays. Tab goes through the
+chat, from its name and buttons to the messages, the message box and the voice note button, then on
+to the chat list. **Escape** or **Ctrl+W** closes the chat. While a chat is open, the window's title is
+its name, such as "Budi - WhatsApp".
 
 While the window is in front, you are online for your contacts, as with WhatsApp Web. When you switch
 to another program or close the window, you are offline again; WhatsApp keeps running in the
@@ -114,7 +120,6 @@ background for new messages and calls.
 
 - contact or group info, search in chat (Ctrl+F), select messages;
 - pinned messages, media, links and documents, and in groups unread mentions (Ctrl+Shift+M);
-- **Send**: a poll, a contact card, one of your stickers, or in a group an event;
 - in a group, start a group voice call or join the one going on;
 - notifications for this chat, archive, mute, pin, mark as read or unread, favorites (when your
   account has them), and disappearing messages (off, 24 hours, 7 days, 90 days);
@@ -132,9 +137,10 @@ background for new messages and calls.
   bold, italic or struck through, as in WhatsApp; pressed again, they take it off. Messages are read
   without the formatting marks; Alt+C shows them as written.
 - To answer one message, select it and press **Alt+R**; Escape cancels the reply.
-- To send files, press **Alt+A** to choose them, or copy them in File Explorer and press **Ctrl+V** in
-  the message box. Photos and videos go as photos and videos, audio as audio, anything else as a
-  document. What you type becomes the caption.
+- **Attach** (Alt+A) opens WhatsApp's attach menu: **Document**, **Photos and videos**, **Audio**,
+  **Contact**, **Poll**, in a group **Event**, and **Sticker**. Files chosen with Document go as
+  documents, even photos; with the others they go as photos, videos or audio. You can also copy files
+  in File Explorer and press **Ctrl+V** in the message box. What you type becomes the caption.
 - While you write, the other person sees "typing…", as in WhatsApp.
 - **Translating**, only when you ask: **Ctrl+T** on a message reads it in your language (press it twice
   to show the translation to read line by line). **Ctrl+T** in the message box puts what you wrote
@@ -287,6 +293,12 @@ it shows what is new and offers **Download and install**; NVDA installs it and a
 **Not now** asks again the next day. You can also look now: add-on settings, **Check for updates
 now**. The file is checked against GitHub's checksum before it is installed, and the add-on sends
 nothing about you.
+
+Sometimes WhatsApp Web changes so that older versions of the add-on stop working. The new version
+is then a **required update**: at every start, even with daily checks turned off, the add-on looks
+for one, and when there is one, WhatsApp closes (except during a call, which goes on) and stays
+closed until it is installed. NVDA+Shift+W offers the update again. This look asks GitHub only for
+the list of releases; as with any web page, GitHub sees your computer's internet address.
 
 ## Using your own browser
 

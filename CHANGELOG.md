@@ -3,9 +3,38 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
-## [Unreleased]
+## [0.5.0]
 
 Safer files and a safer place for your WhatsApp login.
+
+- Everything that can be sent is in the Attach button's menu, as in WhatsApp: Document, Photos and
+  videos, Audio, Contact, Poll, Event in groups, and Sticker. More options no longer has a Send menu.
+  A photo chosen with Document goes as a document.
+
+- Required updates. When WhatsApp Web changes so that older versions stop working, a release can be
+  marked required: the add-on looks for one at every start, closes WhatsApp until it is installed,
+  and offers it again on NVDA+Shift+W. A release is marked by a line of its section that begins with
+  the words "required update" (see updates.py). This look at GitHub happens even when daily update
+  checks are off, as the settings now say; it asks only for the list of releases.
+
+- An open chat now sits beside the chat list, as in WhatsApp on a computer, instead of taking its
+  place. Tab goes from the chat's last button to the chat list. Escape or the new Ctrl+W closes the
+  chat; Escape again closes the window. While a chat is open, the window is named after it, such as
+  "Budi - WhatsApp", without the phone number of someone outside your contacts.
+
+- WhatsApp Access now works with NVDA 2025.1 and later, including the 32-bit NVDA of 2025, not only
+  NVDA 2026.3. On a 32-bit NVDA, 64-bit browsers such as Brave are now found in Program Files and
+  in the registry.
+
+- In the chat you have open, a new message is read as "name: message" even when you chose to hear
+  only who messages are from. That choice now applies only to messages from other chats.
+- The message box empties as soon as you press Enter, as in WhatsApp, so you can type the next
+  message straight away. Messages typed quickly one after another go out in order, each on its own;
+  before, the next one was added to the one still being sent, and "test", "test", "test" became one
+  message saying "testtesttest". A message that cannot be sent comes back to the box.
+- A deleted message is read as "This message was deleted" once, not twice in a row.
+- When someone opens your chat and reads several of your messages at once, "read" is said once, not
+  once for each message. The same goes for "delivered".
 
 - Enter on a file opens it only when it is a picture, video, sound or document. Anyone can send a
   program named like a document, such as "invoice.pdf.exe", so the add-on no longer opens programs,
@@ -97,8 +126,11 @@ Safer, from a second check of the code:
 
 - In the mode that uses your own browser, a page at a look-alike address such as
   web.whatsapp.com.example could have been taken for WhatsApp. Only web.whatsapp.com itself is now.
-- People not in your contacts are named by their number and the name they chose, such as
-  "+62812… ~Budi", as WhatsApp shows them, so a stranger can no longer appear as "Mom" or "Bank BCA".
+- People not in your contacts are named with "~" before the name they chose and "not a contact" after
+  it, such as "~Budi (not a contact)", so a stranger can no longer appear as "Mom" or "Bank BCA". The
+  words are there because NVDA reads "~" only at its higher punctuation levels. To hear their phone
+  number too, such as "+62812… ~Budi (not a contact)", check "Show the phone number of people who are
+  not in your contacts" in the settings.
 - A photo, video or voice message is no longer read whole before its size is checked, so one pointing at
   a huge file can't make the hidden browser run out of memory.
 - A message is never sent twice when WhatsApp reloads while it sends.

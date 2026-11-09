@@ -70,6 +70,8 @@ def _formatName(kind: str) -> str:
 
 # Delivered, read and played are read out for messages sent this long ago at most.
 ACK_ANNOUNCE_SECONDS = 15 * 60
+# When someone opens the chat, every unread message the user sent turns read at once; they are said as one.
+ACK_GROUP_MS = 700
 
 
 PLAYBACK_SPEEDS = ("1", "1.5", "2")
@@ -234,6 +236,8 @@ class ChatWindow(wx.Dialog):
 		"""Changes whenever a voice note starts or is thrown away, so late answers about an older one are
 		ignored."""
 		self._sendingIn: set[str] = set()
+		# Messages written with Enter while one before them was still being sent, by chat.
+		self._textQueue: dict[str, list[tuple[str, str, list[dict]]]] = {}
 		"""Chats with a message, files or a voice note on the way, so a second key press sends nothing."""
 		self._loadingEarlier = False
 		self._playingId: str | None = None
@@ -327,12 +331,19 @@ class ChatWindow(wx.Dialog):
 		sectionsSizer.Add(self.sectionList, 0, wx.EXPAND)
 		self.sectionsPanel.SetSizer(sectionsSizer)
 		self._updateSections()
-		main.Add(self.tabs, 1, wx.EXPAND | wx.ALL, 6)
-		main.Add(self.conversationPanel, 1, wx.EXPAND | wx.ALL, 6)
-		main.Add(self.sectionsPanel, 0, wx.EXPAND | wx.ALL, 6)
+		# As in WhatsApp's desktop app, the open chat is beside the sections, which stay: chats on the left,
+		# the conversation on the right. Tab goes through the conversation, then on to the chat list.
+		side = wx.BoxSizer(wx.VERTICAL)
+		side.Add(self.tabs, 1, wx.EXPAND | wx.ALL, 6)
+		side.Add(self.sectionsPanel, 0, wx.EXPAND | wx.ALL, 6)
+		body = wx.BoxSizer(wx.HORIZONTAL)
+		body.Add(side, 2, wx.EXPAND)
+		body.Add(self.conversationPanel, 3, wx.EXPAND | wx.ALL, 6)
+		main.Add(body, 1, wx.EXPAND)
+		self.conversationPanel.MoveBeforeInTabOrder(self.tabs)
 		self.conversationPanel.Hide()
 		self.SetSizer(main)
-		self.SetSize(wx.Size(700, 600))
+		self.SetSize(wx.Size(1000, 650))
 		self.CentreOnScreen()
 		self.Bind(wx.EVT_CHAR_HOOK, self._onCharHook)
 		self.Bind(wx.EVT_CLOSE, self._onClose)
@@ -364,6 +375,8 @@ class ChatWindow(wx.Dialog):
 		self.chatList.Bind(wx.EVT_KEY_DOWN, self._onChatListKey)
 		self.chatList.Bind(wx.EVT_CONTEXT_MENU, self._onChatMenu)
 		sizer.Add(self.chatList, 1, wx.EXPAND | wx.BOTTOM, 6)
+		# The list first, then the search and filter: Tab from an open chat's last button reaches the chats.
+		self.chatList.MoveBeforeInTabOrder(self.searchBox)
 		# Translators: A button that closes the add-on's window. WhatsApp Web stays open.
 		closeButton = wx.Button(panel, wx.ID_CLOSE, label=_("Close"))
 		closeButton.Bind(wx.EVT_BUTTON, lambda evt: self.Close())
@@ -731,10 +744,8 @@ class ChatWindow(wx.Dialog):
 	) = range(8)
 
 	def showTab(self, index: int) -> None:
-		"""Ctrl+1 to Ctrl+8: Chats, Status, Calls, Archived, Starred, Channels, Communities or Settings, leaving the
-		open conversation if needed."""
-		if self.conversationPanel.IsShown():
-			self.showChats()
+		"""Ctrl+1 to Ctrl+8: Chats, Status, Calls, Archived, Starred, Channels, Communities or Settings. An
+		open conversation stays open beside it."""
 		self.tabs.ChangeSelection(index)
 		self._updateSections()
 		self._loadTab(index)
@@ -883,6 +894,8 @@ class ChatWindow(wx.Dialog):
 		self._unreadAtOpen = 0
 		self._firstUnreadId: str | None = None
 		self._seenTimer: wx.CallLater | None = None
+		self._ackTimer: wx.CallLater | None = None
+		self._acksToSay: list[int] = []
 		# Translators: The label of the list of messages in a conversation.
 		sizer.Add(wx.StaticText(panel, label=_("&Messages:")))
 		self.messageList = wx.ListBox(panel, style=wx.LB_SINGLE)
@@ -917,8 +930,10 @@ class ChatWindow(wx.Dialog):
 		)
 		# Translators: A button that opens a file picker to send photos, videos, audio or documents.
 		self.attachButton = wx.Button(panel, label=_("&Attach"))
-		self.attachButton.Bind(wx.EVT_BUTTON, lambda evt: self._chooseFiles())
+		self.attachButton.Bind(wx.EVT_BUTTON, lambda evt: self._attachMenu())
 		self._attachments: list[str] = []
+		# Attached with Document: sent as files even when they are photos or videos, as in WhatsApp.
+		self._asDocuments: set[str] = set()
 		# Translators: A button that sends what the user wrote.
 		self.sendButton = wx.Button(panel, label=_("&Send"))
 		self.sendButton.Bind(wx.EVT_BUTTON, lambda evt: self._sendText())
@@ -937,9 +952,6 @@ class ChatWindow(wx.Dialog):
 		self.pauseButton = wx.Button(panel, label="")
 		self.pauseButton.Bind(wx.EVT_BUTTON, lambda evt: self._togglePause())
 		self._paused = False
-		# Translators: A button that goes back from a conversation to the list of chats.
-		backButton = wx.Button(panel, label=_("&Back to chats"))
-		backButton.Bind(wx.EVT_BUTTON, lambda evt: self.showChats())
 		for button in (
 			self.cancelReplyButton,
 			self.attachButton,
@@ -949,7 +961,6 @@ class ChatWindow(wx.Dialog):
 			self.sendVoiceButton,
 			self.listenButton,
 			self.discardButton,
-			backButton,
 		):
 			buttons.Add(button, 0, wx.RIGHT, 6)
 		sizer.Add(buttons)
@@ -1047,8 +1058,9 @@ class ChatWindow(wx.Dialog):
 
 	def _setFilter(self, index: int) -> None:
 		"""Alt+1 to Alt+4: show all chats, unread ones, groups or favorites, as WhatsApp's tabs."""
-		if self.conversationPanel.IsShown():
-			self.showChats()
+		if self.tabs.GetSelection() != self.TAB_CHATS:
+			self.tabs.ChangeSelection(self.TAB_CHATS)
+			self._updateSections()
 		self.filterChoice.SetSelection(index)
 		self._showChats()
 		self.chatList.SetFocus()
@@ -1060,7 +1072,7 @@ class ChatWindow(wx.Dialog):
 	def _nextUnread(self) -> None:
 		"""Alt+U. In a chat: go to its first unread message, where WhatsApp shows "5 unread messages".
 		In the chat list: select the next chat with unread messages, without opening it."""
-		if self.conversationPanel.IsShown():
+		if self._focusInConversation():
 			self._goToFirstUnread()
 			return
 		unread = [index for index, c in enumerate(self._shownChats) if c.get("unread")]
@@ -1198,7 +1210,19 @@ class ChatWindow(wx.Dialog):
 			self._drafts.pop(self.chat["id"], None)
 		self._stopTyping()
 
+	def _focusInConversation(self) -> bool:
+		"""Whether a chat is open and the focus is in it, not in the chat list or another section beside it."""
+		if self.chat is None or not self.conversationPanel.IsShown():
+			return False
+		focus = wx.Window.FindFocus()
+		while focus is not None:
+			if focus is self.conversationPanel:
+				return True
+			focus = focus.GetParent()
+		return False
+
 	def showChats(self) -> None:
+		"""Close the open chat (Escape or Ctrl+W); the section beside it, usually the chat list, gets the focus."""
 		self._keepDraft()
 		# A voice note belongs to the chat it was recorded in; one left behind could be sent to the next.
 		if self._recording or self._hasRecording:
@@ -1210,8 +1234,8 @@ class ChatWindow(wx.Dialog):
 		self.chat = None
 		self._messages = []
 		self.conversationPanel.Hide()
-		self.tabs.Show()
-		self.sectionsPanel.Show()
+		# Translators: The title of the add-on's window.
+		self.SetTitle(_("WhatsApp"))
 		self.Layout()
 		self._focusTab(self.tabs.GetSelection())
 		self.refreshChats()
@@ -1244,14 +1268,15 @@ class ChatWindow(wx.Dialog):
 		self._participants = []
 		self._mentions = {}
 		self._attachments = []
+		self._asDocuments = set()
 		draft = self._drafts.get(chat["id"], "")
 		if draft:
 			self.composeBox.ChangeValue(draft)
 			self.composeBox.SetInsertionPointEnd()
 		self._closeMentions()
 		self._closeEmoji()
-		self.tabs.Hide()
-		self.sectionsPanel.Hide()
+		# Translators: The add-on's window title while a chat is open, such as "Budi - WhatsApp".
+		self.SetTitle(_("{chat} - WhatsApp").format(chat=messageText.windowTitleName(chat.get("title", ""))))
 		self.conversationPanel.Show()
 		self.Layout()
 		chatId = chat["id"]
@@ -1896,40 +1921,95 @@ class ChatWindow(wx.Dialog):
 		if not text.strip() or not self.chat:
 			return
 		chatId = self.chat["id"]
-		if chatId in self._sendingIn:
-			# Enter pressed again before WhatsApp answered: the message is already on its way.
-			return
 		quotedId = self._replyTo["id"] if self._replyTo else ""
 		mentions = [{"id": pid, "name": name} for name, pid in self._mentions.items() if f"@{name}" in text]
+		# The box empties at once, as in WhatsApp, so the next message can be typed while this one goes.
+		# Each message is sent once, after the ones before it; one that fails comes back to the box.
+		self.composeBox.Clear()
+		self._drafts.pop(chatId, None)
+		self._mentions = {}
+		if self._replyTo is not None:
+			self._cancelReply(announce=False)
+		self._textQueue.setdefault(chatId, []).append((text, quotedId, mentions))
+		if chatId not in self._sendingIn:
+			self._sendNextText(chatId)
+
+	def _sendNextText(self, chatId: str) -> None:
+		queue = self._textQueue.get(chatId)
+		if not queue:
+			self._textQueue.pop(chatId, None)
+			self._sendingIn.discard(chatId)
+			return
+		text, quotedId, mentions = queue.pop(0)
 		self._sendingIn.add(chatId)
 
 		def sent(result: Any) -> None:
-			self._sendingIn.discard(chatId)
-			self._drafts.pop(chatId, None)
-			# The user may have moved to another chat, or typed more, while it was sent: leave that alone.
-			if self.chat and self.chat["id"] == chatId:
-				if self.composeBox.GetValue() == text:
-					self.composeBox.Clear()
-				self._mentions = {}
-				if self._replyTo is not None and self._replyTo.get("id") == quotedId:
-					self._cancelReply(announce=False)
 			sounds.play(sounds.SENT)
 			# Translators: Reported after a message was sent.
 			ui.message(_("Sent"))
+			self._sendNextText(chatId)
 
-		self._run(
-			lambda: self.session.sendText(chatId, text, quotedId, mentions),
-			sent,
-			lambda error: self._sendingIn.discard(chatId),
-		)
+		def failed(error: Exception) -> None:
+			self._sendingIn.discard(chatId)
+			# This one and those waiting after it go back to the box, in order, ahead of anything typed since.
+			unsent = [text, *(waiting[0] for waiting in self._textQueue.pop(chatId, []))]
+			if self.chat and self.chat["id"] == chatId:
+				typed = self.composeBox.GetValue()
+				self.composeBox.SetValue("\n".join([*unsent, typed] if typed else unsent))
+				self.composeBox.SetInsertionPointEnd()
+			else:
+				typed = self._drafts.get(chatId, "")
+				self._drafts[chatId] = "\n".join([*unsent, typed] if typed else unsent)
+
+		self._run(lambda: self.session.sendText(chatId, text, quotedId, mentions), sent, failed)
 
 	# Attaching files ------------------------------------------------------------------------------------
 
-	def _chooseFiles(self) -> None:
+	def _attachMenu(self) -> None:
+		"""The Attach button: everything that can be sent besides text and voice notes, as WhatsApp's
+		attach menu lists it. Events are for groups, as in WhatsApp."""
+		if not self.chat or self.chat.get("isChannel"):
+			self._chooseFiles("all")
+			return
+		menu = wx.Menu()
+		items = [
+			# Translators: An item in the Attach menu: any file, sent as a document even if it is a photo.
+			(_("&Document…"), lambda: self._chooseFiles("document")),
+			# Translators: An item in the Attach menu: photos and videos, sent to be seen in the chat.
+			(_("&Photos and videos…"), lambda: self._chooseFiles("media")),
+			# Translators: An item in the Attach menu: sound files, sent to be played in the chat.
+			(_("&Audio…"), lambda: self._chooseFiles("audio")),
+			# Translators: An item in the Attach menu: sends a contact card.
+			(_("&Contact…"), self._sendContact),
+			# Translators: An item in the Attach menu: makes a poll.
+			(_("P&oll…"), self._createPoll),
+		]
+		if self.chat.get("isGroup"):
+			# Translators: An item in the Attach menu of a group: makes an event.
+			items.append((_("&Event…"), self._createEvent))
+		# Translators: An item in the Attach menu: sends one of the user's stickers.
+		items.append((_("&Sticker…"), self._sendSticker))
+		for label, handler in items:
+			item = menu.Append(wx.ID_ANY, label)
+			menu.Bind(wx.EVT_MENU, lambda evt, handler=handler: handler(), item)
+		self.attachButton.PopupMenu(menu)
+		menu.Destroy()
+
+	def _chooseFiles(self, kind: str) -> None:
+		"""kind: "document", "media", "audio", or "all" for a channel, where only files can be sent."""
+		wildcards = {
+			# Translators: The kind of files the file picker shows when attaching photos and videos.
+			"media": _("Photos and videos")
+			+ "|"
+			+ ";".join(f"*{e}" for e in sorted(messageText.PHOTO_EXTENSIONS | messageText.VIDEO_EXTENSIONS)),
+			# Translators: The kind of files the file picker shows when attaching audio.
+			"audio": _("Audio") + "|" + ";".join(f"*{e}" for e in sorted(messageText.AUDIO_EXTENSIONS)),
+		}
 		dialog = wx.FileDialog(
 			self,
 			# Translators: The title of the file picker for sending files.
 			_("Attach files"),
+			wildcard=wildcards.get(kind, "*.*|*.*"),
 			style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_FILE_MUST_EXIST,
 		)
 		try:
@@ -1938,7 +2018,14 @@ class ChatWindow(wx.Dialog):
 			paths = dialog.GetPaths()
 		finally:
 			dialog.Destroy()
+		if kind == "document":
+			self._asDocuments.update(paths)
+		else:
+			self._asDocuments.difference_update(paths)
 		self._attach(paths)
+
+	def _attachedKind(self, path: str) -> str:
+		return "document" if path in self._asDocuments else messageText.fileKind(path)
 
 	def _pasteFiles(self) -> bool:
 		"""Ctrl+V in the message box: files copied in File Explorer are attached. Returns whether it did."""
@@ -1964,7 +2051,7 @@ class ChatWindow(wx.Dialog):
 		self._updateButtons()
 		self.composeBox.SetFocus()
 		parts = [
-			f"{os.path.basename(p)}, {messageText.fileKindName(messageText.fileKind(p))}"
+			f"{os.path.basename(p)}, {messageText.fileKindName(self._attachedKind(p))}"
 			for p in self._attachments
 		]
 		ui.message(
@@ -1978,6 +2065,7 @@ class ChatWindow(wx.Dialog):
 
 	def _clearAttachments(self) -> None:
 		self._attachments = []
+		self._asDocuments = set()
 		self._updateButtons()
 		sounds.play(sounds.DISCARD)
 		# Translators: Read out when the user removes the attached files before sending.
@@ -1998,7 +2086,7 @@ class ChatWindow(wx.Dialog):
 
 		def send() -> int:
 			for index, path in enumerate(paths):
-				kind = messageText.fileKind(path)
+				kind = self._attachedKind(path)
 				mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
 				# WhatsApp puts the caption on the first file and the reply on it too.
 				first = index == 0
@@ -2014,6 +2102,7 @@ class ChatWindow(wx.Dialog):
 			if not sentPaths or not self.chat or self.chat["id"] != chatId:
 				return
 			self._attachments = [p for p in self._attachments if p not in sentPaths]
+			self._asDocuments.difference_update(sentPaths)
 			if self.composeBox.GetValue() == rawCaption:
 				self.composeBox.Clear()
 			if self._replyTo is not None and self._replyTo.get("id") == quotedId:
@@ -2188,8 +2277,8 @@ class ChatWindow(wx.Dialog):
 		before, after = text[:position], text[position:]
 		match = _MENTION_PATTERN.search(before)
 		start = match.end() - len(match.group(1)) - 1 if match else position
-		inserted = f"@{person['name']} "
-		self._mentions[person["name"]] = person["id"]
+		inserted = f"@{_mentionText(person)} "
+		self._mentions[_mentionText(person)] = person["id"]
 		self._closeMentions()
 		self.composeBox.ChangeValue(before[:start] + inserted + after)
 		self.composeBox.SetInsertionPoint(start + len(inserted))
@@ -2995,18 +3084,6 @@ class ChatWindow(wx.Dialog):
 		if isGroup:
 			# Translators: An item in a group's More options menu: messages that mention the user, not read yet.
 			add(menu, _("&Unread mentions\tCtrl+Shift+M"), self._showMentions)
-		sendMenu = wx.Menu()
-		# Translators: An item in the Send menu: makes a poll.
-		add(sendMenu, _("&Poll\u2026"), self._createPoll)
-		# Translators: An item in the Send menu: sends a contact card.
-		add(sendMenu, _("&Contact\u2026"), self._sendContact)
-		# Translators: An item in the Send menu: sends one of the user's stickers.
-		add(sendMenu, _("&Sticker\u2026"), self._sendSticker)
-		if isGroup:
-			# Translators: An item in the Send menu: makes an event in a group.
-			add(sendMenu, _("&Event\u2026"), self._createEvent)
-		# Translators: An item in a chat's More options menu: sends a poll, contact, sticker or event.
-		menu.AppendSubMenu(sendMenu, _("S&end"))
 		if isGroup and ongoingCall:
 			# Translators: An item in a group's More options menu: joins the call going on in the group.
 			add(
@@ -3271,9 +3348,9 @@ class ChatWindow(wx.Dialog):
 			question, options, single = dialog.values()
 		finally:
 			dialog.Destroy()
-		if not question or len(options) < 2:
-			# Translators: Reported when a poll has no question or fewer than two options.
-			ui.message(_("A poll needs a question and at least two options"))
+		problem = messageText.pollProblem(question, options)
+		if problem:
+			ui.message(problem)
 			return
 		chatId = self.chat["id"]
 
@@ -3789,8 +3866,22 @@ class ChatWindow(wx.Dialog):
 				self._refreshMessageLine(message)
 				recent = time.time() - (message.get("t") or 0) < ACK_ANNOUNCE_SECONDS
 				if ack > before and recent and messageText.ackText(ack):
-					ui.message(messageText.ackText(ack))
+					self._sayAckSoon(ack)
 				return
+
+	def _sayAckSoon(self, ack: int) -> None:
+		"""Say a message's new state, once for all those that change together, such as five messages read."""
+		self._acksToSay.append(ack)
+		if self._ackTimer is not None:
+			self._ackTimer.Stop()
+		self._ackTimer = wx.CallLater(ACK_GROUP_MS, self._sayAcks)
+
+	def _sayAcks(self) -> None:
+		self._ackTimer = None
+		acks, self._acksToSay = self._acksToSay, []
+		text = messageText.acksText(acks)
+		if text:
+			ui.message(text)
 
 	def _nextSpeed(self) -> None:
 		"""Ctrl+S: voice messages play at 1, 1.5 or 2 times, as in WhatsApp. Kept for next time."""
@@ -4216,8 +4307,21 @@ class ChatWindow(wx.Dialog):
 		key = evt.GetKeyCode()
 		if volumes.handleKey(key, evt.GetModifiers(), self.session):
 			return
-		inConversation = self.conversationPanel.IsShown()
+		# A chat's own keys work where its controls are; the chat list beside it keeps its own.
+		inConversation = self._focusInConversation()
+		chatOpen = self.chat is not None and self.conversationPanel.IsShown()
 		focus = wx.Window.FindFocus()
+		if key == ord("W") and evt.GetModifiers() == wx.MOD_CONTROL:
+			if chatOpen and (self._recording or self._hasRecording):
+				# Closing the chat would throw the voice note away; it says what to do instead, as Escape does.
+				sounds.play(sounds.DISCARD)
+				ui.message(_("Send the voice note with Ctrl+Shift+R or throw it away with Ctrl+D first"))
+			elif chatOpen:
+				self.showChats()
+			else:
+				# Translators: Said when the user presses Ctrl+W, which closes a chat, while none is open.
+				ui.message(_("No chat open"))
+			return
 		if focus in (self.chatList, self.archivedList, self.messageList) and self._handleSelectionKey(
 			focus, evt
 		):
@@ -4236,7 +4340,7 @@ class ChatWindow(wx.Dialog):
 				self._stopPlayback()
 			elif self._recording:
 				self._discardRecording()
-			elif inConversation and self._hasRecording:
+			elif chatOpen and self._hasRecording:
 				# A recorded note is not thrown away by Escape, as leaving the chat would: it says what to do.
 				self._run(self.session.stopAudio, onError=lambda e: None)
 				sounds.play(sounds.DISCARD)
@@ -4245,7 +4349,8 @@ class ChatWindow(wx.Dialog):
 				self._cancelEdit()
 			elif inConversation and self._replyTo is not None:
 				self._cancelReply()
-			elif inConversation:
+			elif chatOpen:
+				# From the chat or from the list beside it: the chat closes first, the window only after.
 				self.showChats()
 			else:
 				self.Close()
@@ -4405,7 +4510,15 @@ class ChatWindow(wx.Dialog):
 			else:
 				self._reactMenu()
 			return
-		if inConversation and key in (ord("R"), ord("D"), ord("T"), ord("S")):
+		# A voice note under way can be stopped, sent or thrown away from the chat list beside it too.
+		hasVoiceNote = chatOpen and (self._recording or self._hasRecording)
+		if (inConversation or hasVoiceNote) and key in (ord("R"), ord("D"), ord("T"), ord("S")):
+			if not inConversation and modifiers not in (wx.MOD_CONTROL, wx.MOD_CONTROL | wx.MOD_SHIFT):
+				evt.Skip()
+				return
+			if not inConversation and modifiers == wx.MOD_CONTROL and key in (ord("T"), ord("S")):
+				evt.Skip()
+				return
 			if modifiers == wx.MOD_ALT and key == ord("R"):
 				self._startReply()
 				return
@@ -4437,6 +4550,9 @@ class ChatWindow(wx.Dialog):
 		if self._recording or self._hasRecording:
 			self._run(self.session.cancelRecording)
 		self._stopPlayback()
+		if self._ackTimer is not None:
+			self._ackTimer.Stop()
+			self._ackTimer = None
 		# Offline again, as WhatsApp Web is when it is no longer in front.
 		if self._online:
 			self._online = False
@@ -4449,8 +4565,15 @@ def _nameMatches(person: dict, typed: str) -> bool:
 	"""Whether any word of the person's contact name or WhatsApp name starts with what was typed."""
 	if not typed:
 		return True
-	words = f"{person.get('name', '')} {person.get('pushname', '')}".lower().split()
-	return any(word.startswith(typed) for word in words) or person.get("name", "").lower().startswith(typed)
+	# The name as a mention writes it, without the words saying someone is not a contact.
+	name = _mentionText(person)
+	words = f"{name} {person.get('pushname', '')}".lower().split()
+	return any(word.startswith(typed) for word in words) or name.lower().startswith(typed)
+
+
+def _mentionText(person: dict) -> str:
+	"""The name an @mention of this person writes in the message box."""
+	return person.get("mention") or person.get("name", "")
 
 
 class ContactInfoDialog(wx.Dialog):

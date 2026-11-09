@@ -80,6 +80,8 @@ def content(message: dict) -> str:
 	elif kind == "revoked":
 		# Translators: In place of a message its sender deleted for everyone.
 		label = _("This message was deleted")
+		# WhatsApp may still give the words it shows in its place, which would only say this again.
+		text = caption = ""
 	elif kind == "call_log":
 		# Translators: A voice or video call shown in a chat.
 		label = _("Call")
@@ -183,6 +185,56 @@ def ackText(ack: int | None) -> str:
 	return _("played")
 
 
+def windowTitleName(title: str) -> str:
+	"""A chat's name for the window title: someone outside the contacts by the name they chose, without
+	the phone number in front, such as "~Budi" for "+62812… ~Budi". A number alone stays."""
+	number, separator, name = title.partition(" ~")
+	if separator and number.startswith("+") and name:
+		return "~" + name
+	return title
+
+
+# WhatsApp's own limits for a poll, as its poll window enforces them.
+POLL_MAX_OPTIONS = 12
+POLL_QUESTION_CHARS = 255
+POLL_OPTION_CHARS = 100
+
+
+def pollProblem(question: str, options: list[str]) -> str:
+	"""Why WhatsApp would not take this poll, in words to say; "" when it would."""
+	if not question or len(options) < 2:
+		# Translators: Reported when a poll has no question or fewer than two options.
+		return _("A poll needs a question and at least two options")
+	if len(options) > POLL_MAX_OPTIONS:
+		# Translators: Reported when a poll has more options than WhatsApp allows.
+		return _("A poll can have at most {count} options").format(count=POLL_MAX_OPTIONS)
+	if len(question) > POLL_QUESTION_CHARS:
+		# Translators: Reported when a poll's question is longer than WhatsApp allows.
+		return _("The question can be at most {count} characters").format(count=POLL_QUESTION_CHARS)
+	for option in options:
+		if len(option) > POLL_OPTION_CHARS:
+			# Translators: Reported when one of a poll's options is longer than WhatsApp allows.
+			return _("Each option can be at most {count} characters: {option}").format(
+				count=POLL_OPTION_CHARS, option=option[:30]
+			)
+	seen: set[str] = set()
+	for option in options:
+		if option.casefold() in seen:
+			# Translators: Reported when two of a poll's options are the same, which WhatsApp does not allow.
+			return _("Two options are the same: {option}").format(option=option)
+		seen.add(option.casefold())
+	return ""
+
+
+def acksText(acks: list[int]) -> str:
+	"""What to say when several messages change state together: the furthest state, once.
+
+	When someone opens the chat, all the user's unread messages turn read at the same moment; "read" is
+	said once, not once a message.
+	"""
+	return ackText(max(acks)) if acks else ""
+
+
 def messageInChat(message: dict, now: float | None = None) -> str:
 	"""A message in a list from several chats: the chat's name first, unless the sender already says it."""
 	line = messageLine(message, True, now)
@@ -282,17 +334,18 @@ def announcement(
 ) -> str:
 	"""What to say when a message arrives, in place of WhatsApp's notification.
 
-	In the open chat it is just the message, as in the list; elsewhere it says where it came from.
-	Without content, only who it is from is said.
+	In the open chat it is just the message, as in the list, even when the user chose not to hear what
+	messages say: that choice is for messages from elsewhere. Elsewhere it says where it came from, and
+	without content only who it is from.
 	"""
+	if inOpenChat:
+		return f"{sender(message)}: {content(message)}"
 	if not withContent:
 		if isGroup:
 			# Translators: Read out for a new group message when the user chose not to hear what it says.
 			return _("New message in {chat} from {sender}").format(chat=chatTitle, sender=sender(message))
 		# Translators: Read out for a new message when the user chose not to hear what it says.
 		return _("New message from {sender}").format(sender=chatTitle)
-	if inOpenChat:
-		return f"{sender(message)}: {content(message)}"
 	if isGroup:
 		# Translators: Read out when a message arrives in a group that is not open in the add-on's window.
 		return _("New message in {chat} from {sender}: {message}").format(

@@ -121,8 +121,14 @@ msgstr "&Kirim"
 
 
 
-msgid "&Back to chats"
-msgstr "Kembali ke daftar c&hat"
+msgid "{chat} - WhatsApp"
+msgstr "{chat} - WhatsApp"
+
+msgid "No chat open"
+msgstr "Tidak ada chat yang terbuka"
+
+msgid "Close the open chat; the chat list stays"
+msgstr "Tutup chat yang terbuka; daftar chat tetap ada"
 
 msgid "No earlier messages"
 msgstr "Tidak ada pesan sebelumnya"
@@ -1037,6 +1043,9 @@ msgstr "Bacakan pesan &baru:"
 msgid "Read out what new messages say, not only who they are &from"
 msgstr "&Lengkap: bacakan isi pesan baru, bukan hanya pengirimnya"
 
+msgid "Show the phone number of people who are not in your &contacts"
+msgstr "Tampilkan nomor &HP orang yang bukan kontak"
+
 msgid "Reply to status"
 msgstr "Balas status"
 
@@ -1199,8 +1208,11 @@ msgstr "Bagian:"
 msgid "&Recent calls:"
 msgstr "Panggilan &terbaru:"
 
-msgid "Check for new versions on GitHub once a day"
-msgstr "Periksa versi baru di GitHub sehari sekali"
+msgid "Check for new versions on GitHub once a day (required updates are always looked for)"
+msgstr "Periksa versi baru di GitHub sehari sekali (update wajib selalu diperiksa)"
+
+msgid "not a contact"
+msgstr "bukan kontak"
 
 msgid "Check for updates now"
 msgstr "Periksa pembaruan sekarang"
@@ -2752,3 +2764,42 @@ msgstr "Rekaman berhenti setelah 30 menit"
 #. is not opened; the user can still save it.
 msgid "The file could not be opened safely here. Save it with Alt+D instead."
 msgstr "File ini tidak bisa dibuka dengan aman di sini. Simpan dengan Alt+D saja."
+
+msgid "The update needed to use WhatsApp is on its way"
+msgstr "Update yang diperlukan untuk memakai WhatsApp sedang disiapkan"
+
+msgid "WhatsApp Web changed, and WhatsApp Access {current} no longer works with it. Install version {new} to use WhatsApp again; until then WhatsApp stays closed."
+msgstr "WhatsApp Web berubah, dan WhatsApp Access {current} tidak bisa dipakai lagi dengannya. Pasang versi {new} untuk memakai WhatsApp lagi; sampai saat itu WhatsApp tetap tertutup."
+
+msgid "&Later"
+msgstr "&Nanti"
+
+msgid "WhatsApp Access must be updated before WhatsApp can be used again"
+msgstr "WhatsApp Access harus diperbarui dulu sebelum WhatsApp bisa dipakai lagi"
+
+msgid "&Document…"
+msgstr "&Dokumen…"
+
+msgid "&Photos and videos…"
+msgstr "&Foto dan video…"
+
+msgid "&Audio…"
+msgstr "A&udio…"
+
+msgid "P&oll…"
+msgstr "P&olling…"
+
+msgid "Audio"
+msgstr "Audio"
+
+msgid "A poll can have at most {count} options"
+msgstr "Polling paling banyak punya {count} pilihan"
+
+msgid "The question can be at most {count} characters"
+msgstr "Pertanyaannya paling panjang {count} karakter"
+
+msgid "Each option can be at most {count} characters: {option}"
+msgstr "Setiap pilihan paling panjang {count} karakter: {option}"
+
+msgid "Two options are the same: {option}"
+msgstr "Ada dua pilihan yang sama: {option}"
