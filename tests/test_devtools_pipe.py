@@ -142,11 +142,9 @@ def test_the_hidden_browser_answers_on_its_pipe_and_opens_no_port(tmp_path):
         version = connection.call("Browser.getVersion")
         assert version["product"]
         assert _listeningPorts(hidden.process.pid) == []
-        process = hidden.process
-        # Closing the add-on's end is enough: the browser exits by itself.
         connection.close()
-        process.wait(timeout=20)
-        # The next start finds the pipe closed and starts a new browser.
+        # The next start finds the pipe closed and starts a new browser, closing the old one if it is still
+        # there, so this does not wait for the browser to exit by itself (see the test below).
         again = hidden.start()
         assert again.transport is not target.transport
         assert hidden.running
@@ -155,6 +153,41 @@ def test_the_hidden_browser_answers_on_its_pipe_and_opens_no_port(tmp_path):
         assert pidFile.read_text(encoding="ascii") == str(hidden.process.pid)
         hidden.stop()
         assert not pidFile.exists()
+    finally:
+        hidden.stop()
+        time.sleep(0.5)
+        shutil.rmtree(tmp_path / "profile", ignore_errors=True)
+
+
+INSTALLED_ALL = browserLauncher.findBrowsers() if sys.platform == "win32" else []
+# Measured on Brave 157, 10 runs each with a fresh profile: after its pipe closed it exited in 4 to 5 runs and
+# was still running after 30 seconds in the others, also after an explicit Browser.close. Chrome 157 exited in
+# all 10, within 2 to 6 seconds. So after an NVDA crash a Brave hidden browser can stay; the next start's
+# closeLeftovers closes it. Not strict: should Brave fix it, the test simply passes.
+BRAVE_SHUTDOWN_HANG = "Brave sometimes hangs while closing after its pipe closes, even on Browser.close"
+
+
+@pytest.mark.parametrize(
+    "browser",
+    [
+        pytest.param(
+            b,
+            id=b.key,
+            marks=[pytest.mark.xfail(reason=BRAVE_SHUTDOWN_HANG, strict=False)] if b.key == "brave" else [],
+        )
+        for b in INSTALLED_ALL
+        if b.major >= browserLauncher.MINIMUM_MAJOR_VERSION and b.key in ("brave", "chrome")
+    ],
+)
+def test_the_browser_exits_by_itself_when_its_pipe_closes(tmp_path, browser):
+    """The safety net when NVDA crashes and nothing closes the hidden browser."""
+    hidden = browserLauncher.HiddenBrowser(browser, str(tmp_path / "profile"))
+    try:
+        connection = cdp.CdpConnection.open(hidden.start())
+        connection.call("Browser.getVersion")
+        process = hidden.process
+        connection.close()
+        process.wait(timeout=20)
     finally:
         hidden.stop()
         time.sleep(0.5)

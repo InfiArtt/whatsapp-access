@@ -198,6 +198,10 @@ def errorText(error: Exception, browserName: str = "") -> str:
 	if code == "downloadTooLarge":
 		# Translators: Reported when a file in a message is too large for the add-on to download.
 		return _("This file is larger than {size} MB. Open it in WhatsApp on your phone.").format(size=detail)
+	if code == "notMarked":
+		# Translators: Reported when a file could not get the mark Windows gives files from the internet, so it
+		# is not opened; the user can still save it.
+		return _("The file could not be opened safely here. Save it with Alt+D instead.")
 	if code == "saveFailed":
 		# Translators: Reported when a downloaded file could not be written to disk. {reason} is Windows' reason.
 		return _("The file could not be saved ({reason}).").format(reason=detail)
@@ -1389,7 +1393,8 @@ class ChatWindow(wx.Dialog):
 
 		# Translators: Reported while a photo, video or document is downloaded before it opens.
 		ui.message(_("Opening…"))
-		self._run(lambda: self.session.download(message["id"], folder=folder), opened)
+		# The mark from the internet is required: without it, Office opens macros and SmartScreen is silent.
+		self._run(lambda: self.session.download(message["id"], folder=folder, requireMark=True), opened)
 
 	def _saveFile(self, message: dict | None = None, parent: wx.Window | None = None) -> None:
 		"""Alt+D: save the message's file where the user chooses, under WhatsApp's name for it."""

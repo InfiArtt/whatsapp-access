@@ -2747,3 +2747,8 @@ msgstr "Data WhatsApp sudah dihapus dari komputer ini, tetapi WhatsApp tidak bis
 #. Translators: Said when a voice note stops by itself because it reached the longest length.
 msgid "Recording stopped after 30 minutes"
 msgstr "Rekaman berhenti setelah 30 menit"
+
+#. Translators: Reported when a file could not get the mark Windows gives files from the internet, so it
+#. is not opened; the user can still save it.
+msgid "The file could not be opened safely here. Save it with Alt+D instead."
+msgstr "File ini tidak bisa dibuka dengan aman di sini. Simpan dengan Alt+D saja."
