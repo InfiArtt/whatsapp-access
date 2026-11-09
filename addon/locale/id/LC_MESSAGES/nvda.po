@@ -2731,3 +2731,15 @@ msgstr "Sudah disukai"
 #. Translators: Reported after saving the profile when the user emptied the About text.
 msgid "Profile saved. About was not emptied: WhatsApp needs some text there."
 msgstr "Profil disimpan. Info tidak dikosongkan: WhatsApp memerlukan teks di sana."
+
+#. Translators: Said when WhatsApp is asked to start after an update was installed but before NVDA restarted.
+msgid "WhatsApp Access was updated. Restart NVDA to open WhatsApp again"
+msgstr "WhatsApp Access sudah diperbarui. Mulai ulang NVDA untuk membuka WhatsApp lagi"
+
+#. Translators: Reported when unlinking could not remove all of WhatsApp's data.
+msgid "Some of WhatsApp's data on this computer could not be removed. Restart NVDA, then unlink again."
+msgstr "Sebagian data WhatsApp di komputer ini tidak bisa dihapus. Mulai ulang NVDA, lalu putuskan tautan lagi."
+
+#. Translators: Reported when the data was removed but WhatsApp could not be told of the unlinking.
+msgid "WhatsApp's data was removed from this computer, but WhatsApp could not be told. Remove this computer under Linked devices on your phone."
+msgstr "Data WhatsApp sudah dihapus dari komputer ini, tetapi WhatsApp tidak bisa diberi tahu. Hapus komputer ini di Perangkat tertaut di HP Anda."

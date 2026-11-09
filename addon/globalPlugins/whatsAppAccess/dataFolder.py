@@ -18,6 +18,7 @@ It imports nothing from NVDA at load time, so installTasks can load it by path a
 
 import os
 import shutil
+import tempfile
 import time
 from collections.abc import Callable
 
@@ -95,6 +96,20 @@ def _move(source: str, target: str) -> None:
 		shutil.rmtree(source, ignore_errors=True)
 
 
+# Photos, videos and documents opened with Enter are downloaded here, outside the login's folder.
+TEMP_MEDIA_NAME = "WhatsApp Access"
+
+
+def tempMediaPath() -> str:
+	return os.path.join(tempfile.gettempdir(), TEMP_MEDIA_NAME)
+
+
+def clearTempMedia() -> None:
+	"""Remove the media downloaded to open them: they are other people's photos and documents, and must not
+	pile up. A file still open in its program stays until next time."""
+	shutil.rmtree(tempMediaPath(), ignore_errors=True)
+
+
 def updatingPath(configPath: str) -> str:
 	return os.path.join(configPath, UPDATING_NAME)
 
@@ -111,7 +126,7 @@ def keepThroughUpdate(
 	configPath: str,
 	stopRunning: Callable[[], None],
 	forceClose: Callable[[], None],
-	waitSeconds: float = 15.0,
+	waitSeconds: float = 8.0,
 ) -> bool:
 	"""Move the data aside, after stopping what holds it open. Returns whether it was moved.
 
@@ -119,11 +134,15 @@ def keepThroughUpdate(
 	still holds its files after a while.
 	"""
 	data, updating = dataPath(configPath), updatingPath(configPath)
+	if os.path.isdir(updating):
+		# Installed again before NVDA restarted: the login kept by the first install is the real one. What
+		# is in data now can only be new since then, such as an empty profile, so it goes, never the kept one.
+		stopRunning()
+		shutil.rmtree(data, ignore_errors=True)
+		return True
 	if not os.path.isdir(data):
 		return False
 	stopRunning()
-	if os.path.isdir(updating):
-		shutil.rmtree(updating, ignore_errors=True)
 	deadline = time.monotonic() + waitSeconds
 	forced = False
 	while True:

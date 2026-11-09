@@ -124,6 +124,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		NVDASettingsDialog.categoryClasses.append(WhatsAppSettingsPanel)
 
 	def _moveDataOutOfConfig(self) -> None:
+		# Media opened in an earlier session are no longer needed.
+		dataFolder.clearTempMedia()
 		try:
 			if dataFolder.moveData(
 				dataFolder.dataPath(globalVars.appArgs.configPath), dataFolder.addonDataPath()
@@ -370,6 +372,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._autoStartTimer = None
 		if self._terminated:
 			return
+		if getattr(self, "_updateInstalled", False):
+			# Translators: Said when WhatsApp is asked to start after an update was installed but before NVDA
+			# restarted.
+			ui.message(_("WhatsApp Access was updated. Restart NVDA to open WhatsApp again"))
+			return
 		if self._connecting and time.monotonic() - self._connectingSince < CONNECT_STALE_SECONDS:
 			# One start at a time. A second one, such as the start with NVDA firing just after NVDA+Shift+W,
 			# would find the first one's connection half made and answer "needsLink", asking the user to
@@ -514,19 +521,37 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 		def work() -> None:
 			self._dataMoved.join()
+			loggedOut = True
 			if self.session.connected and self.session.linked:
 				try:
 					self.session.logout()
 				except WhatsAppError as e:
+					loggedOut = False
 					log.debugWarning(f"WhatsApp Access: logout: {e}")
 			self._stopping = True
 			self.session.close()
 			if self.hidden is not None:
 				self.hidden.stop()
 			shutil.rmtree(_profileDir(), ignore_errors=True)
+			dataFolder.clearTempMedia()
+			removed = not os.path.exists(_profileDir())
 			self._stopping = False
-			# Translators: Reported after WhatsApp was unlinked and its data removed from this computer.
-			wx.CallAfter(ui.message, _("This computer was unlinked from WhatsApp, and its data was removed."))
+			# Say what really happened: the user relies on it to know whether this computer can still read.
+			if not removed:
+				# Translators: Reported when unlinking could not remove all of WhatsApp's data.
+				text = _(
+					"Some of WhatsApp's data on this computer could not be removed. Restart NVDA, then unlink again."
+				)
+			elif not loggedOut:
+				# Translators: Reported when the data was removed but WhatsApp could not be told of the unlinking.
+				text = _(
+					"WhatsApp's data was removed from this computer, but WhatsApp could not be told. "
+					"Remove this computer under Linked devices on your phone."
+				)
+			else:
+				# Translators: Reported after WhatsApp was unlinked and its data removed from this computer.
+				text = _("This computer was unlinked from WhatsApp, and its data was removed.")
+			wx.CallAfter(ui.message, text)
 
 		threading.Thread(target=work, name="whatsAppAccess.unlink", daemon=True).start()
 

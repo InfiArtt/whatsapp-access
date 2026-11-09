@@ -20,7 +20,7 @@ import ui
 import wx
 from logHandler import log
 
-from . import fileSafety, messageText, notifications, shortcuts, sounds, volumes
+from . import dataFolder, fileSafety, messageText, notifications, shortcuts, sounds, volumes
 from . import translate as translator
 from .configSpec import CONFIG_SECTION
 from .moreDialogs import (
@@ -1361,7 +1361,7 @@ class ChatWindow(wx.Dialog):
 		named like a document, such as "invoice.pdf.exe", so anything else is removed again and the
 		user is told to save it with Alt+D instead.
 		"""
-		folder = os.path.join(os.environ.get("TEMP", os.path.expanduser("~")), "WhatsApp Access")
+		folder = dataFolder.tempMediaPath()
 		os.makedirs(folder, exist_ok=True)
 
 		def opened(path: str) -> None:
@@ -1592,7 +1592,7 @@ class ChatWindow(wx.Dialog):
 			# Translators: Reported when the add-on that describes photos is not installed.
 			ui.message(_("Install the AI Content Describer add-on to describe photos"))
 			return
-		folder = os.path.join(os.environ.get("TEMP", os.path.expanduser("~")), "WhatsApp Access")
+		folder = dataFolder.tempMediaPath()
 		os.makedirs(folder, exist_ok=True)
 
 		def describe(path: str) -> None:
