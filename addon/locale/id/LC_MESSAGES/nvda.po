@@ -2718,3 +2718,12 @@ msgstr "Tangan tidak bisa diangkat atau diturunkan ({reason})"
 #. Translators: Said when the microphone could not be turned off or on during a call.
 msgid "The microphone could not be changed ({reason})"
 msgstr "Mikrofon tidak bisa diubah ({reason})"
+
+#. Translators: Reported after the user liked a status. WhatsApp Web cannot react to a status,
+#. so the heart goes to the poster's chat as a reply to the status. {name} is the poster.
+msgid "Liked: a heart was sent to {name} as a reply to the status"
+msgstr "Disukai: hati dikirim ke {name} sebagai balasan status"
+
+#. Translators: Said when the user likes a status they already liked.
+msgid "Already liked"
+msgstr "Sudah disukai"

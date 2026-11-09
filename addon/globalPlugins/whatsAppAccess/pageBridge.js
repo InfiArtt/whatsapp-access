@@ -777,15 +777,37 @@
 		return true;
 	}
 
-	// After deleting for everyone, WhatsApp shows the message as "This message was deleted". It may put a
-	// new model in place of the old one rather than change it, so no change event can be relied on: wait
-	// for the message under this id to be revoked, and hand its new line back to the add-on.
-	async function revokedInfo(messageId) {
+	// A message deleted for everyone is not changed: WhatsApp drops it and adds a new "revoked" model with
+	// a new id in its place. That model's protocolMessageKey names the message it replaced, so the add-on
+	// is told both ids and can redraw the right line.
+	function revokedMessageInfo(m) {
+		const info = messageInfo(m);
+		const key = m.protocolMessageKey;
+		if (key) {
+			info.replacesId = key._serialized || String(key);
+		}
+		return info;
+	}
+
+	function emitRevoked(m) {
+		if (m && m.type === "revoked" && m.id && m.id.remote) {
+			emit({ type: "edited", chatId: m.id.remote._serialized, message: revokedMessageInfo(m) });
+		}
+	}
+
+	// After deleting for everyone: wait for the revoked model that replaces messageId, and hand back its line.
+	async function revokedInfo(chat, messageId) {
 		const deadline = Date.now() + 5000;
 		while (Date.now() < deadline) {
-			const now = collections().Msg.get(messageId);
-			if (now && now.type === "revoked") {
-				return messageInfo(now);
+			const replacement = chat.msgs
+				.getModelsArray()
+				.slice(-200)
+				.find((x) => {
+					const key = x.type === "revoked" && x.protocolMessageKey;
+					return key && (key._serialized || String(key)) === messageId;
+				});
+			if (replacement) {
+				return revokedMessageInfo(replacement);
 			}
 			await new Promise((resolve) => setTimeout(resolve, 200));
 		}
@@ -801,7 +823,7 @@
 				throw new Error("cannotRevoke");
 			}
 			await settled(Cmd.sendRevokeMsgs(chat, { list: [m], type: "message" }, { clearMedia: true }));
-			return (await revokedInfo(messageId)) || true;
+			return (await revokedInfo(chat, messageId)) || true;
 		} else {
 			await settled(Cmd.sendDeleteMsgs(chat, { list: [m], type: "message" }, true));
 		}
@@ -2483,9 +2505,12 @@
 		return !!(await req("WAWebContactStatusBridge").sendReadStatus(m, undefined, undefined));
 	}
 
+	// WhatsApp Web cannot react to a status: sendReactionToMsg looks up the message's chat, and a status,
+	// on status@broadcast, has none ("Getter was called with undefined data" in getIsNewsletter). So a like
+	// is sent as phones send a status quick reaction: the emoji as a reply quoting the status, in the
+	// poster's own chat.
 	async function likeStatus(messageId, emoji) {
-		await req("WAWebSendReactionMsgAction").sendReactionToMsg(getMsg(messageId), emoji || "\u2764\ufe0f");
-		return true;
+		return replyStatus(messageId, emoji || "\u2764\ufe0f");
 	}
 
 	// A reply to a status goes to the poster's chat, quoting the status, as in WhatsApp.
@@ -2494,7 +2519,11 @@
 			throw new Error("emptyMessage");
 		}
 		const m = getMsg(messageId);
-		const author = m.author || (m.id && m.id.participant) || m.from;
+		const author = m.author || (m.id && m.id.participant);
+		// Never m.from: for a status that is status@broadcast, and the reply would go to everyone.
+		if (!author || String(author) === "status@broadcast") {
+			throw new Error("failed:status without an author");
+		}
 		const result = await req("WAWebFindChatAction").findOrCreateLatestChat(author);
 		const chat = (result && result.chat) || result;
 		await req("WAWebSendTextMsgChatAction").sendTextMsgToChat(chat, text, { quotedMsg: m });
@@ -3184,9 +3213,9 @@
 
 	function hookMessages(C) {
 		on(C.Msg, "add", (m) => {
-			if (m.type === "revoked" && !m.isNewMsg && m.id && m.id.remote) {
-				// Someone deleted a message for everyone, and WhatsApp put a revoked model in its place.
-				emit({ type: "edited", chatId: m.id.remote._serialized, message: messageInfo(m) });
+			if (m.type === "revoked") {
+				// Deleted for everyone, by the user or by its sender: a new model in the old one's place.
+				emitRevoked(m);
 				return;
 			}
 			if (!m.isNewMsg || HIDDEN_TYPES.has(m.type) || m.isNotification) {
@@ -3215,11 +3244,8 @@
 		on(C.Msg, "change:body", edited);
 		// Deleted for everyone, by the user or by its sender: the message stays, as "This message was
 		// deleted", so its line must change at once rather than when the chat is opened again.
-		on(C.Msg, "change:type", (m) => {
-			if (m.type === "revoked" && m.id && m.id.remote) {
-				emit({ type: "edited", chatId: m.id.remote._serialized, message: messageInfo(m) });
-			}
-		});
+		// The revoked model is added as a plain message first, then its type changes.
+		on(C.Msg, "change:type", emitRevoked);
 	}
 
 	function hookReceipts(C) {

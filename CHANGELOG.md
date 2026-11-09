@@ -74,6 +74,9 @@ Steadier:
 - Moving quickly through statuses no longer stops the next voice or video status as it starts.
 - A message deleted for everyone, by you or by its sender, now shows as deleted at once, instead of only
   after the chat is opened again.
+- Liking a status (Alt+Y) failed with an error, because WhatsApp Web cannot react to a status. It now
+  sends a heart as a reply to the status in the poster's chat, as a quick reaction on the phone does, and
+  says so. A status can be liked once each time the viewer is open.
 
 ## [0.4.1]
 
