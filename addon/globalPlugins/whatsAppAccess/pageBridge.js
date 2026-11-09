@@ -131,13 +131,75 @@
 		return m;
 	}
 
-	// The name the user saved for a contact, else the name the person gave themselves in WhatsApp.
-	function personName(contact) {
+	// The level WhatsApp gives a business whose name it has checked.
+	const VERIFIED_HIGH = 2;
+
+	// A person's phone number, also for people known only by their newer id (lid); null when hidden.
+	function phoneWidOf(id) {
+		if (!id) {
+			return null;
+		}
+		if (id.server === "c.us") {
+			return id;
+		}
+		if (id.server === "lid") {
+			try {
+				return req("WAWebApiContact").getPhoneNumber(id) || null;
+			} catch (e) {
+				return null;
+			}
+		}
+		return null;
+	}
+
+	// The contact WhatsApp keeps for an id, or just the id when it keeps none.
+	function contactOf(wid) {
+		const id = typeof wid === "string" ? req("WAWebWidFactory").createWid(wid) : wid;
+		return collections().Contact.get(id) || { id: id };
+	}
+
+	// A person's name as WhatsApp shows it: the name the user saved, else a business name WhatsApp has
+	// verified, else the phone number. The name people give themselves only follows the number after "~",
+	// as in WhatsApp, so a stranger calling themselves "Mom" or "Bank" is not taken for a saved contact.
+	// (Contacts no longer have formattedName; WhatsApp works it out in WAWebFrontendContactGetters.)
+	// pushname is the name a message came with, for when the contact has none.
+	function personName(contact, pushname) {
 		if (!contact) {
 			return null;
 		}
-		const name = contact.formattedName || contact.name || contact.pushname || contact.verifiedName || "";
-		return String(name).trim() || null;
+		const text = (value) => String(value || "").trim();
+		const phone = phoneWidOf(contact.id);
+		const known = [contact];
+		if (phone && String(phone) !== String(contact.id)) {
+			// The name may be saved under the number rather than under the newer id.
+			const byNumber = collections().Contact.get(phone);
+			if (byNumber) {
+				known.push(byNumber);
+			}
+		}
+		for (const c of known) {
+			if (text(c.name)) {
+				return text(c.name);
+			}
+		}
+		for (const c of known) {
+			if (c.verifiedLevel === VERIFIED_HIGH && text(c.verifiedName)) {
+				return text(c.verifiedName);
+			}
+		}
+		let own = "";
+		for (const c of known) {
+			own = own || text(c.pushname);
+		}
+		own = own || text(pushname);
+		for (const c of known) {
+			own = own || text(c.verifiedName);
+		}
+		const number = phone && phone.user ? "+" + phone.user : "";
+		if (number) {
+			return own ? number + " ~" + own : number;
+		}
+		return own ? "~" + own : null;
 	}
 
 	// Mentions arrive as "@" and a number; show the person's name instead.
@@ -148,9 +210,12 @@
 		}
 		let out = text;
 		for (const wid of list) {
-			const name = personName(collections().Contact.get(wid));
-			if (name && wid.user) {
-				out = out.split("@" + wid.user).join("@" + name);
+			const user = wid && wid.user ? String(wid.user) : "";
+			const name = user ? contactName(wid) : "";
+			if (name && name !== user) {
+				// Only the whole number: a mention of 62812 is not in "@6281234567".
+				const mention = new RegExp("@" + user.replace(/[^0-9A-Za-z]/g, "\\$&") + "(?![0-9])", "g");
+				out = out.replace(mention, () => "@" + name);
 			}
 		}
 		return out;
@@ -160,7 +225,12 @@
 		if (m.id.fromMe) {
 			return null;
 		}
-		return personName(m.senderObj) || m.notifyName || null;
+		// Without a sender, a personal chat's own title names the other person (remoteTitle).
+		try {
+			return personName(m.senderObj || (m.author ? contactOf(m.author) : null), m.notifyName);
+		} catch (e) {
+			return null;
+		}
 	}
 
 	// In a personal chat WhatsApp may not know a sender object; the chat's name is the other person's name.
@@ -400,6 +470,11 @@
 		return ids;
 	}
 
+	// Whether a name is a phone number or one the person gave themselves, not a saved or verified one.
+	function unsaved(name) {
+		return /^[+~0-9]/.test(name);
+	}
+
 	// The people in a group, for @mentions. The user is left out.
 	function participants(chatId) {
 		const chat = getChat(chatId);
@@ -414,7 +489,7 @@
 				const contact = C.Contact.get(p.id);
 				return {
 					id: p.id.toString(),
-					// Not in the contacts: their phone number, as WhatsApp shows it, not the hidden id.
+					// Not in the contacts: their phone number and "~" their own name, as WhatsApp shows it, not the hidden id.
 					name: contactName(p.id),
 					pushname: (contact && contact.pushname) || "",
 					isAdmin: !!(p.isAdmin || p.isSuperAdmin),
@@ -422,8 +497,8 @@
 				};
 			})
 			.filter((p) => !p.isMe)
-			// Named people first, then phone numbers, as in WhatsApp.
-			.sort((a, b) => a.name.startsWith("+") - b.name.startsWith("+") || a.name.localeCompare(b.name));
+			// Named people first, then phone numbers and names people gave themselves, as in WhatsApp.
+			.sort((a, b) => unsaved(a.name) - unsaved(b.name) || a.name.localeCompare(b.name));
 	}
 
 	// Emoji by name, for ":grin" in the message box: WhatsApp's own emoji search, which puts the user's
@@ -1123,6 +1198,9 @@
 
 	async function createGroup(title, contactIds) {
 		await req("WAWebNewGroupFlowLoadable").requireBundle();
+		// The same settings WhatsApp's own "New group" starts with (WAWebNewGroupFlow.react). Here restrict and
+		// announce mean the opposite of a group's metadata: WAWebGroupCreateJob sends hasLocked: !restrict
+		// and hasAnnouncement: !announce, so true lets every member edit the group's info and send messages.
 		const result = await req("WAWebCreateGroupAction").createGroup(
 			{
 				title: String(title),
@@ -1835,6 +1913,11 @@
 	const OPUS_RATES = new Set([8000, 12000, 16000, 24000, 48000]);
 	let recording = null;
 	let recorded = null;
+	// A recording left running stops by itself after this long, as if the user had stopped it, so a
+	// forgotten one does not keep the microphone open and fill the page's memory.
+	const MAX_RECORDING_MS = 30 * 60 * 1000;
+	// What stopRecording gave for a recording that reached its limit, until the add-on asks to stop it.
+	let stoppedAtLimit = null;
 
 	function makeCrcTable() {
 		const table = new Uint32Array(256);
@@ -2037,6 +2120,16 @@
 		})();
 		recording = state;
 		recorded = null;
+		stoppedAtLimit = null;
+		state.limitTimer = setTimeout(() => {
+			if (recording !== state) {
+				return;
+			}
+			stoppedAtLimit = stopRecording();
+			// Its failure is reported when the add-on asks for it.
+			stoppedAtLimit.catch(() => {});
+			emit({ type: "recordingLimit" });
+		}, MAX_RECORDING_MS);
 		return { microphone: state.label };
 	}
 
@@ -2095,9 +2188,15 @@
 	async function stopRecording() {
 		const state = recording;
 		if (!state) {
+			if (stoppedAtLimit) {
+				const result = stoppedAtLimit;
+				stoppedAtLimit = null;
+				return result;
+			}
 			throw new Error("notRecording");
 		}
 		recording = null;
+		clearTimeout(state.limitTimer);
 		await finishRecording(state);
 		if (!state.packets.length) {
 			throw new Error("emptyRecording");
@@ -2131,7 +2230,9 @@
 		const state = recording;
 		recording = null;
 		recorded = null;
+		stoppedAtLimit = null;
 		if (state) {
+			clearTimeout(state.limitTimer);
 			try {
 				await finishRecording(state);
 			} catch (e) {
@@ -2310,7 +2411,43 @@
 
 	const MEDIA_HOST = "https://mmg.whatsapp.net";
 
-	async function downloadMedia(m) {
+	// Reads a response's body, giving up once it is longer than limit bytes. The size a message gives is
+	// whatever its sender wrote, so it is not trusted: the bytes are counted as they arrive, and a file
+	// too large never fills the page's memory.
+	async function readLimited(response, limit) {
+		const length = Number(response.headers && response.headers.get("content-length"));
+		if (length > limit) {
+			throw new Error("mediaGone:tooLarge");
+		}
+		if (!response.body) {
+			return new Uint8Array(0);
+		}
+		const reader = response.body.getReader();
+		const parts = [];
+		let total = 0;
+		for (;;) {
+			const { value, done } = await reader.read();
+			if (done) {
+				break;
+			}
+			total += value.length;
+			if (total > limit) {
+				reader.cancel().catch(() => {});
+				throw new Error("mediaGone:tooLarge");
+			}
+			parts.push(value);
+		}
+		const bytes = new Uint8Array(total);
+		let at = 0;
+		for (const part of parts) {
+			bytes.set(part, at);
+			at += part.length;
+		}
+		return bytes;
+	}
+
+	// maxBytes is the most the file may have once decrypted.
+	async function downloadMedia(m, maxBytes) {
 		const info = MEDIA_KEY_INFO[m.type];
 		if (!info || !m.directPath || !m.mediaKey) {
 			throw new Error("noMedia");
@@ -2325,7 +2462,8 @@
 		if (!response.ok) {
 			throw new Error("mediaGone:" + response.status);
 		}
-		const encrypted = new Uint8Array(await response.arrayBuffer());
+		// Encryption adds up to 16 bytes of padding, and the MAC 10 more.
+		const encrypted = await readLimited(response, maxBytes + 26);
 		if (encrypted.length < 26) {
 			throw new Error("mediaGone:short");
 		}
@@ -2404,7 +2542,15 @@
 		if (m.size && m.size > MAX_FILE_BYTES) {
 			throw new Error("fileTooLarge:" + MAX_FILE_BYTES / 1024 / 1024);
 		}
-		const blob = await downloadMedia(m);
+		let blob;
+		try {
+			blob = await downloadMedia(m, MAX_FILE_BYTES);
+		} catch (e) {
+			if (e.message === "mediaGone:tooLarge") {
+				throw new Error("fileTooLarge:" + MAX_FILE_BYTES / 1024 / 1024);
+			}
+			throw e;
+		}
 		if (blob.size > MAX_FILE_BYTES) {
 			throw new Error("fileTooLarge:" + MAX_FILE_BYTES / 1024 / 1024);
 		}
@@ -2434,10 +2580,14 @@
 		return true;
 	}
 
+	// A voice note or audio file longer than this is not a real one: 64 MB is hours of speech.
+	const MAX_AUDIO_PLAY_BYTES = 64 * 1024 * 1024;
+
 	async function playMessage(messageId) {
 		// getMsg also finds statuses, which are not in the chats' messages.
 		const m = getMsg(messageId);
-		return play(await downloadMedia(m), messageId);
+		const limit = m.type === "ptt" || m.type === "audio" ? MAX_AUDIO_PLAY_BYTES : MAX_FILE_BYTES;
+		return play(await downloadMedia(m, limit), messageId);
 	}
 
 	async function playRecording() {
@@ -2761,8 +2911,24 @@
 		});
 	}
 
+	// Calls that ended leave their audio behind; the page-wide sets would otherwise grow with every call.
+	function forgetClosedCallAudio() {
+		for (const gain of callLoudness.gains) {
+			if (gain.context.state === "closed") {
+				callLoudness.gains.delete(gain);
+			}
+		}
+		for (const media of callLoudness.media) {
+			const stream = media.srcObject;
+			if (!(stream instanceof MediaStream) || !stream.active) {
+				callLoudness.media.delete(media);
+			}
+		}
+	}
+
 	function setCallVolume(volume) {
 		installCallVolume();
+		forgetClosedCallAudio();
 		callLoudness.volume = Math.min(1, Math.max(0, Number(volume)));
 		for (const gain of callLoudness.gains) {
 			gain.gain.value = callLoudness.volume;
@@ -2841,7 +3007,7 @@
 		try {
 			// A group call is named after its group, as WhatsApp shows it.
 			const group = call.isGroup && call.groupJid ? C.Chat.get(call.groupJid) : null;
-			name = group ? chatTitle(group) : personName(C.Contact.get(peer));
+			name = group ? chatTitle(group) : peer ? personName(contactOf(peer)) : null;
 			if (!name) {
 				const chat = C.Chat.get(peer);
 				name = chat ? chatTitle(chat) : null;
@@ -3038,25 +3204,12 @@
 
 	// Who is online, typing or recording --------------------------------------------------------------
 
-	// A person's name, as WhatsApp shows it. People known only by their newer id (lid) are found by
-	// their phone number: the contact saved under it, or else the number itself.
+	// A person's name, as WhatsApp shows it (see personName). People known only by their newer id (lid)
+	// are found by their phone number.
 	function contactName(wid) {
 		try {
-			const C = collections();
-			const name = personName(C.Contact.get(wid));
-			if (name) {
-				return name;
-			}
-			const id = typeof wid === "string" ? req("WAWebWidFactory").createWid(wid) : wid;
-			if (id.server === "lid") {
-				try {
-					const phone = req("WAWebApiContact").getPhoneNumber(id);
-					if (phone) {
-						return personName(C.Contact.get(phone)) || "+" + phone.user;
-					}
-				} catch (e) {}
-			}
-			return String(id.user || id);
+			const contact = contactOf(wid);
+			return personName(contact) || String(contact.id.user || contact.id);
 		} catch (e) {
 			return String(wid);
 		}
@@ -3353,9 +3506,15 @@
 		stopAudio();
 		quietNotifications(false);
 		unhookMicrophone();
+		watchSpeakers(null);
+		forgetClosedCallAudio();
 		if (callTimer) {
 			clearInterval(callTimer);
 			callTimer = null;
+		}
+		if (chatsTimer) {
+			clearTimeout(chatsTimer);
+			chatsTimer = null;
 		}
 		if (watched) {
 			clearInterval(watched.timer);
@@ -3377,9 +3536,12 @@
 			}
 			return hooked;
 		},
+		// Called when a newer copy replaces this one, which the add-on talks to instead.
 		unhook: () => {
 			unhook();
 			hooked = false;
+			// A recording this copy started could never be stopped: close the microphone.
+			cancelRecording().catch(() => {});
 		},
 		authState: authState,
 		requestLinkCode: requestLinkCode,
