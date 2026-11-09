@@ -2941,3 +2941,6 @@ msgstr "Deskripsikan gambar ini untuk orang tunanetra. Mulai dengan satu kalimat
 
 msgid "&Question Meta AI is asked to describe a photo (Alt+P):"
 msgstr "&Pertanyaan untuk Meta AI saat mendeskripsikan foto (Alt+P):"
+
+msgid "WhatsApp Web did not open in {browser}. The page said: {detail} Check the internet connection, and whether a firewall or antivirus blocks {browser}."
+msgstr "WhatsApp Web tidak terbuka di {browser}. Halamannya menyebutkan: {detail} Periksa koneksi internet, dan apakah firewall atau antivirus memblokir {browser}."

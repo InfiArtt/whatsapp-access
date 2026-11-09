@@ -655,3 +655,14 @@ def test_a_call_that_may_have_run_is_never_tried_again(firstSend):
         session.sendText("1@c.us", "halo")
     assert len(sends) == 1
     session.close()
+
+
+def test_a_connected_whatsapp_loading_its_chats_is_waited_for_longer():
+    from whatsAppAccess.whatsApp import stillLoadingChats
+
+    assert stillLoadingChats({"socket": "CONNECTED"}, 90)
+    assert not stillLoadingChats({"socket": "CONNECTED"}, 250)
+    # Still loading WhatsApp itself, or waiting to be linked: the usual wait applies.
+    assert not stillLoadingChats({"socket": "LOADING"}, 90)
+    assert not stillLoadingChats({}, 90)
+    assert not stillLoadingChats({"socket": "UNPAIRED_IDLE"}, 90)
