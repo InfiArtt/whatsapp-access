@@ -236,6 +236,8 @@ class ChatWindow(wx.Dialog):
 		"""Changes whenever a voice note starts or is thrown away, so late answers about an older one are
 		ignored."""
 		self._sendingIn: set[str] = set()
+		# Messages written with Enter while one before them was still being sent, by chat.
+		self._textQueue: dict[str, list[tuple[str, str, list[dict]]]] = {}
 		"""Chats with a message, files or a voice note on the way, so a second key press sends nothing."""
 		self._loadingEarlier = False
 		self._playingId: str | None = None
@@ -1900,32 +1902,47 @@ class ChatWindow(wx.Dialog):
 		if not text.strip() or not self.chat:
 			return
 		chatId = self.chat["id"]
-		if chatId in self._sendingIn:
-			# Enter pressed again before WhatsApp answered: the message is already on its way.
-			return
 		quotedId = self._replyTo["id"] if self._replyTo else ""
 		mentions = [{"id": pid, "name": name} for name, pid in self._mentions.items() if f"@{name}" in text]
+		# The box empties at once, as in WhatsApp, so the next message can be typed while this one goes.
+		# Each message is sent once, after the ones before it; one that fails comes back to the box.
+		self.composeBox.Clear()
+		self._drafts.pop(chatId, None)
+		self._mentions = {}
+		if self._replyTo is not None:
+			self._cancelReply(announce=False)
+		self._textQueue.setdefault(chatId, []).append((text, quotedId, mentions))
+		if chatId not in self._sendingIn:
+			self._sendNextText(chatId)
+
+	def _sendNextText(self, chatId: str) -> None:
+		queue = self._textQueue.get(chatId)
+		if not queue:
+			self._textQueue.pop(chatId, None)
+			self._sendingIn.discard(chatId)
+			return
+		text, quotedId, mentions = queue.pop(0)
 		self._sendingIn.add(chatId)
 
 		def sent(result: Any) -> None:
-			self._sendingIn.discard(chatId)
-			self._drafts.pop(chatId, None)
-			# The user may have moved to another chat, or typed more, while it was sent: leave that alone.
-			if self.chat and self.chat["id"] == chatId:
-				if self.composeBox.GetValue() == text:
-					self.composeBox.Clear()
-				self._mentions = {}
-				if self._replyTo is not None and self._replyTo.get("id") == quotedId:
-					self._cancelReply(announce=False)
 			sounds.play(sounds.SENT)
 			# Translators: Reported after a message was sent.
 			ui.message(_("Sent"))
+			self._sendNextText(chatId)
 
-		self._run(
-			lambda: self.session.sendText(chatId, text, quotedId, mentions),
-			sent,
-			lambda error: self._sendingIn.discard(chatId),
-		)
+		def failed(error: Exception) -> None:
+			self._sendingIn.discard(chatId)
+			# This one and those waiting after it go back to the box, in order, ahead of anything typed since.
+			unsent = [text, *(waiting[0] for waiting in self._textQueue.pop(chatId, []))]
+			if self.chat and self.chat["id"] == chatId:
+				typed = self.composeBox.GetValue()
+				self.composeBox.SetValue("\n".join([*unsent, typed] if typed else unsent))
+				self.composeBox.SetInsertionPointEnd()
+			else:
+				typed = self._drafts.get(chatId, "")
+				self._drafts[chatId] = "\n".join([*unsent, typed] if typed else unsent)
+
+		self._run(lambda: self.session.sendText(chatId, text, quotedId, mentions), sent, failed)
 
 	# Attaching files ------------------------------------------------------------------------------------
 

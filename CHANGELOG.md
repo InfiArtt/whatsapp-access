@@ -9,6 +9,10 @@ Safer files and a safer place for your WhatsApp login.
 
 - In the chat you have open, a new message is read as "name: message" even when you chose to hear
   only who messages are from. That choice now applies only to messages from other chats.
+- The message box empties as soon as you press Enter, as in WhatsApp, so you can type the next
+  message straight away. Messages typed quickly one after another go out in order, each on its own;
+  before, the next one was added to the one still being sent, and "test", "test", "test" became one
+  message saying "testtesttest". A message that cannot be sent comes back to the box.
 - When someone opens your chat and reads several of your messages at once, "read" is said once, not
   once for each message. The same goes for "delivered".
 
