@@ -344,6 +344,12 @@ class CallAnnouncer:
 				names = self.session.speakers()
 			except WhatsAppError as e:
 				log.debugWarning(f"WhatsApp Access: speakers: {e}")
+				wx.CallAfter(
+					ui.message,
+					# Translators: Said when the add-on could not find out who is speaking in a call.
+					# {reason} is a short code for what went wrong.
+					_("Could not find out who is speaking ({reason})").format(reason=e.code),
+				)
 				return
 			wx.CallAfter(
 				ui.message,
@@ -365,6 +371,12 @@ class CallAnnouncer:
 				self.session.raiseHand(target)
 			except WhatsAppError as e:
 				log.debugWarning(f"WhatsApp Access: hand: {e}")
+				wx.CallAfter(
+					ui.message,
+					# Translators: Said when raising or lowering the user's hand in a group call failed.
+					# {reason} is a short code for what went wrong.
+					_("The hand could not be raised or lowered ({reason})").format(reason=e.code),
+				)
 				return
 			# Translators: Reported after the user raised or lowered their hand in a group call.
 			wx.CallAfter(ui.message, _("Hand raised") if target else _("Hand lowered"))
@@ -383,8 +395,18 @@ class CallAnnouncer:
 				muted = self.session.muteCall(target)
 			except WhatsAppError as e:
 				log.debugWarning(f"WhatsApp Access: mute: {e}")
+				wx.CallAfter(failed, e)
 				return
 			wx.CallAfter(done, bool(muted))
+
+		def failed(error: WhatsAppError) -> None:
+			# Otherwise "Someone in the call muted your microphone" would stay silent for the rest of the call.
+			self._expectedMute = None
+			ui.message(
+				# Translators: Said when the microphone could not be turned off or on during a call.
+				# {reason} is a short code for what went wrong.
+				_("The microphone could not be changed ({reason})").format(reason=error.code)
+			)
 
 		def done(muted: bool) -> None:
 			self._expectedMute = None

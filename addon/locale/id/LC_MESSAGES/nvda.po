@@ -1622,7 +1622,7 @@ msgstr "Mungkin ({count}): {names}"
 msgid "Media, &links and docs"
 msgstr "&Media, tautan, dan dokumen"
 
-msgid "Mem&bers…"
+msgid "Membe&rs…"
 msgstr "&Anggota…"
 
 msgid "Members"
@@ -2702,3 +2702,19 @@ msgstr "koneksi putus dan tersambung lagi"
 #. Translators: A feature that is off because WhatsApp changed: the chat list updating by itself.
 msgid "the chat list updating by itself"
 msgstr "daftar chat yang diperbarui sendiri"
+
+#. Translators: Reported when a file in a message is too large for the add-on to download.
+msgid "This file is larger than {size} MB. Open it in WhatsApp on your phone."
+msgstr "File ini lebih dari {size} MB. Buka di WhatsApp di ponselmu."
+
+#. Translators: Said when the add-on could not find out who is speaking in a call.
+msgid "Could not find out who is speaking ({reason})"
+msgstr "Tidak bisa mengetahui siapa yang sedang bicara ({reason})"
+
+#. Translators: Said when raising or lowering the user's hand in a group call failed.
+msgid "The hand could not be raised or lowered ({reason})"
+msgstr "Tangan tidak bisa diangkat atau diturunkan ({reason})"
+
+#. Translators: Said when the microphone could not be turned off or on during a call.
+msgid "The microphone could not be changed ({reason})"
+msgstr "Mikrofon tidak bisa diubah ({reason})"

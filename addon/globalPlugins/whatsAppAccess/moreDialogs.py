@@ -367,11 +367,14 @@ class ManageGroupDialog(wx.Dialog):
 			lambda: wx.TextCtrl(self, style=wx.TE_MULTILINE, size=(420, 80)),
 		)
 		# Translators: A button that saves a group's description.
-		self._button(
+		self.saveDescription = self._button(
 			sizer,
 			_("Save descr&iption"),
 			lambda: self._save("description", self.description.GetValue().strip()),
 		)
+		# Until WhatsApp has given the description, an empty box would save an empty description over it.
+		self.description.Disable()
+		self.saveDescription.Disable()
 		for setting, key, label in self.SETTINGS:
 			box = wx.CheckBox(self, label=label())
 			box.SetValue(bool(abilities.get(key)))
@@ -386,7 +389,7 @@ class ManageGroupDialog(wx.Dialog):
 			# Translators: A button that adds people to a group.
 			(_("Add mem&bers…"), lambda: parent._addMembers(chat)),
 			# Translators: A button that lists a group's members, to remove them or make them admins.
-			(_("Mem&bers…"), self._members),
+			(_("Membe&rs…"), self._members),
 		):
 			button = wx.Button(self, label=label)
 			button.Bind(wx.EVT_BUTTON, lambda evt, action=action: action())
@@ -396,15 +399,21 @@ class ManageGroupDialog(wx.Dialog):
 		self.SetSizerAndFit(sizer)
 		self.CentreOnParent()
 		self.name.SetFocus()
-		parent._run(
-			lambda: session.contactInfo(chatId),
-			lambda info: self.description.ChangeValue(info.get("description", "") or ""),
-		)
+		parent._run(lambda: session.contactInfo(chatId), self._gotDescription)
 
-	def _button(self, sizer: wx.Sizer, label: str, action: Callable[[], None]) -> None:
+	def _gotDescription(self, info: dict) -> None:
+		if not self:
+			# Closed before WhatsApp answered.
+			return
+		self.description.ChangeValue(info.get("description", "") or "")
+		self.description.Enable()
+		self.saveDescription.Enable()
+
+	def _button(self, sizer: wx.Sizer, label: str, action: Callable[[], None]) -> wx.Button:
 		button = wx.Button(self, label=label)
 		button.Bind(wx.EVT_BUTTON, lambda evt: action())
 		sizer.Add(button, 0, wx.LEFT | wx.TOP, 8)
+		return button
 
 	def _save(self, field: str, value: str) -> None:
 		if field == "subject" and not value:
@@ -419,7 +428,8 @@ class ManageGroupDialog(wx.Dialog):
 		on = box.GetValue()
 
 		def failed(error: Exception) -> None:
-			box.SetValue(not on)
+			if box:
+				box.SetValue(not on)
 
 		self.window._run(
 			lambda: self.window.session.setGroupSetting(self.chat["id"], setting, on),
@@ -453,7 +463,8 @@ class ManageGroupDialog(wx.Dialog):
 		session = self.window.session
 
 		def show(people: list[dict]) -> None:
-			if not people:
+			if not people or not self:
+				# Nothing to show, or the dialog was closed before WhatsApp answered.
 				return
 			# Translators: Added to a group member who is an admin.
 			lines = [p["name"] + (", " + _("admin") if p.get("isAdmin") else "") for p in people]
