@@ -248,26 +248,74 @@ def test_page_errors_become_codes(thrown, code, detail):
     session.close()
 
 
+def main_context(browser, contextId=7):
+    """The browser reports WhatsApp's own page context, as Runtime.enable does."""
+    browser.send(
+        {
+            "method": "Runtime.executionContextCreated",
+            "params": {
+                "context": {
+                    "id": contextId,
+                    "origin": "https://web.whatsapp.com",
+                    "auxData": {"isDefault": True, "frameId": "T1"},
+                }
+            },
+            "sessionId": "S1",
+        }
+    )
+
+
+def binding(browser, payload, contextId=7):
+    browser.send(
+        {
+            "method": "Runtime.bindingCalled",
+            "params": {
+                "name": whatsApp.EVENT_BINDING,
+                "payload": json.dumps(payload),
+                "executionContextId": contextId,
+            },
+            "sessionId": "S1",
+        }
+    )
+
+
 def test_events_from_the_page_reach_the_listener():
     events = []
     received = threading.Event()
 
     def onEvent(event):
-        events.append(event)
-        received.set()
+        if event.get("type") == "message":
+            events.append(event)
+            received.set()
 
     browser = page({"window.__waAccess.install()": True, **LINKED})
     session = session_for(browser, onEvent=onEvent)
+    main_context(browser)
     payload = {"type": "message", "message": {"id": "m1", "text": "halo"}, "chat": {"id": "1@c.us"}}
-    browser.send(
-        {
-            "method": "Runtime.bindingCalled",
-            "params": {"name": whatsApp.EVENT_BINDING, "payload": json.dumps(payload)},
-            "sessionId": "S1",
-        }
-    )
+    binding(browser, payload)
     assert received.wait(5)
     assert events == [payload]
+    session.close()
+
+
+def test_events_before_whatsapps_own_context_is_known_are_dropped():
+    events = []
+    received = threading.Event()
+
+    def onEvent(event):
+        if event.get("type") == "message":
+            events.append(event["message"]["text"])
+            received.set()
+
+    browser = page({"window.__waAccess.install()": True, **LINKED})
+    session = session_for(browser, onEvent=onEvent)
+    early = {"type": "message", "message": {"id": "e", "text": "early"}, "chat": {"id": "1@c.us"}}
+    binding(browser, early)
+    main_context(browser)
+    real = {"type": "message", "message": {"id": "r", "text": "real"}, "chat": {"id": "1@c.us"}}
+    binding(browser, real)
+    assert received.wait(5)
+    assert events == ["real"]
     session.close()
 
 
@@ -383,6 +431,36 @@ def test_a_failed_download_leaves_no_partial_file(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_saving_over_a_file_replaces_it_only_when_complete(tmp_path):
+    target = tmp_path / "laporan.pdf"
+    target.write_bytes(b"mine")
+    session = session_for(downloading("laporan.pdf", b"new content"))
+    assert session.download("M1", path=str(target)) == str(target)
+    assert target.read_bytes() == b"new content"
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_a_failed_save_keeps_the_file_that_was_there(tmp_path):
+    target = tmp_path / "laporan.pdf"
+    target.write_bytes(b"mine")
+    session = session_for(downloading("laporan.pdf", chunk=whatsApp.WhatsAppError("mediaGone")))
+    with pytest.raises(whatsApp.WhatsAppError):
+        session.download("M1", path=str(target))
+    assert target.read_bytes() == b"mine"
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_a_file_to_open_that_cannot_be_marked_is_removed(tmp_path, monkeypatch):
+    monkeypatch.setattr(whatsApp.fileSafety, "markFromInternet", lambda path: False)
+    session = session_for(downloading("foto.jpg"))
+    with pytest.raises(whatsApp.WhatsAppError) as raised:
+        session.download("M1", folder=str(tmp_path), requireMark=True)
+    assert raised.value.code == "notMarked"
+    assert list(tmp_path.iterdir()) == []
+    # Not about to be opened: the file stays, unmarked.
+    assert session.download("M1", folder=str(tmp_path)) == str(tmp_path / "foto.jpg")
+
+
 def test_a_download_the_page_cannot_start_is_reported(tmp_path):
     browser = page({"window.__waAccess.install()": True, **LINKED, "window.__waAccess.downloadStart(": None})
     session = session_for(browser)
@@ -421,9 +499,13 @@ def test_the_hidden_browser_gets_chromes_user_agent_before_whatsapp_opens():
     )
     assert session.connect(target, hidden) == "ready"
     methods = [m["method"] for m in browser.received]
-    override = methods.index("Network.setUserAgentOverride")
+    assert not [m for m in methods if m.startswith("Network.")]
+    override = methods.index("Emulation.setUserAgentOverride")
     assert override < methods.index("Page.navigate")
-    assert browser.received[override]["params"]["userAgent"] == "Mozilla/5.0 Chrome/157.0.0.0"
+    assert browser.received[override]["params"] == {
+        "userAgent": "Mozilla/5.0 Chrome/157.0.0.0",
+        "userAgentMetadata": {"brands": []},
+    }
     session.close()
 
 
@@ -439,20 +521,137 @@ def test_memory_is_given_back_when_a_call_ends():
 
     browser.handler = handler
     session = session_for(browser)
+    main_context(browser)
 
     def call(state):
-        payload = {"type": "call", "call": state}
-        browser.send(
-            {
-                "method": "Runtime.bindingCalled",
-                "params": {"name": whatsApp.EVENT_BINDING, "payload": json.dumps(payload)},
-                "sessionId": "S1",
-            }
-        )
+        binding(browser, {"type": "call", "call": state})
 
     call({"state": "connected", "isGroup": True})
     call(None)
     assert received.wait(5)
     methods = [m["method"] for m in browser.received]
     assert methods.index("Memory.simulatePressureNotification") < methods.index("HeapProfiler.collectGarbage")
+    session.close()
+
+
+def test_a_look_alike_tab_is_not_taken_for_whatsapp():
+    browser = page(
+        {}, targets=[{"type": "page", "url": "https://web.whatsapp.com.evil.example/", "targetId": "T1"}]
+    )
+    with pytest.raises(whatsApp.WhatsAppError) as error:
+        session_for(browser)
+    assert error.value.code == "noWhatsAppTab"
+
+
+def test_a_look_alike_origin_cannot_become_the_source_of_events():
+    events = []
+    received = threading.Event()
+
+    def onEvent(event):
+        events.append(event)
+        if event.get("type") == "message":
+            received.set()
+
+    browser = page({"window.__waAccess.install()": True, **LINKED})
+    session = session_for(browser, onEvent=onEvent)
+
+    def context(contextId, origin):
+        browser.send(
+            {
+                "method": "Runtime.executionContextCreated",
+                "params": {
+                    "context": {
+                        "id": contextId,
+                        "origin": origin,
+                        "auxData": {"isDefault": True, "frameId": "T1"},
+                    }
+                },
+                "sessionId": "S1",
+            }
+        )
+
+    context(7, "https://web.whatsapp.com")
+    context(8, "https://web.whatsapp.com.evil.example")
+    for contextId, text in ((8, "forged"), (7, "real")):
+        payload = {"type": "message", "message": {"id": text, "text": text}, "chat": {"id": "1@c.us"}}
+        browser.send(
+            {
+                "method": "Runtime.bindingCalled",
+                "params": {
+                    "name": whatsApp.EVENT_BINDING,
+                    "payload": json.dumps(payload),
+                    "executionContextId": contextId,
+                },
+                "sessionId": "S1",
+            }
+        )
+    assert received.wait(5)
+    assert [e["message"]["text"] for e in events if e.get("type") == "message"] == ["real"]
+    session.close()
+
+
+def reloading_page(firstSend):
+    """A page whose first sendText fails as firstSend says, after which the bridge is gone."""
+    sends = []
+
+    def handler(message):
+        method = message["method"]
+        if method == "Target.getTargets":
+            return {"targetInfos": WHATSAPP_TABS}
+        if method == "Target.attachToTarget":
+            return {"sessionId": "S1"}
+        if method != "Runtime.evaluate":
+            return {}
+        expression = message["params"]["expression"]
+        value = None
+        if expression.startswith("window.__waAccess.sendText("):
+            sends.append(expression)
+            if len(sends) == 1:
+                if isinstance(firstSend, KeyError):
+                    raise firstSend
+                return {
+                    "result": {"type": "object"},
+                    "exceptionDetails": {"exception": {"description": firstSend}},
+                }
+            value = True
+        elif expression.startswith('typeof window.__waAccess === "undefined"'):
+            value = len(sends) == 1
+        elif expression.startswith((CURRENT_BRIDGE, "window.__waAccess.install()")):
+            value = True
+        elif expression.startswith("window.__waAccess.authState()"):
+            value = LINKED["window.__waAccess.authState()"]
+        return {"result": {"type": "object", "value": value}}
+
+    return FakeBrowser(handler), sends
+
+
+def test_a_call_made_while_the_bridge_was_missing_is_tried_again():
+    browser, sends = reloading_page(
+        "TypeError: Cannot read properties of undefined (reading 'sendText')\n    at <anonymous>:1:19"
+    )
+    session = session_for(browser)
+    session.sendText("1@c.us", "halo")
+    assert len(sends) == 2
+    session.close()
+
+
+@pytest.mark.parametrize(
+    "firstSend",
+    [
+        # WhatsApp reloaded while the message was being sent: it may have gone already.
+        KeyError("Execution context was destroyed."),
+        # The same error from inside the bridge, not from a missing bridge.
+        (
+            "TypeError: Cannot read properties of undefined (reading 'sendText')\n"
+            "    at Object.sendText (<anonymous>:812:30)\n    at <anonymous>:1:19"
+        ),
+        "TypeError: Cannot read properties of undefined (reading 'id')\n    at <anonymous>:1:19",
+    ],
+)
+def test_a_call_that_may_have_run_is_never_tried_again(firstSend):
+    browser, sends = reloading_page(firstSend)
+    session = session_for(browser)
+    with pytest.raises(whatsApp.WhatsAppError):
+        session.sendText("1@c.us", "halo")
+    assert len(sends) == 1
     session.close()

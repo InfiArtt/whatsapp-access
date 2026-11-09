@@ -116,3 +116,22 @@ def test_removing_the_add_on_removes_every_copy(tmp_path):
     dataFolder.removeAll(str(config), (str(local), ""))
     assert not (config / "whatsAppAccess").exists()
     assert not local.exists()
+
+
+def test_installing_again_before_restarting_keeps_the_first_kept_login(tmp_path):
+    make_data(tmp_path)
+    assert dataFolder.keepThroughUpdate(str(tmp_path), lambda: None, lambda: None)
+    # Before NVDA restarted, WhatsApp was started again: an empty profile appeared where the login was.
+    (tmp_path / "whatsAppAccess" / "browser").mkdir(parents=True)
+    assert dataFolder.keepThroughUpdate(str(tmp_path), lambda: None, lambda: None)
+    assert dataFolder.restoreAfterUpdate(str(tmp_path))
+    assert (tmp_path / "whatsAppAccess" / "browser" / "login").read_text() == "linked"
+
+
+def test_media_opened_with_enter_are_cleared(tmp_path, monkeypatch):
+    monkeypatch.setattr(dataFolder.tempfile, "gettempdir", lambda: str(tmp_path))
+    media = tmp_path / dataFolder.TEMP_MEDIA_NAME
+    media.mkdir()
+    (media / "photo.jpg").write_bytes(b"x")
+    dataFolder.clearTempMedia()
+    assert not media.exists()

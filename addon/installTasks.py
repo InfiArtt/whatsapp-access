@@ -37,6 +37,8 @@ def _stopRunning() -> None:
 			continue
 		# Otherwise it would start the browser again when it sees it gone.
 		plugin._stopping = True
+		# Until NVDA restarts, the login waits aside; starting WhatsApp again would make a new, empty one.
+		plugin._updateInstalled = True
 		session, hidden = getattr(plugin, "session", None), getattr(plugin, "hidden", None)
 		for stop in (getattr(session, "close", None), getattr(hidden, "stop", None)):
 			if stop is None:
@@ -49,24 +51,36 @@ def _stopRunning() -> None:
 				log.debugWarning("WhatsApp Access: stopping it for the update", exc_info=True)
 
 
+# Only these programs can be the hidden browser; anything else using the profile path is left alone.
+_BROWSERS = ("brave.exe", "chrome.exe", "msedge.exe", "chromium.exe", "vivaldi.exe", "opera.exe")
+
+
 def _forceClose() -> None:
-	"""Close any browser still using the add-on's profile, found by the profile in its command line."""
-	profile = os.path.join(_configPath(), "whatsAppAccess", "browser").replace("'", "''")
+	"""Close any browser still using the add-on's profile, found by the profile in its command line.
+
+	The profile goes to PowerShell in an environment variable and is matched as plain text, so quotes,
+	"$" or the square brackets of a folder such as "Tools [portable]" are never read as code or wildcards.
+	"""
+	profile = os.path.join(_configPath(), "whatsAppAccess", "browser")
 	script = (
-		"Get-CimInstance Win32_Process | Where-Object { $_.Name -ne 'powershell.exe' -and "
-		f"$_.CommandLine -like '*--user-data-dir=*{profile}*' }} | "
+		"$names = $env:WA_BROWSERS -split ','; "
+		"Get-CimInstance Win32_Process | Where-Object { $names -contains $_.Name.ToLower() -and "
+		"$_.CommandLine -and $_.CommandLine.Contains($env:WA_PROFILE) } | "
 		"ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
 	)
 	powershell = os.path.join(
-		os.environ.get("SystemRoot", "C:\\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe"
+		os.environ.get("SystemRoot", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe"
 	)
+	environment = dict(os.environ, WA_PROFILE=profile, WA_BROWSERS=",".join(_BROWSERS))
 	subprocess.run(
 		[powershell, "-NoProfile", "-NonInteractive", "-Command", script],
 		stdin=subprocess.DEVNULL,
 		stdout=subprocess.DEVNULL,
 		stderr=subprocess.DEVNULL,
 		creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-		timeout=30,
+		env=environment,
+		# Short: NVDA is waiting, silent, while an update installs.
+		timeout=10,
 		check=False,
 	)
 
@@ -113,7 +127,7 @@ def onUninstall() -> None:
 	# Removed for good: the hidden browser's profile holds the WhatsApp login and chats; it goes too,
 	# from NVDA's configuration folder and, for an installed NVDA, from LocalAppData.
 	try:
-		dataFolder.removeAll(_configPath(), (dataFolder.addonDataPath(),))
+		dataFolder.removeAll(_configPath(), (dataFolder.addonDataPath(), dataFolder.tempMediaPath()))
 	except Exception:  # noqa: BLE001 - see comment above
 		from logHandler import log
 

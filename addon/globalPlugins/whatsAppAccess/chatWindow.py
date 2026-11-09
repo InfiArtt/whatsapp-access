@@ -20,7 +20,7 @@ import ui
 import wx
 from logHandler import log
 
-from . import fileSafety, messageText, notifications, shortcuts, sounds, volumes
+from . import dataFolder, fileSafety, messageText, notifications, shortcuts, sounds, volumes
 from . import translate as translator
 from .configSpec import CONFIG_SECTION
 from .moreDialogs import (
@@ -198,6 +198,10 @@ def errorText(error: Exception, browserName: str = "") -> str:
 	if code == "downloadTooLarge":
 		# Translators: Reported when a file in a message is too large for the add-on to download.
 		return _("This file is larger than {size} MB. Open it in WhatsApp on your phone.").format(size=detail)
+	if code == "notMarked":
+		# Translators: Reported when a file could not get the mark Windows gives files from the internet, so it
+		# is not opened; the user can still save it.
+		return _("The file could not be opened safely here. Save it with Alt+D instead.")
 	if code == "saveFailed":
 		# Translators: Reported when a downloaded file could not be written to disk. {reason} is Windows' reason.
 		return _("The file could not be saved ({reason}).").format(reason=detail)
@@ -225,6 +229,7 @@ class ChatWindow(wx.Dialog):
 		self._recordingChatId: str | None = None
 		"""The chat a voice note is recorded in. It can only be sent there."""
 		self._recordingStarting = False
+		self._recordingStopping = False
 		self._recordingGeneration = 0
 		"""Changes whenever a voice note starts or is thrown away, so late answers about an older one are
 		ignored."""
@@ -811,6 +816,8 @@ class ChatWindow(wx.Dialog):
 			viewer.ShowModal()
 		finally:
 			viewer.Destroy()
+			# However it closed (Escape, Close or Alt+F4), a status still playing stops with it.
+			self._run(self.session.stopAudio, onError=lambda e: None)
 		self._loadTab(self.TAB_STATUS)
 		self.statusList.SetFocus()
 
@@ -1358,7 +1365,7 @@ class ChatWindow(wx.Dialog):
 		named like a document, such as "invoice.pdf.exe", so anything else is removed again and the
 		user is told to save it with Alt+D instead.
 		"""
-		folder = os.path.join(os.environ.get("TEMP", os.path.expanduser("~")), "WhatsApp Access")
+		folder = dataFolder.tempMediaPath()
 		os.makedirs(folder, exist_ok=True)
 
 		def opened(path: str) -> None:
@@ -1386,7 +1393,8 @@ class ChatWindow(wx.Dialog):
 
 		# Translators: Reported while a photo, video or document is downloaded before it opens.
 		ui.message(_("Opening…"))
-		self._run(lambda: self.session.download(message["id"], folder=folder), opened)
+		# The mark from the internet is required: without it, Office opens macros and SmartScreen is silent.
+		self._run(lambda: self.session.download(message["id"], folder=folder, requireMark=True), opened)
 
 	def _saveFile(self, message: dict | None = None, parent: wx.Window | None = None) -> None:
 		"""Alt+D: save the message's file where the user chooses, under WhatsApp's name for it."""
@@ -1589,7 +1597,7 @@ class ChatWindow(wx.Dialog):
 			# Translators: Reported when the add-on that describes photos is not installed.
 			ui.message(_("Install the AI Content Describer add-on to describe photos"))
 			return
-		folder = os.path.join(os.environ.get("TEMP", os.path.expanduser("~")), "WhatsApp Access")
+		folder = dataFolder.tempMediaPath()
 		os.makedirs(folder, exist_ok=True)
 
 		def describe(path: str) -> None:
@@ -1643,9 +1651,13 @@ class ChatWindow(wx.Dialog):
 
 		def done(result: tuple[str, str]) -> None:
 			translation, source = result
-			self._translatingId = None
 			self._lastTranslation = (message["id"], time.monotonic(), translation)
-			if self._showWhenTranslated:
+			if self._translatingId != message["id"]:
+				# Another message was asked for meanwhile; its own answer speaks for it.
+				return
+			show = self._showWhenTranslated
+			self._translatingId, self._showWhenTranslated = None, False
+			if show:
 				self._showTranslation(message, translation)
 			elif source and source.split("-")[0] == target.split("-")[0]:
 				# Translators: Said when Ctrl+T finds the message already in the user's language.
@@ -1714,7 +1726,7 @@ class ChatWindow(wx.Dialog):
 
 	def _translate(self, text: str, target: str, done: Callable[[tuple[str, str]], None]) -> None:
 		def failed(error: Exception) -> None:
-			self._translatingId = None
+			self._translatingId, self._showWhenTranslated = None, False
 			log.debugWarning(f"WhatsApp Access: translating: {error}")
 			# Translators: Said when Ctrl+T could not reach Google Translate.
 			ui.message(_("Could not translate. Check the internet connection and try again"))
@@ -1807,8 +1819,12 @@ class ChatWindow(wx.Dialog):
 		message = self._selectedMessage()
 		if message is None:
 			return
+		chatId = self.chat["id"] if self.chat else None
 
 		def ask(actions: dict) -> None:
+			if not self.chat or self.chat["id"] != chatId:
+				# The chat was left while WhatsApp answered: no question about a message no longer here.
+				return
 			dialog = DeleteDialog(self, self._replySummary(message), bool(actions.get("deleteForEveryone")))
 			try:
 				choice = dialog.ShowModal()
@@ -2347,6 +2363,9 @@ class ChatWindow(wx.Dialog):
 		settings = config.conf[CONFIG_SECTION]
 		microphone = settings["microphone"]
 		chatId = self.chat["id"]
+		# A voice message playing now is left by recording; its end must not start the next one.
+		self._playingId = None
+		self._voiceRun = False
 		self._recordingGeneration += 1
 		generation = self._recordingGeneration
 		self._recordingStarting = True
@@ -2388,10 +2407,15 @@ class ChatWindow(wx.Dialog):
 
 	def _stopRecording(self, then: str = "") -> None:
 		"""Stop recording; then "listen" plays it and "send" sends it. Otherwise it waits for the user."""
+		if self._recordingStopping:
+			# Pressed again before the first stop answered: that one carries on.
+			return
+		self._recordingStopping = True
 		generation = self._recordingGeneration
 		chatId = self._recordingChatId
 
 		def stopped(result: dict) -> None:
+			self._recordingStopping = False
 			if generation != self._recordingGeneration or not self.chat or self.chat["id"] != chatId:
 				# Thrown away, or the chat was left, while it stopped: the page must not keep it either.
 				self._run(self.session.cancelRecording, onError=lambda e: None)
@@ -2427,6 +2451,7 @@ class ChatWindow(wx.Dialog):
 				self._listenToRecording()
 
 		def failed(error: Exception) -> None:
+			self._recordingStopping = False
 			if generation != self._recordingGeneration:
 				return
 			self._recording = False
@@ -2437,6 +2462,14 @@ class ChatWindow(wx.Dialog):
 
 		self._run(self.session.stopRecording, stopped, failed)
 
+	def onRecordingLimit(self) -> None:
+		"""The page stopped a recording that reached its longest length: finish it as if the user had."""
+		if not self._recording:
+			return
+		# Translators: Said when a voice note stops by itself because it reached the longest length.
+		ui.message(_("Recording stopped after 30 minutes"))
+		self._stopRecording()
+
 	def _sendVoiceNow(self) -> None:
 		"""Ctrl+Shift+R: send the voice note, stopping the recording first if needed."""
 		if self._recording:
@@ -2446,6 +2479,9 @@ class ChatWindow(wx.Dialog):
 
 	def _listenToRecording(self) -> None:
 		if self._hasRecording:
+			# Playing the note leaves any voice message that was playing, without its end.
+			self._playingId = None
+			self._voiceRun = False
 			settings = config.conf[CONFIG_SECTION]
 			speed, volume = float(settings["playbackSpeed"]), int(settings["voiceVolume"])
 			self._run(
@@ -2457,6 +2493,13 @@ class ChatWindow(wx.Dialog):
 			)
 
 	def _discardRecording(self) -> None:
+		if self._recordingStarting and not self._recording:
+			# Thrown away while the microphone is still opening: when it opens, started() sees the newer
+			# generation and cancels it.
+			self._recordingGeneration += 1
+			sounds.play(sounds.DISCARD)
+			ui.message(_("Voice note discarded"))
+			return
 		if not self._recording and not self._hasRecording:
 			return
 		self._paused = False
@@ -2654,9 +2697,14 @@ class ChatWindow(wx.Dialog):
 			ui.message(_("No message of yours to edit here"))
 			return
 		message = mine[-1]
-		self._run(
-			lambda: self.session.messageActions(message["id"]), lambda actions: self._edit(message, actions)
-		)
+		chatId = self.chat["id"] if self.chat else None
+
+		def gotActions(actions: dict) -> None:
+			# Only in the chat it was asked in: Ctrl+Tab meanwhile must not edit the last chat's message.
+			if self.chat and self.chat["id"] == chatId:
+				self._edit(message, actions)
+
+		self._run(lambda: self.session.messageActions(message["id"]), gotActions)
 
 	def _edit(self, message: dict, actions: dict) -> None:
 		if not actions.get("edit"):
@@ -3705,6 +3753,7 @@ class ChatWindow(wx.Dialog):
 			rules[chat["id"]] = dialog.rule()
 		finally:
 			dialog.Destroy()
+			sounds.stopRing()
 		settings["chatRules"] = notifications.saveRules(rules)
 		# Translators: Reported after a chat's notification settings were saved.
 		ui.message(_("Saved"))
@@ -3861,9 +3910,11 @@ class ChatWindow(wx.Dialog):
 
 	def onPlaybackEnded(self, messageId: str | None = None) -> None:
 		"""A voice message ended: as in WhatsApp, the voice message right after it plays next."""
-		finished, self._playingId = self._playingId, None
-		if finished is None or (messageId and messageId != finished):
+		# Only the end of the one playing now counts: not the user's own recording (no id), nor a
+		# message that was playing before.
+		if not messageId or messageId != self._playingId:
 			return
+		finished, self._playingId = self._playingId, None
 		index = next((i for i, m in enumerate(self._messages) if m.get("id") == finished), -1)
 		following = self._messages[index + 1] if 0 <= index < len(self._messages) - 1 else None
 		# Only a voice message straight after: a text, a document or anything else ends the run.
@@ -4185,6 +4236,11 @@ class ChatWindow(wx.Dialog):
 				self._stopPlayback()
 			elif self._recording:
 				self._discardRecording()
+			elif inConversation and self._hasRecording:
+				# A recorded note is not thrown away by Escape, as leaving the chat would: it says what to do.
+				self._run(self.session.stopAudio, onError=lambda e: None)
+				sounds.play(sounds.DISCARD)
+				ui.message(_("Send the voice note with Ctrl+Shift+R or throw it away with Ctrl+D first"))
 			elif inConversation and self._editing is not None:
 				self._cancelEdit()
 			elif inConversation and self._replyTo is not None:
@@ -5066,7 +5122,8 @@ class StatusViewer(wx.Dialog):
 			{
 				ord("Y"): self.like,
 				ord("R"): self.reply,
-				ord("P"): lambda: self.describe(self.current),
+				# As the button "Play, stop or describe" says: describe a photo, play or stop the rest.
+				ord("P"): lambda: self.open(),
 				ord("D"): self.download,
 			}[key]()
 			return
@@ -5189,7 +5246,8 @@ class NotificationDialog(wx.Dialog):
 		if sound == "default":
 			sound = sounds.RECEIVED
 		if sound != "none":
-			sounds.play(sound)
+			# A preview, which the next one or closing the dialog stops, however long the file.
+			sounds.preview(sound)
 
 	def rule(self) -> "notifications.Rule":
 		return notifications.Rule(

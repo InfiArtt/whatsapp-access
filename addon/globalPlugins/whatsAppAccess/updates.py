@@ -92,19 +92,28 @@ def latestRelease(timeout: float = 15) -> Release:
 
 
 def download(release: Release, path: str, timeout: float = 60) -> str:
-	"""Save the release's add-on file at path, checking it against GitHub's SHA-256 when there is one."""
+	"""Save the release's add-on file at path, checking it against GitHub's SHA-256.
+
+	A download that fails or does not match is removed, so no partial or damaged file is left behind.
+	"""
 	digest = hashlib.sha256()
 	try:
-		with _open(release.url, "application/octet-stream", timeout) as response, open(path, "wb") as file:
-			while chunk := response.read(64 * 1024):
-				digest.update(chunk)
-				file.write(chunk)
-	except OSError as e:
-		raise UpdateError(f"network: {e}") from e
-	if digest.hexdigest() != release.sha256:
+		try:
+			with (
+				_open(release.url, "application/octet-stream", timeout) as response,
+				open(path, "wb") as file,
+			):
+				while chunk := response.read(64 * 1024):
+					digest.update(chunk)
+					file.write(chunk)
+		except OSError as e:
+			raise UpdateError(f"network: {e}") from e
+		if digest.hexdigest() != release.sha256:
+			raise UpdateError("badChecksum")
+	except BaseException:
 		try:
 			os.remove(path)
 		except OSError:
 			pass
-		raise UpdateError("badChecksum")
+		raise
 	return path

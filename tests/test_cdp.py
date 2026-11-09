@@ -105,3 +105,35 @@ def test_a_lost_connection_ends_waiting_calls_and_is_reported():
     assert closed.wait(5)
     with pytest.raises(cdp.Disconnected):
         connection.call("Another.method")
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["https://web.whatsapp.com/", "https://web.whatsapp.com", "https://WEB.whatsapp.com:443/send?x=1"],
+)
+def test_whatsapp_web_is_recognised(url):
+    assert cdp.isWhatsAppUrl(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://web.whatsapp.com.evil.example/",
+        "https://web.whatsapp.com@evil.example/",
+        "https://evil.example/https://web.whatsapp.com",
+        "http://web.whatsapp.com/",
+        "https://web.whatsapp.com:8443/",
+        "https://web.whatsapp.com:bad/",
+        "https://x.web.whatsapp.com/",
+        "",
+    ],
+)
+def test_look_alike_addresses_are_not_whatsapp(url):
+    assert not cdp.isWhatsAppUrl(url)
+
+
+def test_only_whatsapps_exact_origin_counts():
+    assert cdp.isWhatsAppOrigin("https://web.whatsapp.com")
+    assert not cdp.isWhatsAppOrigin("https://web.whatsapp.com.evil.example")
+    assert not cdp.isWhatsAppOrigin("https://web.whatsapp.com:8443")
+    assert not cdp.isWhatsAppOrigin("")

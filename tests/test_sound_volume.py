@@ -124,3 +124,32 @@ def test_a_preview_can_be_stopped():
     sounds.stopRing()
     time.sleep(0.1)
     assert not sounds.previewPlaying()
+
+
+def test_a_sound_stopped_while_it_loads_never_plays():
+    sounds = load_sounds()
+    sounds.config.conf = {
+        "whatsAppAccess": {"sounds": True, "notificationVolume": 50},
+        "audio": {"outputDevice": ""},
+    }
+    sounds.nvwave.WavePlayer = FakePlayer
+    sounds.nvwave.AudioPurpose = types.SimpleNamespace(SOUNDS=None)
+    slowScaled = sounds.scaled
+
+    def slow(*args):
+        time.sleep(0.3)
+        return slowScaled(*args)
+
+    sounds.scaled = slow
+    FakePlayer.played = 0
+    sounds.preview("ring")
+    time.sleep(0.05)
+    # Answered while the file is still being read: nothing may play afterwards.
+    sounds.stopRing()
+    time.sleep(0.6)
+    assert FakePlayer.played == 0
+    sounds.startRing("ring")
+    time.sleep(0.05)
+    sounds.stopRing()
+    time.sleep(0.6)
+    assert FakePlayer.played == 0

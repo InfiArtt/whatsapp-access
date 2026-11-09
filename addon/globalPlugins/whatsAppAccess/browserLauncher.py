@@ -256,8 +256,9 @@ def profileInUse(profileDir: str) -> bool:
 PID_FILE = "whatsAppAccess.pid"
 
 
-def _quiet(arguments: list[str], timeout: float) -> None:
-	subprocess.run(
+def _quiet(arguments: list[str], timeout: float, env: dict[str, str] | None = None) -> int:
+	"""Run a program with no window and wait for it. Returns its exit code."""
+	return subprocess.run(
 		arguments,
 		# All three: NVDA has no console, and handles it would pass on can be invalid.
 		stdin=subprocess.DEVNULL,
@@ -266,7 +267,8 @@ def _quiet(arguments: list[str], timeout: float) -> None:
 		creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
 		timeout=timeout,
 		check=False,
-	)
+		env=env,
+	).returncode
 
 
 def _waitUntilFree(profileDir: str, seconds: float) -> bool:
@@ -278,6 +280,55 @@ def _waitUntilFree(profileDir: str, seconds: float) -> bool:
 	return True
 
 
+# Whether a Win32_Process $p is the hidden browser with this profile. The profile and the program's name come
+# in environment variables, never inside the script, so no character in them (' " [ ] * ?) can change what
+# it does or matches. The profile's argument must end there, at a space or a closing quote, so a profile
+# named ...\profile does not match ...\profile2.
+_IS_HIDDEN_BROWSER = (
+	"function IsHiddenBrowser($p) { "
+	"$line = [string]$p.CommandLine + ' '; "
+	"$argument = '--user-data-dir=' + $env:WA_PROFILE; "
+	"return ($p.Name -eq $env:WA_EXE) -and "
+	"($line.Contains($argument + ' ') -or $line.Contains($argument + [char]34)) "
+	"}; "
+)
+
+
+def _powerShell(script: str, profileDir: str, executable: str, timeout: float, **variables: str) -> int:
+	powershell = os.path.join(
+		os.environ.get("SystemRoot", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe"
+	)
+	env = dict(os.environ, WA_PROFILE=profileDir, WA_EXE=executable, **variables)
+	return _quiet(
+		[powershell, "-NoProfile", "-NonInteractive", "-Command", _IS_HIDDEN_BROWSER + script], timeout, env
+	)
+
+
+def isHiddenBrowser(pid: int, profileDir: str, executable: str) -> bool:
+	"""Whether the process with this id is the hidden browser with this profile.
+
+	Windows reuses process ids: the id in the pid file may now belong to the user's own browser, which
+	must never be closed.
+	"""
+	script = (
+		"$p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + [int]$env:WA_PID); "
+		"if ($p -and (IsHiddenBrowser $p)) { exit 0 } else { exit 1 }"
+	)
+	try:
+		return _powerShell(script, profileDir, executable, 30, WA_PID=str(int(pid))) == 0
+	except (OSError, subprocess.SubprocessError):
+		return False
+
+
+def stopHiddenBrowsers(profileDir: str, executable: str) -> None:
+	"""Stop every process of the program whose command line has this profile, whatever its id."""
+	script = (
+		"Get-CimInstance Win32_Process | Where-Object { IsHiddenBrowser $_ } | "
+		"ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+	)
+	_powerShell(script, profileDir, executable, 30)
+
+
 def closeLeftovers(profileDir: str, executable: str) -> str:
 	"""Close a hidden browser left running with this profile, for example when NVDA could not close it.
 
@@ -286,15 +337,13 @@ def closeLeftovers(profileDir: str, executable: str) -> str:
 	"""
 	if sys.platform != "win32" or not profileInUse(profileDir):
 		return ""
-	system = os.environ.get("SystemRoot", r"C:\Windows")
 	problems = []
 	try:
 		pid = int((Path(profileDir) / PID_FILE).read_text(encoding="ascii").strip())
 	except (OSError, ValueError):
 		pid = 0
-	if pid:
-		# The image name filter makes sure a reused process id of another program is left alone.
-		taskkill = os.path.join(system, "System32", "taskkill.exe")
+	if pid and isHiddenBrowser(pid, profileDir, executable):
+		taskkill = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "taskkill.exe")
 		try:
 			_quiet(
 				[taskkill, "/F", "/T", "/FI", f"PID eq {pid}", "/FI", f"IMAGENAME eq {executable}"],
@@ -304,16 +353,9 @@ def closeLeftovers(profileDir: str, executable: str) -> str:
 			problems.append(f"taskkill: {e}")
 		if _waitUntilFree(profileDir, 5):
 			return ""
-	# Started by an older version, or its id was lost: find it by its profile in its command line.
-	powershell = os.path.join(system, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
-	pattern = f"*--user-data-dir={profileDir}*".replace("'", "''")
-	script = (
-		f"Get-CimInstance Win32_Process -Filter \"Name='{executable}'\" | "
-		f"Where-Object {{ $_.CommandLine -like '{pattern}' }} | "
-		"ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
-	)
+	# Started by an older version, or its id was lost or reused: find it by its profile in its command line.
 	try:
-		_quiet([powershell, "-NoProfile", "-NonInteractive", "-Command", script], timeout=30)
+		stopHiddenBrowsers(profileDir, executable)
 	except (OSError, subprocess.SubprocessError) as e:
 		problems.append(f"PowerShell: {e}")
 	if _waitUntilFree(profileDir, 5):
@@ -378,14 +420,15 @@ class HiddenBrowser:
 				transport.childStarted()
 			self._transport = transport
 			try:
-				(Path(self.profileDir) / PID_FILE).write_text(str(self.process.pid), encoding="ascii")
-			except OSError:
-				pass
-			try:
 				self._waitForAnswer(transport, leftover)
 			except BaseException:
 				self._stopLocked()
 				raise
+			# Only now: a browser that never answered left nothing to close later.
+			try:
+				(Path(self.profileDir) / PID_FILE).write_text(str(self.process.pid), encoding="ascii")
+			except OSError:
+				pass
 			return cdp.PipeBrowser(target, transport)
 
 	def _waitForAnswer(self, transport: cdp.PipeTransport, leftover: str) -> None:
@@ -424,6 +467,12 @@ class HiddenBrowser:
 	def _stopLocked(self) -> None:
 		process, self.process = self.process, None
 		transport, self._transport = self._transport, None
+		if process is not None:
+			# Its id is free for Windows to give to another program now.
+			try:
+				(Path(self.profileDir) / PID_FILE).unlink()
+			except OSError:
+				pass
 		if transport is not None:
 			# The browser exits by itself once its pipe closes; taskkill below makes sure.
 			transport.close()
