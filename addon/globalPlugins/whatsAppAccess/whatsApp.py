@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import tempfile
 import threading
 import time
 import uuid
@@ -45,7 +46,7 @@ class WhatsAppError(Exception):
 
 	Codes: noBrowser, refused, approvalTimedOut, noWhatsAppTab, notReady, disconnected, chatNotFound, emptyMessage, sendFailed,
 	microphone, notRecording, noRecording, emptyRecording, mediaGone, noDownload, downloadTooLarge, saveFailed,
-	failed.
+	notMarked, failed.
 	"""
 
 	def __init__(self, code: str, detail: str = "") -> None:
@@ -88,6 +89,21 @@ def _codeFromPageError(description: str) -> WhatsAppError:
 	if code in known:
 		return WhatsAppError(code, detail)
 	return WhatsAppError("failed", description[:500])
+
+
+def _bridgeWasMissing(error: WhatsAppError, function: str) -> bool:
+	"""Whether a bridge call failed only because window.__waAccess was not there, so its function never ran.
+
+	The page's own error for reading a function of undefined, thrown by the call's own expression: no
+	stack frame but the expression itself, so not from inside the bridge.
+	"""
+	if error.code != "failed":
+		return False
+	lines = error.detail.splitlines()
+	if not lines or lines[0] != f"TypeError: Cannot read properties of undefined (reading '{function}')":
+		return False
+	frames = [line.strip() for line in lines[1:] if line.strip()]
+	return len(frames) <= 1 and all(frame.startswith("at <anonymous>:1:") for frame in frames)
 
 
 @dataclass(frozen=True)
@@ -194,9 +210,7 @@ class WhatsAppSession:
 			try:
 				targets = connection.call("Target.getTargets")["targetInfos"]
 				pages = [
-					t
-					for t in targets
-					if t.get("type") == "page" and t.get("url", "").startswith(cdp.WHATSAPP_URL_PREFIX)
+					t for t in targets if t.get("type") == "page" and cdp.isWhatsAppUrl(t.get("url", ""))
 				]
 				if not pages and hidden is not None:
 					pages = [t for t in targets if t.get("type") == "page"]
@@ -217,9 +231,10 @@ class WhatsAppSession:
 						"Browser.grantPermissions",
 						{"origin": hidden.url.rstrip("/"), "permissions": ["audioCapture", "notifications"]},
 					)
-					self._call("Network.enable")
+					# Emulation, not Network: the Network domain, once enabled, would keep response bodies and send
+					# every WebSocket frame over the pipe for as long as WhatsApp runs.
 					self._call(
-						"Network.setUserAgentOverride",
+						"Emulation.setUserAgentOverride",
 						{"userAgent": hidden.userAgent, "userAgentMetadata": hidden.userAgentMetadata},
 					)
 					# The override applies from the next load, so WhatsApp always opens with it.
@@ -400,9 +415,10 @@ class WhatsAppSession:
 			return
 		if method == "Runtime.bindingCalled" and params.get("name") == EVENT_BINDING:
 			contextId = params.get("executionContextId")
-			if self._mainContextId is not None and contextId != self._mainContextId:
+			if self._mainContextId is None or contextId != self._mainContextId:
 				# A frame inside the page, or a script in another world, called the binding: whatever it
 				# says, such as a message or a call, did not come from the bridge, so NVDA must not say it.
+				# Until WhatsApp's own context is known, nothing can be told apart, so nothing is taken.
 				return
 			try:
 				event = json.loads(params.get("payload", ""))
@@ -419,7 +435,7 @@ class WhatsAppSession:
 		elif method == "Runtime.executionContextCreated":
 			context = params.get("context", {})
 			auxData = context.get("auxData", {})
-			isWhatsApp = context.get("origin", "").startswith(cdp.WHATSAPP_URL_PREFIX)
+			isWhatsApp = cdp.isWhatsAppOrigin(context.get("origin", ""))
 			if auxData.get("isDefault") and isWhatsApp and auxData.get("frameId") == self._targetId:
 				# The page's own frame: in Chromium a page's main frame has the page target's id.
 				self._mainContextId = context.get("id")
@@ -483,9 +499,10 @@ class WhatsAppSession:
 		try:
 			return self._evaluate(expression, timeout)
 		except WhatsAppError as e:
-			# The page was reloaded and the bridge is not back yet. Only then is the call tried again: the
-			# function never ran, so nothing can be sent twice.
-			if e.code == "failed" and self._evaluate(_BRIDGE_MISSING):
+			# The page was reloaded and the bridge was not back yet when the call started. Only then is the
+			# call tried again: the function never ran, so nothing can be sent twice. A page that reloaded
+			# while the function ran ("Execution context was destroyed") may have sent already.
+			if _bridgeWasMissing(e, function) and self._evaluate(_BRIDGE_MISSING):
 				self.installBridge()
 				return self._evaluate(expression, timeout)
 			raise
@@ -815,7 +832,7 @@ class WhatsAppSession:
 			raise
 		return uploadId
 
-	def download(self, messageId: str, folder: str = "", path: str = "") -> str:
+	def download(self, messageId: str, folder: str = "", path: str = "", requireMark: bool = False) -> str:
 		"""Save a message's photo, video, audio or document.
 
 		The file gets the mark Windows gives files from the internet, so SmartScreen and Office's Protected
@@ -824,7 +841,10 @@ class WhatsAppSession:
 		:param messageId: The message with the file.
 		:param folder: Save there, under a safe form of the sender's name for the file. A file that is
 			already there is never replaced.
-		:param path: Or save at this full path, which the user chose.
+		:param path: Or save at this full path, which the user chose. The download goes to a new file next
+			to it first, and replaces a file already at path only once it is complete.
+		:param requireMark: For a file that is about to be opened: when the mark cannot be written, as on
+			drives without NTFS, the file is removed and WhatsAppError("notMarked") raised.
 		:return: Where the file was saved.
 		"""
 		try:
@@ -836,24 +856,35 @@ class WhatsAppSession:
 			raise
 		if not isinstance(info, dict) or not info.get("id"):
 			raise WhatsAppError("noDownload")
-		# Set once a file exists that is only part of the download, to remove if it fails.
-		partial = False
+		# The file being written, while it is only part of the download: removed if the download fails.
+		partial = ""
 		try:
 			try:
-				if not path:
-					path = _createFreeFile(folder, fileSafety.safeFileName(str(info.get("name") or "")))
-					partial = True
-				with open(path, "wb") as file:
-					partial = True
+				if path:
+					# Created by this call alone, so neither the user's file nor anyone else's is written over.
+					handle, partial = tempfile.mkstemp(
+						prefix=f"{os.path.basename(path)[:100]}.",
+						suffix=".part",
+						dir=os.path.dirname(path) or None,
+					)
+					os.close(handle)
+				else:
+					path = partial = _createFreeFile(
+						folder, fileSafety.safeFileName(str(info.get("name") or ""))
+					)
+				with open(partial, "wb") as file:
 					offset, size = 0, int(info.get("size") or 0)
 					while offset < size:
 						piece = self._bridge("downloadChunk", info["id"], offset, UPLOAD_CHUNK_BYTES)
 						file.write(base64.b64decode(piece or ""))
 						offset += UPLOAD_CHUNK_BYTES
+				if partial != path:
+					os.replace(partial, path)
+				partial = ""
 			except BaseException:
 				if partial:
 					try:
-						os.remove(path)
+						os.remove(partial)
 					except OSError:
 						pass
 				raise
@@ -867,7 +898,13 @@ class WhatsAppSession:
 				self._bridge("downloadEnd", info["id"])
 			except WhatsAppError:
 				pass
-		fileSafety.markFromInternet(path)
+		if not fileSafety.markFromInternet(path) and requireMark:
+			# Without the mark, SmartScreen and Protected View would not check the file when it opens.
+			try:
+				os.remove(path)
+			except OSError:
+				pass
+			raise WhatsAppError("notMarked", path)
 		return path
 
 	def suggestedFileName(self, messageId: str) -> str:

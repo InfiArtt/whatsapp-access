@@ -3,7 +3,8 @@
 # This file is covered by the GNU General Public License.
 
 """Files that come from other people's messages: safe names on disk, the mark Windows gives files from the
-internet, and which ones may be opened with Enter.
+internet, and which ones may be opened with Enter: only kinds that cannot run code or hold macros, and only
+once they carry that mark.
 
 Anyone can send a file with any name, so a name is never trusted. It imports nothing from NVDA, so it can
 be tested on its own.
@@ -25,6 +26,8 @@ _RESERVED_STEMS = frozenset(
 
 # Opened with Enter in their usual program. Everything else, such as programs, scripts, shortcuts and
 # Office files with macros, can only be saved, so a file named "invoice.pdf.exe" never runs by itself.
+# Left out on purpose, so they too can only be saved: Office's old .doc, .xls and .ppt, which can carry
+# macros under any of these names, and .rtf, a common carrier of attacks on Word.
 OPENABLE_EXTENSIONS = frozenset(
 	{
 		# Pictures
@@ -54,16 +57,13 @@ OPENABLE_EXTENSIONS = frozenset(
 		".opus",
 		".wav",
 		".flac",
-		# Documents. Office opens files marked as from the internet in Protected View.
+		# Documents. Office opens files marked as from the internet in Protected View; only formats that
+		# cannot hold macros.
 		".pdf",
 		".txt",
-		".rtf",
 		".csv",
-		".doc",
 		".docx",
-		".xls",
 		".xlsx",
-		".ppt",
 		".pptx",
 		".odt",
 		".ods",
@@ -110,20 +110,50 @@ def safeFileName(name: str) -> str:
 	return (stem or "_") + extension
 
 
+def hasOpenableKind(name: str) -> bool:
+	"""Whether a file of this kind may be opened with its usual program, judging by its extension.
+
+	:param name: The file's name or path.
+	:return: True for pictures, video, sound and documents that cannot hold macros.
+	"""
+	return os.path.splitext(name)[1].lower() in OPENABLE_EXTENSIONS
+
+
 def isSafeToOpen(path: str) -> bool:
-	"""Whether a file from a message may be opened with its usual program, judging by its extension.
+	"""Whether a downloaded file from a message may be opened with its usual program.
+
+	Its kind must be one that opens (hasOpenableKind), and it must carry the mark from the internet, so
+	SmartScreen and Protected View check it as it opens. A file on a drive that cannot hold the mark is
+	never opened, only saved.
 
 	:param path: The downloaded file.
-	:return: True for pictures, video, sound and documents without macros.
+	:return: True when both hold.
 	"""
-	return os.path.splitext(path)[1].lower() in OPENABLE_EXTENSIONS
+	return hasOpenableKind(path) and isMarkedFromInternet(path)
+
+
+def isMarkedFromInternet(path: str) -> bool:
+	"""Whether the file carries the mark markFromInternet writes, zone 3 (the internet) or above."""
+	if sys.platform != "win32":
+		return False
+	try:
+		with open(f"{path}:Zone.Identifier", encoding="ascii", errors="replace") as stream:
+			text = stream.read(4096)
+	except OSError:
+		return False
+	for line in text.splitlines():
+		key, _, value = line.partition("=")
+		if key.strip().lower() == "zoneid":
+			return value.strip() in ("3", "4")
+	return False
 
 
 def markFromInternet(path: str) -> bool:
 	"""Give the file the mark Windows gives downloads, so SmartScreen and Protected View check it.
 
 	:param path: The downloaded file.
-	:return: Whether the mark was written. NTFS has it; FAT32 drives such as many USB sticks do not.
+	:return: Whether the mark was written. NTFS has it; FAT32 drives such as many USB sticks do not. A
+		file without it must not be opened: isSafeToOpen says no to it.
 	"""
 	if sys.platform != "win32":
 		return False
