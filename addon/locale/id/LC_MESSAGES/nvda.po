@@ -2670,3 +2670,35 @@ msgstr "File tidak bisa disimpan ({reason})."
 #. sent are taken off the list, so Enter sends only the rest.
 msgid "{sent} of {count} sent; Enter sends the rest"
 msgstr "{sent} dari {count} terkirim; Enter mengirim sisanya"
+
+#. Translators: Said after connecting when a WhatsApp update stopped some of the add-on's features from working.
+msgid "WhatsApp has changed, so these are off until the add-on is updated: {features}"
+msgstr "WhatsApp sudah berubah, jadi fitur ini mati sampai add-on diperbarui: {features}"
+
+#. Translators: A feature that is off because WhatsApp changed: hearing about edited messages.
+msgid "edited messages"
+msgstr "pesan yang diedit"
+
+#. Translators: A feature that is off because WhatsApp changed: sent, delivered and read ticks.
+msgid "delivered and read"
+msgstr "terkirim dan dibaca"
+
+#. Translators: A feature that is off because WhatsApp changed: reactions to messages.
+msgid "reactions"
+msgstr "reaksi"
+
+#. Translators: A feature that is off because WhatsApp changed: choosing the microphone.
+msgid "the chosen microphone"
+msgstr "mikrofon pilihan"
+
+#. Translators: A feature that is off because WhatsApp changed: hearing about calls.
+msgid "calls"
+msgstr "panggilan"
+
+#. Translators: A feature that is off because WhatsApp changed: hearing when the connection drops.
+msgid "connection lost and back"
+msgstr "koneksi putus dan tersambung lagi"
+
+#. Translators: A feature that is off because WhatsApp changed: the chat list updating by itself.
+msgid "the chat list updating by itself"
+msgstr "daftar chat yang diperbarui sendiri"

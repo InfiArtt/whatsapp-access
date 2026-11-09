@@ -33,10 +33,20 @@ def currentVersion() -> str:
 	return addonHandler.getCodeAddon().version
 
 
-def scheduleAutoCheck() -> None:
+def scheduleAutoCheck() -> wx.CallLater | None:
+	"""Check by itself a while after NVDA starts, at most once a day.
+
+	:return: The timer, for the plugin to stop if it is stopped first, or None when no check is due.
+	"""
 	settings = config.conf[CONFIG_SECTION]
 	if settings["checkUpdates"] and time.time() - int(settings["lastUpdateCheck"]) > AUTO_CHECK_EVERY_SECONDS:
-		wx.CallLater(AUTO_CHECK_DELAY_MS, check, False)
+		return wx.CallLater(AUTO_CHECK_DELAY_MS, check, False)
+	return None
+
+
+def _checked(when: int) -> None:
+	# config.conf is not safe to change from another thread.
+	config.conf[CONFIG_SECTION]["lastUpdateCheck"] = when
 
 
 def check(manual: bool) -> None:
@@ -60,7 +70,7 @@ def check(manual: bool) -> None:
 			return
 		finally:
 			_checking = False
-		config.conf[CONFIG_SECTION]["lastUpdateCheck"] = int(time.time())
+		wx.CallAfter(_checked, int(time.time()))
 		if updates.isNewer(release.version, currentVersion()):
 			wx.CallAfter(_offer, release)
 		elif manual:
