@@ -733,14 +733,38 @@
 		return true;
 	}
 
-	function star(messageId, starred) {
+	// WhatsApp's commands may return a promise. Waiting for it means a failure, such as deleting for
+	// everyone after the time allowed, reaches the user instead of "Deleted". A command that only
+	// settles after something else happens is taken as done after a while, as before.
+	const COMMAND_WAIT_MS = 15000;
+
+	async function settled(result) {
+		if (!result || typeof result.then !== "function") {
+			return result;
+		}
+		let timer = null;
+		try {
+			return await Promise.race([
+				result,
+				new Promise((resolve) => {
+					timer = setTimeout(resolve, COMMAND_WAIT_MS);
+				}),
+			]);
+		} catch (e) {
+			throw new Error("sendFailed:" + String((e && e.message) || e).slice(0, 200));
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
+	async function star(messageId, starred) {
 		const m = getMsg(messageId);
 		const chat = getChat(m.id.remote._serialized);
 		const Cmd = req("WAWebCmd").Cmd;
 		if (starred) {
-			Cmd.sendStarMsgs(chat, [m], false);
+			await settled(Cmd.sendStarMsgs(chat, [m], false));
 		} else {
-			Cmd.sendUnstarMsgs(chat, [m], false);
+			await settled(Cmd.sendUnstarMsgs(chat, [m], false));
 		}
 		return true;
 	}
@@ -753,7 +777,7 @@
 		return true;
 	}
 
-	function deleteMessage(messageId, forEveryone) {
+	async function deleteMessage(messageId, forEveryone) {
 		const m = getMsg(messageId);
 		const chat = getChat(m.id.remote._serialized);
 		const Cmd = req("WAWebCmd").Cmd;
@@ -761,9 +785,9 @@
 			if (!messageActions(messageId).deleteForEveryone) {
 				throw new Error("cannotRevoke");
 			}
-			Cmd.sendRevokeMsgs(chat, { list: [m], type: "message" }, { clearMedia: true });
+			await settled(Cmd.sendRevokeMsgs(chat, { list: [m], type: "message" }, { clearMedia: true }));
 		} else {
-			Cmd.sendDeleteMsgs(chat, { list: [m], type: "message" }, true);
+			await settled(Cmd.sendDeleteMsgs(chat, { list: [m], type: "message" }, true));
 		}
 		return true;
 	}
@@ -792,7 +816,7 @@
 		};
 	}
 
-	function deleteMessages(messageIds, forEveryone) {
+	async function deleteMessages(messageIds, forEveryone) {
 		const Cmd = req("WAWebCmd").Cmd;
 		if (forEveryone && !messagesActions(messageIds).deleteForEveryone) {
 			throw new Error("cannotRevoke");
@@ -800,22 +824,22 @@
 		for (const [chatId, msgs] of byChat(messageIds)) {
 			const chat = getChat(chatId);
 			if (forEveryone) {
-				Cmd.sendRevokeMsgs(chat, { list: msgs, type: "message" }, { clearMedia: true });
+				await settled(Cmd.sendRevokeMsgs(chat, { list: msgs, type: "message" }, { clearMedia: true }));
 			} else {
-				Cmd.sendDeleteMsgs(chat, { list: msgs, type: "message" }, true);
+				await settled(Cmd.sendDeleteMsgs(chat, { list: msgs, type: "message" }, true));
 			}
 		}
 		return true;
 	}
 
-	function starMessages(messageIds, starred) {
+	async function starMessages(messageIds, starred) {
 		const Cmd = req("WAWebCmd").Cmd;
 		for (const [chatId, msgs] of byChat(messageIds)) {
 			const chat = getChat(chatId);
 			if (starred) {
-				Cmd.sendStarMsgs(chat, msgs, false);
+				await settled(Cmd.sendStarMsgs(chat, msgs, false));
 			} else {
-				Cmd.sendUnstarMsgs(chat, msgs, false);
+				await settled(Cmd.sendUnstarMsgs(chat, msgs, false));
 			}
 		}
 		return true;
@@ -1356,7 +1380,7 @@
 
 	async function sendContacts(chatId, contactIds) {
 		await req("WAWebAttachVcardsFlowLoadable").requireBundle();
-		req("WAWebSendContactsAction")({ chat: getChat(chatId), contacts: contactsOf(contactIds) });
+		await settled(req("WAWebSendContactsAction")({ chat: getChat(chatId), contacts: contactsOf(contactIds) }));
 		return true;
 	}
 
@@ -1593,6 +1617,7 @@
 		}
 		const blob = new Blob(uploads.get(uploadId));
 		uploads.delete(uploadId);
+		bufferStarted.delete(uploadId);
 		const bitmap = await createImageBitmap(blob);
 		const side = Math.min(bitmap.width, bitmap.height);
 		const canvas = document.createElement("canvas");
@@ -2098,9 +2123,27 @@
 
 	// The add-on sends a file in base64 pieces, then asks for it to be sent.
 	const uploads = new Map();
+	// When each upload or download began. One the add-on never finished, because the connection dropped
+	// or it gave up waiting, would otherwise keep up to 200 MB in the page until it reloads.
+	const bufferStarted = new Map();
+	const BUFFER_KEEP_MS = 10 * 60 * 1000;
+	const MAX_FILE_BYTES = 200 * 1024 * 1024;
+
+	function sweepBuffers() {
+		const now = Date.now();
+		for (const [id, started] of bufferStarted) {
+			if (now - started > BUFFER_KEEP_MS) {
+				uploads.delete(id);
+				downloads.delete(id);
+				bufferStarted.delete(id);
+			}
+		}
+	}
 
 	function uploadStart(uploadId) {
+		sweepBuffers();
 		uploads.set(uploadId, []);
+		bufferStarted.set(uploadId, Date.now());
 		return true;
 	}
 
@@ -2115,6 +2158,7 @@
 
 	function uploadCancel(uploadId) {
 		uploads.delete(uploadId);
+		bufferStarted.delete(uploadId);
 		return true;
 	}
 
@@ -2122,6 +2166,7 @@
 	async function sendFile(chatId, uploadId, name, mime, kind, caption, quotedId) {
 		const parts = uploads.get(uploadId);
 		uploads.delete(uploadId);
+		bufferStarted.delete(uploadId);
 		if (!parts) {
 			throw new Error("noUpload");
 		}
@@ -2278,11 +2323,19 @@
 	}
 
 	async function downloadStart(messageId) {
+		sweepBuffers();
 		const m = getMsg(messageId);
+		if (m.size && m.size > MAX_FILE_BYTES) {
+			throw new Error("fileTooLarge:" + MAX_FILE_BYTES / 1024 / 1024);
+		}
 		const blob = await downloadMedia(m);
+		if (blob.size > MAX_FILE_BYTES) {
+			throw new Error("fileTooLarge:" + MAX_FILE_BYTES / 1024 / 1024);
+		}
 		const bytes = new Uint8Array(await blob.arrayBuffer());
 		const id = messageId + ":" + Date.now();
 		downloads.set(id, bytes);
+		bufferStarted.set(id, Date.now());
 		return { id: id, size: bytes.length, name: suggestedName(m, blob.type), mime: blob.type };
 	}
 
@@ -2301,6 +2354,7 @@
 
 	function downloadEnd(id) {
 		downloads.delete(id);
+		bufferStarted.delete(id);
 		return true;
 	}
 
