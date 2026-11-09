@@ -86,6 +86,9 @@ SEEKABLE_TYPES = ("ptt", "audio")
 POSITION_STEP_SECONDS = 5
 POSITION_PAGE_SECONDS = 30
 POSITION_FOLLOW_MS = 1000
+# The least width of the sections beside an open chat, and of the open chat, in pixels.
+SIDE_MIN_WIDTH = 300
+CONVERSATION_MIN_WIDTH = 450
 # How long after the messages list moves to the next voice message its focus change may be kept quiet.
 QUIET_FOCUS_SECONDS = 1.0
 # The moment between one voice message of a run and the next, for the small sound between them.
@@ -365,6 +368,12 @@ class ChatWindow(wx.Dialog):
 		self._updateSections()
 		# As in WhatsApp's desktop app, the open chat is beside the sections, which stay: chats on the left,
 		# the conversation on the right. Tab goes through the conversation, then on to the chat list.
+		# A list asks to be as wide as its longest line, and chat lines with their last message are long:
+		# the chat list took the whole width and left the open chat none, so it was not on the screen at
+		# all (OCR said "content is not visible"). Set widths let the two share the window, 2 to 3.
+		for part in (self.tabs, self.sectionsPanel):
+			part.SetMinSize(wx.Size(SIDE_MIN_WIDTH, -1))
+		self.conversationPanel.SetMinSize(wx.Size(CONVERSATION_MIN_WIDTH, -1))
 		side = wx.BoxSizer(wx.VERTICAL)
 		side.Add(self.tabs, 1, wx.EXPAND | wx.ALL, 6)
 		side.Add(self.sectionsPanel, 0, wx.EXPAND | wx.ALL, 6)

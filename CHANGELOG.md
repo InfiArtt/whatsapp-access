@@ -3,6 +3,14 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.6.4]
+
+- With "Record voice notes in stereo" unchecked, voice notes are now sent in mono. A microphone with
+  two channels gave two anyway, so they went out in stereo; now both sides are mixed into one.
+- An open chat is on the screen again. The chat list asked to be as wide as its longest line, took the
+  whole window and left the open chat no width at all, so OCR said "content is not visible" and
+  anyone looking at the screen saw no messages. The two now share the window.
+
 ## [0.6.3]
 
 **Required update.** In 0.6.2, Enter on a playing voice message did nothing, and voice messages could
