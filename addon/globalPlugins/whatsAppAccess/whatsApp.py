@@ -44,7 +44,8 @@ class WhatsAppError(Exception):
 	"""Something went wrong. code says what, for the add-on to explain to the user.
 
 	Codes: noBrowser, refused, approvalTimedOut, noWhatsAppTab, notReady, disconnected, chatNotFound, emptyMessage, sendFailed,
-	microphone, notRecording, noRecording, emptyRecording, mediaGone, noDownload, saveFailed, failed.
+	microphone, notRecording, noRecording, emptyRecording, mediaGone, noDownload, downloadTooLarge, saveFailed,
+	failed.
 	"""
 
 	def __init__(self, code: str, detail: str = "") -> None:
@@ -133,6 +134,8 @@ class WhatsAppSession:
 		self._connection: cdp.CdpConnection | None = None
 		self._sessionId: str | None = None
 		self._targetId: str | None = None
+		self._mainContextId: int | None = None
+		"""The JavaScript context of WhatsApp's own page, once known. Events are taken only from it."""
 		self._lock = threading.Lock()
 		self.browserName = ""
 		self._closing = False
@@ -200,6 +203,7 @@ class WhatsAppSession:
 				if not pages:
 					raise WhatsAppError("noWhatsAppTab")
 				self._targetId = pages[0]["targetId"]
+				self._mainContextId = None
 				attached = connection.call(
 					"Target.attachToTarget", {"targetId": self._targetId, "flatten": True}
 				)
@@ -395,6 +399,11 @@ class WhatsAppSession:
 				self._lost()
 			return
 		if method == "Runtime.bindingCalled" and params.get("name") == EVENT_BINDING:
+			contextId = params.get("executionContextId")
+			if self._mainContextId is not None and contextId != self._mainContextId:
+				# A frame inside the page, or a script in another world, called the binding: whatever it
+				# says, such as a message or a call, did not come from the bridge, so NVDA must not say it.
+				return
 			try:
 				event = json.loads(params.get("payload", ""))
 			except ValueError:
@@ -409,9 +418,12 @@ class WhatsAppSession:
 				self._onEvent(event)
 		elif method == "Runtime.executionContextCreated":
 			context = params.get("context", {})
-			if context.get("auxData", {}).get("isDefault") and context.get("origin", "").startswith(
-				cdp.WHATSAPP_URL_PREFIX
-			):
+			auxData = context.get("auxData", {})
+			isWhatsApp = context.get("origin", "").startswith(cdp.WHATSAPP_URL_PREFIX)
+			if auxData.get("isDefault") and isWhatsApp and auxData.get("frameId") == self._targetId:
+				# The page's own frame: in Chromium a page's main frame has the page target's id.
+				self._mainContextId = context.get("id")
+			if auxData.get("isDefault") and isWhatsApp:
 				# The page was loaded again: install the bridge again, off the reader thread.
 				threading.Thread(target=self._reinstall, name="whatsAppAccess.reinstall", daemon=True).start()
 
@@ -808,7 +820,13 @@ class WhatsAppSession:
 		:param path: Or save at this full path, which the user chose.
 		:return: Where the file was saved.
 		"""
-		info = self._bridge("downloadStart", messageId, timeout=300)
+		try:
+			info = self._bridge("downloadStart", messageId, timeout=300)
+		except WhatsAppError as e:
+			if e.code == "fileTooLarge":
+				# Said differently from a file too large to send.
+				raise WhatsAppError("downloadTooLarge", e.detail) from e
+			raise
 		if not isinstance(info, dict) or not info.get("id"):
 			raise WhatsAppError("noDownload")
 		# Set once a file exists that is only part of the download, to remove if it fails.
