@@ -109,10 +109,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._connectionLost = False
 		self._saidLost = False
 		self._lostTimer: wx.CallLater | None = None
+		self._terminated = False
+		"""Set by terminate. Work still running in other threads then does nothing more, so a plugin
+		reloaded with NVDA+Control+F3 never leaves a second browser or window behind."""
+		self._saidMissingFeatures = False
+		self._autoStartTimer: wx.CallLater | None = None
 		settings = config.conf[CONFIG_SECTION]
 		if settings["setupDone"] and settings["connection"] == "hidden" and settings["startWithNVDA"]:
-			wx.CallLater(AUTO_START_DELAY_MS, self._startHidden, False, False)
-		updateCheck.scheduleAutoCheck()
+			self._autoStartTimer = wx.CallLater(AUTO_START_DELAY_MS, self._startHidden, False, False)
+		self._updateTimer = updateCheck.scheduleAutoCheck()
 		WhatsAppSettingsPanel.plugin = self
 		NVDASettingsDialog.categoryClasses.append(WhatsAppSettingsPanel)
 
@@ -191,6 +196,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		return found[0] if found else 0
 
 	def terminate(self) -> None:
+		self._terminated = True
+		self._stopping = True
+		for timer in (self._autoStartTimer, self._updateTimer, self._lostTimer):
+			if timer is not None and timer.IsRunning():
+				timer.Stop()
+		self._autoStartTimer = self._updateTimer = self._lostTimer = None
 		sounds.stopRing()
 		if WhatsAppSettingsPanel in NVDASettingsDialog.categoryClasses:
 			NVDASettingsDialog.categoryClasses.remove(WhatsAppSettingsPanel)
@@ -352,6 +363,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def _startHidden(self, announce: bool, thenShow: bool) -> None:
 		"""Start the hidden browser and connect. announce says what happens; thenShow opens the window."""
+		self._autoStartTimer = None
+		if self._terminated:
+			return
 		browser = self._chooseHiddenBrowser()
 		if browser is None:
 			if announce:
@@ -378,6 +392,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		def work() -> None:
 			log.info(f"WhatsApp Access: starting hidden {browser.name} {'.'.join(map(str, browser.version))}")
 			self._dataMoved.join()
+			if self._terminated:
+				return
 			try:
 				try:
 					target = hidden.start()
@@ -398,12 +414,20 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				wx.CallAfter(self._connectFailed, e, browser.name, announce)
 				return
 			log.info(f"WhatsApp Access: hidden browser connected, {state}")
+			if self._terminated:
+				# NVDA stopped the plugin while the browser started; it must not stay behind.
+				self.session.close()
+				hidden.stop()
+				return
 			wx.CallAfter(self._hiddenStarted, state, thenShow)
 
 		threading.Thread(target=work, name="whatsAppAccess.hidden", daemon=True).start()
 
 	def _hiddenStarted(self, state: str, thenShow: bool) -> None:
 		self._connecting = False
+		if self._terminated:
+			return
+		self._sayMissingFeatures()
 		if state == "needsLink":
 			# At NVDA's start nothing is said; the user links it when they first open WhatsApp.
 			if thenShow:
@@ -538,7 +562,25 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def _connected(self) -> None:
 		self._connecting = False
+		if self._terminated:
+			return
+		self._sayMissingFeatures()
 		self._showWindow()
+
+	def _sayMissingFeatures(self) -> None:
+		"""Once per NVDA start: what the add-on cannot do since WhatsApp changed, so silence makes sense."""
+		missing = [entry.split(":", 1)[0] for entry in self.session.missingFeatures]
+		if not missing or self._saidMissingFeatures:
+			return
+		self._saidMissingFeatures = True
+		names = missingFeatureNames()
+		ui.message(
+			# Translators: Said after connecting when a WhatsApp update stopped some of the add-on's
+			# features from working. {features} lists them, such as "reactions, calls".
+			_("WhatsApp has changed, so these are off until the add-on is updated: {features}").format(
+				features=", ".join(names.get(name, name) for name in missing)
+			)
+		)
 
 	def _showWindow(self) -> None:
 		if self.window is None:
@@ -662,6 +704,26 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		if mode == "personal":
 			return not chat.get("isGroup")
 		return True
+
+
+def missingFeatureNames() -> dict[str, str]:
+	"""What to call each of the bridge's features when WhatsApp changed it and it is off."""
+	return {
+		# Translators: A feature that is off because WhatsApp changed: hearing about edited messages.
+		"edits": _("edited messages"),
+		# Translators: A feature that is off because WhatsApp changed: sent, delivered and read ticks.
+		"receipts": _("delivered and read"),
+		# Translators: A feature that is off because WhatsApp changed: reactions to messages.
+		"reactions": _("reactions"),
+		# Translators: A feature that is off because WhatsApp changed: choosing the microphone.
+		"microphone": _("the chosen microphone"),
+		# Translators: A feature that is off because WhatsApp changed: hearing about calls.
+		"calls": _("calls"),
+		# Translators: A feature that is off because WhatsApp changed: hearing when the connection drops.
+		"connection": _("connection lost and back"),
+		# Translators: A feature that is off because WhatsApp changed: the chat list updating by itself.
+		"chatList": _("the chat list updating by itself"),
+	}
 
 
 def soundNames() -> list[str]:
@@ -897,51 +959,41 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			choices=list(announceLabels),
 		)
 		self.announceChoice.SetSelection(ANNOUNCE_CHOICES.index(settings["announce"]))
-		self.microphones = [""]
-		microphoneLabels = [
-			# Translators: The first choice in the list of microphones: whatever the browser uses.
-			_("Browser default")
-		]
-		plugin = self.plugin
-		if plugin is not None and plugin.session.connected:
-			try:
-				for microphone in plugin.session.microphones():
-					self.microphones.append(microphone["label"])
-					microphoneLabels.append(microphone["label"])
-			except WhatsAppError as e:
-				log.debugWarning(f"WhatsApp Access: could not list microphones: {e}")
-		if settings["microphone"] and settings["microphone"] not in self.microphones:
-			self.microphones.append(settings["microphone"])
-			microphoneLabels.append(settings["microphone"])
+		# The lists start with the saved choice; WhatsApp is asked for every device in the background, since
+		# it can take up to half a minute to answer and NVDA would say nothing meanwhile.
+		self.microphones: list[str] = []
 		self.microphoneChoice = helper.addLabeledControl(
 			# Translators: The label of the list of microphones for voice notes.
 			_("Micro&phone for voice notes and calls:"),
 			wx.Choice,
-			choices=microphoneLabels,
+			choices=[],
 		)
-		self.microphoneChoice.SetSelection(self.microphones.index(settings["microphone"]))
-		self.speakers = [""]
-		speakerLabels = [
-			# Translators: The first choice in the list of speakers: the one Windows uses.
-			_("Windows default")
-		]
-		if plugin is not None and plugin.session.connected:
-			try:
-				for speaker in plugin.session.audioDevices().get("speakers", []):
-					self.speakers.append(speaker)
-					speakerLabels.append(speaker)
-			except WhatsAppError as e:
-				log.debugWarning(f"WhatsApp Access: could not list speakers: {e}")
-		if settings["speaker"] and settings["speaker"] not in self.speakers:
-			self.speakers.append(settings["speaker"])
-			speakerLabels.append(settings["speaker"])
+		self._fillDevices(
+			self.microphoneChoice, self.microphones, [], settings["microphone"], microphone=True
+		)
+		self.speakers: list[str] = []
 		self.speakerChoice = helper.addLabeledControl(
 			# Translators: The label of the list of speakers and headphones in this add-on's settings.
 			_("Sp&eaker for calls, voice notes and statuses:"),
 			wx.Choice,
-			choices=speakerLabels,
+			choices=[],
 		)
-		self.speakerChoice.SetSelection(self.speakers.index(settings["speaker"]))
+		self._fillDevices(self.speakerChoice, self.speakers, [], settings["speaker"], microphone=False)
+		plugin = self.plugin
+		if plugin is not None and plugin.session.connected:
+			session = plugin.session
+
+			def listDevices() -> None:
+				microphones: list[str] = []
+				speakers: list[str] = []
+				try:
+					microphones = [microphone["label"] for microphone in session.microphones()]
+					speakers = list(session.audioDevices().get("speakers", []))
+				except WhatsAppError as e:
+					log.debugWarning(f"WhatsApp Access: could not list microphones and speakers: {e}")
+				wx.CallAfter(self._gotDevices, microphones, speakers)
+
+			threading.Thread(target=listDevices, name="whatsAppAccess.listDevices", daemon=True).start()
 		self.callProcessingChoice = helper.addLabeledControl(
 			# Translators: The label of a choice in this add-on's settings: sound processing during calls.
 			_("Sound processing in ca&lls:"),
@@ -1129,6 +1181,42 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		# Translators: A button in this add-on's settings that looks for a new version now.
 		checkNow = helper.addItem(wx.Button(self, label=_("Check for updates now")))
 		checkNow.Bind(wx.EVT_BUTTON, lambda evt: updateCheck.check(manual=True))
+
+	def _fillDevices(
+		self, choice: wx.Choice, keys: list[str], names: list[str], selected: str, microphone: bool
+	) -> None:
+		"""Fill a list of devices, keeping selected chosen even when WhatsApp does not list it now.
+
+		:param choice: The list.
+		:param keys: Filled with what is saved for each item: "" for the default, else the device's name.
+		:param names: The devices WhatsApp lists.
+		:param selected: The device to choose.
+		:param microphone: Whether these are microphones, which decides what the default is called.
+		"""
+		keys[:] = ["", *names]
+		if selected and selected not in keys:
+			keys.append(selected)
+		default = (
+			# Translators: The first choice in the list of microphones: whatever the browser uses.
+			_("Browser default")
+			if microphone
+			# Translators: The first choice in the list of speakers: the one Windows uses.
+			else _("Windows default")
+		)
+		choice.Set([default, *keys[1:]])
+		choice.SetSelection(keys.index(selected) if selected in keys else 0)
+
+	def _gotDevices(self, microphones: list[str], speakers: list[str]) -> None:
+		if not self:
+			# The settings were closed before WhatsApp answered.
+			return
+		for choice, keys, names, isMicrophone in (
+			(self.microphoneChoice, self.microphones, microphones, True),
+			(self.speakerChoice, self.speakers, speakers, False),
+		):
+			# What the user picked meanwhile stays picked.
+			current = keys[choice.GetSelection()] if 0 <= choice.GetSelection() < len(keys) else ""
+			self._fillDevices(choice, keys, names, current, isMicrophone)
 
 	def _onUnlink(self, evt: wx.CommandEvent) -> None:
 		answer = wx.MessageBox(

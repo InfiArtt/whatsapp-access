@@ -64,6 +64,7 @@ class CallWindow(wx.Dialog):
 		self.call: dict | None = None
 		self.connectedAt: float | None = None
 		self.declined = False
+		self._askingDevices = False
 		sizer = wx.BoxSizer(wx.VERTICAL)
 		self.statusBox = wx.TextCtrl(self, style=wx.TE_READONLY, size=(420, -1))
 		sizer.Add(self.statusBox, 0, wx.EXPAND | wx.ALL, 8)
@@ -86,7 +87,7 @@ class CallWindow(wx.Dialog):
 		self.reactButton.Bind(wx.EVT_BUTTON, lambda evt: self._react())
 		# Translators: A button in a call: choose the microphone and the speaker or headphones.
 		self.devicesButton = wx.Button(self, label=_("Microphone and &speaker…"))
-		self.devicesButton.Bind(wx.EVT_BUTTON, lambda evt: AudioDevicesDialog(self, self.session).ShowModal())
+		self.devicesButton.Bind(wx.EVT_BUTTON, lambda evt: self._showDevices())
 		for button in (
 			self.answerButton,
 			self.declineButton,
@@ -131,6 +132,33 @@ class CallWindow(wx.Dialog):
 				wx.CallAfter(onDone, result)
 
 		threading.Thread(target=target, name="whatsAppAccess.call", daemon=True).start()
+
+	def _showDevices(self) -> None:
+		"""The microphone and speaker dialog, once WhatsApp has listed its devices off the main thread."""
+		if self._askingDevices:
+			return
+		self._askingDevices = True
+
+		def listDevices() -> None:
+			try:
+				devices = self.session.audioDevices()
+			except WhatsAppError as e:
+				log.debugWarning(f"WhatsApp Access: could not list microphones and speakers: {e}")
+				devices = {}
+			wx.CallAfter(show, devices)
+
+		def show(devices: dict) -> None:
+			self._askingDevices = False
+			if not self:
+				# The call ended and its window closed meanwhile.
+				return
+			dialog = AudioDevicesDialog(self, self.session, devices)
+			try:
+				dialog.ShowModal()
+			finally:
+				dialog.Destroy()
+
+		threading.Thread(target=listDevices, name="whatsAppAccess.listDevices", daemon=True).start()
 
 	# Actions -------------------------------------------------------------------------------------------
 
@@ -563,15 +591,14 @@ class CallAnnouncer:
 class AudioDevicesDialog(wx.Dialog):
 	"""Choose the microphone and the speaker; each change takes effect at once, during the call too."""
 
-	def __init__(self, parent: wx.Window, session: WhatsAppSession) -> None:
+	def __init__(self, parent: wx.Window, session: WhatsAppSession, devices: dict) -> None:
+		"""
+		:param devices: WhatsApp's microphones and speakers, asked for before, off NVDA's main thread.
+		"""
 		# Translators: The title of the dialog that chooses the microphone and speaker.
 		super().__init__(parent, title=_("Microphone and speaker"))
 		self.session = session
 		settings = config.conf[CONFIG_SECTION]
-		try:
-			devices = session.audioDevices()
-		except WhatsAppError:
-			devices = {}
 		# Translators: The first choice in the list of microphones: whatever the browser uses.
 		self.microphones = [("", _("Browser default"))]
 		self.microphones += [(name, name) for name in devices.get("microphones", [])]
