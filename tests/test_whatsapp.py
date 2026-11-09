@@ -1,4 +1,6 @@
+import base64
 import json
+import sys
 import threading
 
 import pytest
@@ -179,17 +181,57 @@ def test_closing_on_purpose_is_not_reported():
     assert not lost.wait(0.5)
 
 
-def test_saved_files_get_names_windows_accepts(tmp_path):
-    assert whatsApp._safeFileName('lapor:an?"1"/2.pdf') == "2.pdf"
-    assert whatsApp._safeFileName("a<b>c|d*e.txt") == "a_b_c_d_e.txt"
-    assert whatsApp._safeFileName("...") == "WhatsApp file"
+def downloading(name: str, content: bytes = b"hello", chunk=None):
+    """A linked page with one file to download, named by its sender."""
+    return page(
+        {
+            "window.__waAccess.install()": True,
+            **LINKED,
+            "window.__waAccess.downloadStart(": {"id": "D1", "name": name, "size": len(content)},
+            "window.__waAccess.downloadChunk(": (
+                chunk if chunk is not None else base64.b64encode(content).decode("ascii")
+            ),
+            "window.__waAccess.downloadEnd(": True,
+        }
+    )
 
 
-def test_saving_never_overwrites(tmp_path):
-    (tmp_path / "foto.jpg").write_bytes(b"x")
-    (tmp_path / "foto (2).jpg").write_bytes(b"x")
-    assert whatsApp._freePath(str(tmp_path), "foto.jpg") == str(tmp_path / "foto (3).jpg")
-    assert whatsApp._freePath(str(tmp_path), "baru.jpg") == str(tmp_path / "baru.jpg")
+def test_a_download_is_saved_under_a_safe_name(tmp_path):
+    session = session_for(downloading("..\\..\\lapor:an.pdf"))
+    path = session.download("M1", folder=str(tmp_path))
+    assert path == str(tmp_path / "lapor_an.pdf")
+    assert (tmp_path / "lapor_an.pdf").read_bytes() == b"hello"
+
+
+def test_a_download_never_replaces_a_file(tmp_path):
+    (tmp_path / "foto.jpg").write_bytes(b"mine")
+    (tmp_path / "foto (2).jpg").write_bytes(b"mine")
+    session = session_for(downloading("foto.jpg"))
+    assert session.download("M1", folder=str(tmp_path)) == str(tmp_path / "foto (3).jpg")
+    assert (tmp_path / "foto.jpg").read_bytes() == b"mine"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="NTFS alternate data streams")
+def test_a_download_is_marked_as_from_the_internet(tmp_path):
+    session = session_for(downloading("tagihan.pdf"))
+    path = session.download("M1", folder=str(tmp_path))
+    with open(path + ":Zone.Identifier", encoding="ascii") as stream:
+        assert "ZoneId=3" in stream.read()
+
+
+def test_a_failed_download_leaves_no_partial_file(tmp_path):
+    session = session_for(downloading("rusak.pdf", chunk=whatsApp.WhatsAppError("mediaGone")))
+    with pytest.raises(whatsApp.WhatsAppError):
+        session.download("M1", folder=str(tmp_path))
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_download_the_page_cannot_start_is_reported(tmp_path):
+    browser = page({"window.__waAccess.install()": True, **LINKED, "window.__waAccess.downloadStart(": None})
+    session = session_for(browser)
+    with pytest.raises(whatsApp.WhatsAppError) as raised:
+        session.download("M1", folder=str(tmp_path))
+    assert raised.value.code == "noDownload"
 
 
 def test_a_whatsapp_waiting_to_be_linked_says_so():

@@ -19,7 +19,7 @@ import ui
 import wx
 from logHandler import log
 
-from . import messageText, notifications, shortcuts, sounds, volumes
+from . import fileSafety, messageText, notifications, shortcuts, sounds, volumes
 from . import translate as translator
 from .configSpec import CONFIG_SECTION
 from .moreDialogs import (
@@ -191,6 +191,12 @@ def errorText(error: Exception, browserName: str = "") -> str:
 		return _("This file is larger than {size} MB. Send it from WhatsApp on your phone.").format(
 			size=detail
 		)
+	if code == "noDownload":
+		# Translators: Reported when a file in a message cannot be downloaded.
+		return _("This file cannot be downloaded any more. Open it in WhatsApp on your phone.")
+	if code == "saveFailed":
+		# Translators: Reported when a downloaded file could not be written to disk. {reason} is Windows' reason.
+		return _("The file could not be saved ({reason}).").format(reason=detail)
 	if code == "sendFailed":
 		# Translators: Reported when WhatsApp did not send a message. {reason} is WhatsApp's reason.
 		return _("WhatsApp did not send it ({reason}).").format(reason=detail)
@@ -1320,17 +1326,37 @@ class ChatWindow(wx.Dialog):
 	# Files in messages ----------------------------------------------------------------------------------
 
 	def _openFile(self, message: dict) -> None:
-		"""Enter on a photo, video or document: download it and open it with its usual Windows program."""
+		"""Enter on a photo, video or document: download it and open it with its usual Windows program.
+
+		Only pictures, video, sound and documents without macros are opened. Anyone can send a program
+		named like a document, such as "invoice.pdf.exe", so anything else is removed again and the
+		user is told to save it with Alt+D instead.
+		"""
 		folder = os.path.join(os.environ.get("TEMP", os.path.expanduser("~")), "WhatsApp Access")
 		os.makedirs(folder, exist_ok=True)
 
 		def opened(path: str) -> None:
+			name = os.path.basename(path)
+			if not fileSafety.isSafeToOpen(path):
+				try:
+					os.remove(path)
+				except OSError:
+					pass
+				ui.message(
+					# Translators: Reported when Enter is pressed on a file that could be a program or a script,
+					# such as invoice.pdf.exe. {name} is the file's name.
+					_(
+						"{name} was not opened: files of this kind can run programs. If you trust the sender, "
+						"save it with Alt+D."
+					).format(name=name)
+				)
+				return
 			try:
 				os.startfile(path)
 			except OSError as e:
 				log.debugWarning(f"WhatsApp Access: could not open {path}: {e}")
 				# Translators: Reported when Windows has no program to open a downloaded file.
-				ui.message(_("Windows has no program to open {name}").format(name=os.path.basename(path)))
+				ui.message(_("Windows has no program to open {name}").format(name=name))
 
 		# Translators: Reported while a photo, video or document is downloaded before it opens.
 		ui.message(_("Opening…"))

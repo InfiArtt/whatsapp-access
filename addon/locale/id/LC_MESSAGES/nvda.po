@@ -2652,3 +2652,16 @@ msgstr "Menutup WhatsApp sepenuhnya, setelah bertanya: tidak ada pesan atau pang
 #. Translators: In the dialog before closing WhatsApp fully.
 msgid "- If WhatsApp starts with NVDA, it starts again the next time NVDA starts."
 msgstr "- Kalau WhatsApp diatur menyala bersama NVDA, ia menyala lagi saat NVDA dimulai berikutnya."
+
+#. Translators: Reported when Enter is pressed on a file that could be a program or a script,
+#. such as invoice.pdf.exe. {name} is the file's name.
+msgid "{name} was not opened: files of this kind can run programs. If you trust the sender, save it with Alt+D."
+msgstr "{name} tidak dibuka: file jenis ini bisa menjalankan program. Kalau kamu percaya pengirimnya, simpan dengan Alt+D."
+
+#. Translators: Reported when a file in a message cannot be downloaded.
+msgid "This file cannot be downloaded any more. Open it in WhatsApp on your phone."
+msgstr "File ini sudah tidak bisa diunduh. Buka di WhatsApp di ponselmu."
+
+#. Translators: Reported when a downloaded file could not be written to disk. {reason} is Windows' reason.
+msgid "The file could not be saved ({reason})."
+msgstr "File tidak bisa disimpan ({reason})."
