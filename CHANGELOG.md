@@ -92,6 +92,9 @@ Steadier:
 - A ringtone that starts while another is ending can be stopped again.
 - Describing a photo (Alt+P) puts back copied files or pictures on the clipboard afterwards, not only text.
 - Emptying About in the profile now says it was not emptied, instead of "Profile saved".
+- Questions before deleting, leaving, reporting or unlinking use NVDA's own message dialog: the safe
+  answer is the one focused first and the one Escape gives.
+- The list in list dialogs, and the box in the call window, now have names NVDA reads.
 
 ## [0.4.1]
 

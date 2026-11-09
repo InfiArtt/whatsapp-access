@@ -74,9 +74,10 @@ def check(manual: bool) -> None:
 		if updates.isNewer(release.version, currentVersion()):
 			wx.CallAfter(_offer, release)
 		elif manual:
-			# Translators: Said when the user checked for a new version and has the newest one.
 			wx.CallAfter(
-				ui.message, _("You have the newest version, {version}").format(version=currentVersion())
+				ui.message,
+				# Translators: Said when the user checked for a new version and has the newest one.
+				_("You have the newest version, {version}").format(version=currentVersion()),
 			)
 
 	threading.Thread(target=work, name="whatsAppAccess.updates", daemon=True).start()

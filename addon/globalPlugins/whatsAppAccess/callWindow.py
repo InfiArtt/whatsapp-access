@@ -66,6 +66,8 @@ class CallWindow(wx.Dialog):
 		self.declined = False
 		self._askingDevices = False
 		sizer = wx.BoxSizer(wx.VERTICAL)
+		# Translators: The label of the box in the call window that says who is calling and how it goes.
+		sizer.Add(wx.StaticText(self, label=_("Call:")), 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
 		self.statusBox = wx.TextCtrl(self, style=wx.TE_READONLY, size=(420, -1))
 		sizer.Add(self.statusBox, 0, wx.EXPAND | wx.ALL, 8)
 		buttons = wx.BoxSizer(wx.HORIZONTAL)
@@ -123,9 +125,10 @@ class CallWindow(wx.Dialog):
 			except Exception as e:  # noqa: BLE001 - reported to the user
 				if not isinstance(e, WhatsAppError):
 					log.exception("WhatsApp Access: call")
-				# Translators: Reported when a call action failed.
 				wx.CallAfter(
-					ui.message, _("The call did not respond. {detail}").format(detail=getattr(e, "code", ""))
+					ui.message,
+					# Translators: Reported when a call action failed.
+					_("The call did not respond. {detail}").format(detail=getattr(e, "code", "")),
 				)
 				return
 			if onDone is not None:
@@ -542,8 +545,8 @@ class CallAnnouncer:
 	def _ended(self, call: dict) -> None:
 		sounds.play(sounds.DISCARD)
 		if self.connectedAt:
-			# Translators: Reported when a call ends, with how long it lasted.
 			ui.message(
+				# Translators: Reported when a call ends, with how long it lasted.
 				_("Call ended, {duration}").format(
 					duration=messageText.duration(time.monotonic() - self.connectedAt)
 				)

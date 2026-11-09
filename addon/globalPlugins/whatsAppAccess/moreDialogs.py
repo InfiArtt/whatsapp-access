@@ -13,6 +13,8 @@ import api
 import ui
 import wx
 
+from .questions import askYesNo
+
 if TYPE_CHECKING:
 	from .chatWindow import ChatWindow
 
@@ -34,6 +36,7 @@ def _okCancel(dialog: wx.Dialog, sizer: wx.Sizer, okLabel: str) -> None:
 	ok = wx.Button(dialog, wx.ID_OK, label=okLabel)
 	ok.SetDefault()
 	buttons.AddButton(ok)
+	# Translators: The button that closes a dialog without doing anything.
 	buttons.AddButton(wx.Button(dialog, wx.ID_CANCEL, label=_("Cancel")))
 	buttons.Realize()
 	sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 8)
@@ -87,9 +90,12 @@ class CreateEventDialog(wx.Dialog):
 			_("&Date (day/month/year):"),
 			lambda: wx.TextCtrl(self, value=time.strftime("%d/%m/%Y", tomorrow)),
 		)
-		# Translators: The label of an event's start time, typed as hours:minutes.
 		self.start = _labeled(
-			self, sizer, _("&Start time (hours:minutes):"), lambda: wx.TextCtrl(self, value="10:00")
+			self,
+			sizer,
+			# Translators: The label of an event's start time, typed as hours:minutes.
+			_("&Start time (hours:minutes):"),
+			lambda: wx.TextCtrl(self, value="10:00"),
 		)
 		# Translators: The label of an event's end time; it may stay empty.
 		self.end = _labeled(self, sizer, _("&End time (may be empty):"), lambda: wx.TextCtrl(self))
@@ -207,12 +213,16 @@ class ProfileDialog(wx.Dialog):
 		self.name = _labeled(
 			self,
 			sizer,
+			# Translators: The label of the user's name in the profile dialog.
 			_("Your &name:"),
 			lambda: wx.TextCtrl(self, value=profile.get("name", ""), size=(420, -1)),
 		)
-		# Translators: The label of the user's About text.
 		self.about = _labeled(
-			self, sizer, _("&About:"), lambda: wx.TextCtrl(self, value=profile.get("about", ""))
+			self,
+			sizer,
+			# Translators: The label of the user's About text.
+			_("&About:"),
+			lambda: wx.TextCtrl(self, value=profile.get("about", "")),
 		)
 		buttons = wx.BoxSizer(wx.HORIZONTAL)
 		# Translators: A button that chooses a picture for the user's profile photo.
@@ -237,6 +247,7 @@ class ProfileDialog(wx.Dialog):
 			self,
 			# Translators: The title of the dialog for choosing a profile photo.
 			_("Choose a profile photo"),
+			# Translators: The file type in the dialog for choosing a profile photo.
 			wildcard=_("Pictures") + "|*.jpg;*.jpeg;*.png;*.webp;*.bmp",
 			style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
 		)
@@ -276,7 +287,9 @@ def privacyChoices() -> list[tuple[str, str, list[tuple[str, str]]]]:
 		# Translators: A privacy setting, like WhatsApp's.
 		(
 			"online",
+			# Translators: The label of a privacy choice, like WhatsApp's.
 			_("&Who can see when I'm online:"),
+			# Translators: A choice for who can see when the user is online: the same people as for last seen.
 			[everyone, ("match_last_seen", _("Same as last seen"))],
 		),
 		# Translators: A privacy setting, like WhatsApp's.
@@ -314,6 +327,7 @@ class PrivacyDialog(wx.Dialog):
 			choice.SetSelection(keys.index(value) if value in keys else 0)
 			self.controls[key] = (choice, keys)
 			first = first or choice
+		# Translators: The button that saves the privacy settings.
 		_okCancel(self, sizer, _("&Save"))
 		self.SetSizerAndFit(sizer)
 		self.CentreOnParent()
@@ -354,6 +368,7 @@ class ManageGroupDialog(wx.Dialog):
 		self.name = _labeled(
 			self,
 			sizer,
+			# Translators: The label of a group's name in Manage group.
 			_("Group &name:"),
 			lambda: wx.TextCtrl(self, value=chat.get("title", ""), size=(420, -1)),
 		)
@@ -369,6 +384,7 @@ class ManageGroupDialog(wx.Dialog):
 		# Translators: A button that saves a group's description.
 		self.saveDescription = self._button(
 			sizer,
+			# Translators: A button that saves a group's description.
 			_("Save descr&iption"),
 			lambda: self._save("description", self.description.GetValue().strip()),
 		)
@@ -395,6 +411,7 @@ class ManageGroupDialog(wx.Dialog):
 			button.Bind(wx.EVT_BUTTON, lambda evt, action=action: action())
 			row.Add(button, 0, wx.RIGHT, 6)
 		sizer.Add(row, 0, wx.ALL, 8)
+		# Translators: The button that closes Manage group.
 		sizer.Add(wx.Button(self, wx.ID_CANCEL, label=_("Close")), 0, wx.ALIGN_RIGHT | wx.ALL, 8)
 		self.SetSizerAndFit(sizer)
 		self.CentreOnParent()
@@ -421,6 +438,7 @@ class ManageGroupDialog(wx.Dialog):
 		# Translators: Reported after a group's name or description was saved.
 		self.window._run(
 			lambda: self.window.session.setGroupInfo(self.chat["id"], field, value),
+			# Translators: Reported after a group's name or description was saved.
 			lambda r: ui.message(_("Saved")),
 		)
 
@@ -444,16 +462,12 @@ class ManageGroupDialog(wx.Dialog):
 				# Translators: Reported after a group's invite link was copied, or made again and copied.
 				ui.message(_("New link copied") if reset else _("Invite link copied"))
 
-		if (
-			reset
-			and wx.MessageBox(
-				# Translators: Asked before making a new invite link for a group.
-				_("Reset the invite link? The old link stops working."),
-				_("Manage group"),
-				wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-				self,
-			)
-			!= wx.YES
+		if reset and not askYesNo(
+			self,
+			# Translators: Asked before making a new invite link for a group.
+			_("Reset the invite link? The old link stops working."),
+			# Translators: The title of a question in Manage group.
+			_("Manage group"),
 		):
 			return
 		self.window._run(lambda: self.window.session.inviteLink(self.chat["id"], reset), done)
@@ -483,6 +497,7 @@ class ManageGroupDialog(wx.Dialog):
 				# Translators: An item in a group member's menu, like WhatsApp's.
 				("demote", _("Dismiss as admin"))
 				if person.get("isAdmin")
+				# Translators: An item in a group member's menu, like WhatsApp's.
 				else ("promote", _("Make group admin")),
 				# Translators: An item in a group member's menu, like WhatsApp's.
 				("remove", _("Remove from group")),
@@ -500,16 +515,12 @@ class ManageGroupDialog(wx.Dialog):
 		self.window._run(lambda: session.participants(chatId), show)
 
 	def _change(self, person: dict, action: str, label: str) -> None:
-		if (
-			action == "remove"
-			and wx.MessageBox(
-				# Translators: Asked before removing someone from a group, with their name.
-				_("Remove {name} from the group?").format(name=person["name"]),
-				_("Manage group"),
-				wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-				self,
-			)
-			!= wx.YES
+		if action == "remove" and not askYesNo(
+			self,
+			# Translators: Asked before removing someone from a group, with their name.
+			_("Remove {name} from the group?").format(name=person["name"]),
+			# Translators: The title of a question in Manage group.
+			_("Manage group"),
 		):
 			return
 		self.window._run(

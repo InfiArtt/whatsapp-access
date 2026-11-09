@@ -89,8 +89,8 @@ class LinkDialog(wx.Dialog):
 		self._waiting = False
 		self._codeAt = 0.0
 		sizer = wx.BoxSizer(wx.VERTICAL)
-		# Translators: The label of the box for the phone number to link.
 		sizer.Add(
+			# Translators: The label of the box for the phone number to link.
 			wx.StaticText(self, label=_("Your &phone number, with country code, such as +62 812 3456 7890:"))
 		)
 		self.phoneBox = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)

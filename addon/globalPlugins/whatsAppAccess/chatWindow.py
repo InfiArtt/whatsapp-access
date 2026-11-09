@@ -31,6 +31,7 @@ from .moreDialogs import (
 	ProfileDialog,
 	TextStatusDialog,
 )
+from .questions import askThreeWay, askYesNo
 from .whatsApp import WhatsAppError, WhatsAppSession
 
 MESSAGES_TO_LOAD = 50
@@ -175,6 +176,7 @@ def errorText(error: Exception, browserName: str = "") -> str:
 			browser=browser
 		)
 	if code == "groupCall":
+		# Translators: Reported when WhatsApp refuses a group call the add-on asked for.
 		return _("Group calls are not supported yet")
 	if code == "callNotStarted":
 		# Translators: Reported when WhatsApp did not start a call, for example because it asks for consent first.
@@ -205,6 +207,7 @@ def errorText(error: Exception, browserName: str = "") -> str:
 		# Translators: Reported when WhatsApp did not send a message. {reason} is WhatsApp's reason.
 		return _("WhatsApp did not send it ({reason}).").format(reason=detail)
 	log.error(f"WhatsApp Access: {error}")
+	# Translators: Reported when something unexpected failed. The details are in NVDA's log.
 	return _("Something went wrong. Details are in NVDA's log.")
 
 
@@ -512,13 +515,16 @@ class ChatWindow(wx.Dialog):
 
 		# Translators: An item in a starred message's menu: opens its chat at the message.
 		add(_("&Open in chat"), self._openStarred)
+		# Translators: An item in a starred message's menu: copies its text.
 		add(_("&Copy"), lambda: self._copy(message.get("text") or message.get("caption") or ""))
 
 		def unstarred(result: Any) -> None:
+			# Translators: Reported after a message was taken off the starred messages.
 			ui.message(_("Unstarred"))
 			self._loadTab(self.TAB_STARRED)
 
 		add(
+			# Translators: An item in a starred message's menu: takes it off the starred messages.
 			_("Un&star"),
 			lambda: self._run(lambda: self.session.starMessages([message["id"]], False), unstarred),
 		)
@@ -555,6 +561,7 @@ class ChatWindow(wx.Dialog):
 		if channel is None:
 			return
 		menu = wx.Menu()
+		# Translators: An item in a channel's menu in the Channels section: opens the channel.
 		item = menu.Append(wx.ID_ANY, _("&Open"))
 		menu.Bind(wx.EVT_MENU, lambda evt: self.openChat(channel), item)
 		# Translators: An item in a channel's menu: stops following it.
@@ -565,8 +572,8 @@ class ChatWindow(wx.Dialog):
 
 	def _followChannel(self, channel: dict, follow: bool) -> None:
 		def done(result: Any) -> None:
-			# Translators: Reported after following or unfollowing a channel, with its name.
 			ui.message(
+				# Translators: Reported after following or unfollowing a channel, with its name.
 				(_("Following {name}") if follow else _("Unfollowed {name}")).format(name=channel["title"])
 			)
 			self._loadTab(self.TAB_CHANNELS)
@@ -633,6 +640,7 @@ class ChatWindow(wx.Dialog):
 			# Translators: A community in its list: name and how many groups it has.
 			line = _("{name}, {count} groups").format(name=c["title"], count=len(c.get("groups", [])))
 			if c.get("unread"):
+				# Translators: Added to a community in the list: how many unread messages it has.
 				line += ", " + _("{count} unread").format(count=c["unread"])
 			lines.append(line)
 		# Translators: Shown in the Communities section when the user is in no community.
@@ -659,10 +667,12 @@ class ChatWindow(wx.Dialog):
 					# Translators: A community group the user is not in.
 					line += ", " + _("not joined")
 			elif g.get("unread"):
+				# Translators: Added to a community's group in the list: how many unread messages it has.
 				line += ", " + _("{count} unread").format(count=g["unread"])
 			lines.append(line)
 		if not lines:
 			return
+		# Translators: The button that opens a community's group, or asks to join it.
 		picker = ListDialog(self, community["title"], lines, okLabel=_("&Open or join"))
 		try:
 			if picker.ShowModal() != wx.ID_OK:
@@ -674,16 +684,16 @@ class ChatWindow(wx.Dialog):
 			self.openChat(self._chatById(group["id"], group["title"]))
 			return
 		if group.get("requested"):
+			# Translators: Reported when the user already asked to join a community group and waits for its admins.
 			ui.message(_("request sent"))
 			return
-		answer = wx.MessageBox(
+		if not askYesNo(
+			self,
 			# Translators: Asked before joining a community group, with its name.
 			_("Join {name}?").format(name=group["title"]),
 			community["title"],
-			wx.YES_NO | wx.ICON_QUESTION,
-			self,
-		)
-		if answer != wx.YES:
+			warning=False,
+		):
 			return
 
 		def joined(result: str) -> None:
@@ -1045,8 +1055,8 @@ class ChatWindow(wx.Dialog):
 		self.filterChoice.SetSelection(index)
 		self._showChats()
 		self.chatList.SetFocus()
-		# Translators: Read out after choosing a chat list filter: its name and how many chats it shows.
 		ui.message(
+			# Translators: Read out after choosing a chat list filter: its name and how many chats it shows.
 			_("{filter}, {count} chats").format(filter=filterNames()[index], count=len(self._shownChats))
 		)
 
@@ -1418,8 +1428,8 @@ class ChatWindow(wx.Dialog):
 
 			def saved(savedPath: str) -> None:
 				sounds.play(sounds.SENT)
-				# Translators: Reported after a file was saved, with its name and folder.
 				ui.message(
+					# Translators: Reported after a file was saved, with its name and folder.
 					_("Saved {name} in {folder}").format(
 						name=os.path.basename(savedPath), folder=os.path.dirname(savedPath)
 					)
@@ -1651,8 +1661,8 @@ class ChatWindow(wx.Dialog):
 				# Translators: Said when Ctrl+T finds the message already in the user's language.
 				ui.message(_("Already in {language}").format(language=languageName(target)))
 			else:
-				# Translators: A message translated with Ctrl+T, with the language it was in.
 				ui.message(
+					# Translators: A message translated with Ctrl+T, with the language it was in.
 					_("From {language}: {text}").format(language=languageName(source), text=translation)
 				)
 
@@ -1691,6 +1701,7 @@ class ChatWindow(wx.Dialog):
 			if box.GetValue() != text:
 				return
 			if source and source.split("-")[0] == target.split("-")[0]:
+				# Translators: Reported when Ctrl+T is pressed on a message already in the language to translate into.
 				ui.message(_("Already in {language}").format(language=languageName(target)))
 				return
 			self._beforeTranslation = text
@@ -1699,6 +1710,7 @@ class ChatWindow(wx.Dialog):
 			# Translators: Said after Ctrl+T translated the user's message; Enter sends it, Ctrl+T undoes it.
 			ui.message(
 				withHint(
+					# Translators: What the user wrote, translated with Ctrl+T, with the language it is now in.
 					_("In {language}: {text}").format(language=languageName(target), text=translation),
 					# Translators: A hint after the user's message was translated.
 					_("Enter sends it, Ctrl+T gives back your own words"),
@@ -1759,6 +1771,7 @@ class ChatWindow(wx.Dialog):
 			if text:
 				self._copy(text)
 			else:
+				# Translators: Reported when copying a message that has no text, such as a voice message.
 				ui.message(_("This message has no text"))
 
 	def _reactMenu(self) -> None:
@@ -1822,6 +1835,7 @@ class ChatWindow(wx.Dialog):
 				if not forEveryone:
 					self._removeMessage(message)
 				sounds.play(sounds.DISCARD)
+				# Translators: Reported after a message was deleted.
 				ui.message(_("Deleted"))
 
 			self._run(lambda: self.session.deleteMessage(message["id"], forEveryone), done)
@@ -2158,8 +2172,8 @@ class ChatWindow(wx.Dialog):
 			(self._mentionIndex + step) % count if self._mentionIndex >= 0 else (0 if step > 0 else count - 1)
 		)
 		person = self._mentionMatches[self._mentionIndex]
-		# Translators: One person offered for an @mention: name, then position, such as "Rafli, 2 of 5".
 		ui.message(
+			# Translators: One person offered for an @mention: name, then position, such as "Rafli, 2 of 5".
 			_("{name}, {position} of {count}").format(
 				name=person["name"], position=self._mentionIndex + 1, count=count
 			)
@@ -2276,6 +2290,7 @@ class ChatWindow(wx.Dialog):
 			# Translators: The record button's label while recording; pressing it stops and plays the recording.
 			self.recordButton.SetLabel(_("Stop and listen (Ctrl+R)"))
 		else:
+			# Translators: The record button's label when nothing is being recorded.
 			self.recordButton.SetLabel(_("Record voice note (Ctrl+R)"))
 		self.pauseButton.SetLabel(
 			# Translators: A button that continues a paused voice note recording.
@@ -2375,6 +2390,7 @@ class ChatWindow(wx.Dialog):
 			self._run(lambda: self.session.setTyping(chatId, "recording"), onError=lambda e: None)
 			ui.message(
 				withHint(
+					# Translators: Reported when recording a voice note starts; a hint follows.
 					_("Recording"),
 					# Translators: A hint after recording a voice note starts.
 					_("Ctrl+R stops and plays it, Ctrl+Shift+R sends it, Ctrl+D throws it away"),
@@ -2675,6 +2691,7 @@ class ChatWindow(wx.Dialog):
 			ui.message(text)
 			return
 		if self._recording or self._hasRecording:
+			# Translators: Reported when the user tries to edit a message while a voice note is recorded or not sent.
 			ui.message(_("Send the voice note with Ctrl+Shift+R or throw it away with Ctrl+D first"))
 			return
 		self._cancelReply(announce=False)
@@ -2764,10 +2781,7 @@ class ChatWindow(wx.Dialog):
 			else _("Delete this message for you?\n\n{message}")
 		).format(message=self._replySummary(message))
 		# Translators: The title of the question before deleting a message.
-		answer = wx.MessageBox(
-			question, _("Delete message"), wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING, self
-		)
-		if answer != wx.YES:
+		if not askYesNo(self, question, _("Delete message")):
 			return
 
 		def done(result: Any) -> None:
@@ -2823,6 +2837,7 @@ class ChatWindow(wx.Dialog):
 		self, menu: wx.Menu, chat: dict, add: Callable[[wx.Menu, str, Callable[[], None]], None]
 	) -> None:
 		"""What both the chat list's menu and a chat's More options offer."""
+		# Translators: An item in a chat's menu: opens the notification settings of this chat.
 		add(menu, _("&Notifications for this chat\u2026"), lambda: self._chatNotifications(chat))
 		if chat.get("archived"):
 			# Translators: An item in a chat's menu, like WhatsApp's.
@@ -2846,6 +2861,7 @@ class ChatWindow(wx.Dialog):
 				add(
 					muteMenu,
 					label,
+					# Translators: Reported after a chat was muted.
 					lambda seconds=seconds: self._chatAction(chat, "mute", _("Muted"), seconds),
 				)
 			# Translators: An item in a chat's menu, like WhatsApp's: opens how long to mute it.
@@ -2863,7 +2879,9 @@ class ChatWindow(wx.Dialog):
 			# Translators: An item in a chat's menu, like WhatsApp's.
 			add(
 				menu,
+				# Translators: An item in a chat's menu, like WhatsApp's.
 				_("Ma&rk as unread"),
+				# Translators: Reported after a chat was marked as unread.
 				lambda: self._chatAction(chat, "markUnread", _("Marked as unread")),
 			)
 
@@ -2908,6 +2926,7 @@ class ChatWindow(wx.Dialog):
 		if chat.get("isChannel"):
 			# Translators: An item in a channel's More options menu: stops following it.
 			add(menu, _("&Unfollow channel"), lambda: self._followChannel(chat, False))
+			# Translators: An item in a channel's More options menu: goes back to the chat list.
 			add(menu, _("Close chat"), self.showChats)
 			self.moreButton.PopupMenu(menu)
 			menu.Destroy()
@@ -2962,12 +2981,16 @@ class ChatWindow(wx.Dialog):
 		if isGroup and ongoingCall:
 			# Translators: An item in a group's More options menu: joins the call going on in the group.
 			add(
-				menu, _("Join &the group call"), lambda: self._run(lambda: self.session.joinGroupCall(chatId))
+				menu,
+				# Translators: An item in a group's More options menu: joins the call going on in the group.
+				_("Join &the group call"),
+				lambda: self._run(lambda: self.session.joinGroupCall(chatId)),
 			)
 		elif isGroup and abilities.get("member", True):
 			# Translators: An item in a group's More options menu: calls everyone in the group.
 			add(
 				menu,
+				# Translators: An item in a group's More options menu: calls everyone in the group.
 				_("S&tart a group voice call"),
 				lambda: self._run(lambda: self.session.startGroupCall(chatId)),
 			)
@@ -2978,18 +3001,24 @@ class ChatWindow(wx.Dialog):
 				# Translators: An item in a chat's More options menu, like WhatsApp's.
 				add(
 					menu,
+					# Translators: An item in a chat's More options menu, like WhatsApp's.
 					_("Remove &from favorites"),
 					lambda: self._chatSet(
-						lambda: self.session.setFavorite(chatId, False), _("Removed from favorites")
+						lambda: self.session.setFavorite(chatId, False),
+						# Translators: Reported after a chat was removed from favorites.
+						_("Removed from favorites"),
 					),
 				)
 			else:
 				# Translators: An item in a chat's More options menu, like WhatsApp's.
 				add(
 					menu,
+					# Translators: An item in a chat's More options menu, like WhatsApp's.
 					_("Add to &favorites"),
 					lambda: self._chatSet(
-						lambda: self.session.setFavorite(chatId, True), _("Added to favorites")
+						lambda: self.session.setFavorite(chatId, True),
+						# Translators: Reported after a chat was added to favorites.
+						_("Added to favorites"),
 					),
 				)
 		if abilities.get("canSetEphemeral"):
@@ -3064,7 +3093,7 @@ class ChatWindow(wx.Dialog):
 		self._run(work, done)
 
 	def _confirm(self, question: str, title: str) -> bool:
-		return wx.MessageBox(question, title, wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING, self) == wx.YES
+		return askYesNo(self, question, title)
 
 	def _askText(self, prompt: str, title: str, value: str = "", multiline: bool = False) -> str | None:
 		style = wx.TextEntryDialogStyle | (wx.TE_MULTILINE if multiline else 0)
@@ -3092,6 +3121,7 @@ class ChatWindow(wx.Dialog):
 		# Translators: Reported when a chat has no pinned messages.
 		self._run(
 			lambda: self.session.pinnedMessages(self.chat["id"]),
+			# Translators: The title of the list of a chat's pinned messages, and what it says when there are none.
 			lambda found: self._pickMessage(found, _("Pinned messages"), _("No pinned messages")),
 		)
 
@@ -3142,6 +3172,7 @@ class ChatWindow(wx.Dialog):
 		# Translators: Reported when a chat has no media, links or documents of the kind asked for.
 		self._run(
 			lambda: self.session.chatMedia(chatId, kind),
+			# Translators: Shown in the list of a chat's media, links or documents when there are none.
 			lambda found: self._pickMessage(found, titles[kind], _("Nothing here yet")),
 		)
 
@@ -3208,6 +3239,7 @@ class ChatWindow(wx.Dialog):
 		# Translators: Reported after answering an event, such as "Answered: Going".
 		self._run(
 			lambda: self.session.respondToEvent(message["id"], answer),
+			# Translators: Reported after answering an event's invitation, with the answer chosen.
 			lambda r: ui.message(_("Answered: {answer}").format(answer=label)),
 		)
 
@@ -3253,6 +3285,7 @@ class ChatWindow(wx.Dialog):
 			if chosen:
 				self._run(
 					lambda: self.session.sendContacts(chatId, chosen),
+					# Translators: Reported after contacts were sent.
 					lambda r: (sounds.play(sounds.SENT), ui.message(_("Sent"))),
 				)
 
@@ -3272,6 +3305,7 @@ class ChatWindow(wx.Dialog):
 			for number, s in enumerate(stickers, 1):
 				# Translators: A sticker in the list: its number, and whether it is a favorite or recent.
 				kind = _("favorite") if s["kind"] == "favorite" else _("recent")
+				# Translators: A sticker in the list: its number, and whether it is a favorite or recent.
 				line = _("Sticker {number}, {kind}").format(number=number, kind=kind)
 				for extra in (s.get("label"), s.get("pack")):
 					if extra:
@@ -3292,6 +3326,7 @@ class ChatWindow(wx.Dialog):
 				lambda: self.session.sendSticker(
 					chatId, chosen["kind"], chosen["index"], chosen.get("key", "")
 				),
+				# Translators: Reported after a sticker was sent.
 				lambda r: (sounds.play(sounds.SENT), ui.message(_("Sent"))),
 			)
 
@@ -3326,6 +3361,7 @@ class ChatWindow(wx.Dialog):
 			_("Block {name}? Blocked contacts can't call you or send you messages.").format(
 				name=chat["title"]
 			),
+			# Translators: The title of the question before blocking a contact.
 			_("Block"),
 		):
 			return
@@ -3337,50 +3373,40 @@ class ChatWindow(wx.Dialog):
 
 	def _report(self, chat: dict) -> None:
 		isGroup = bool(chat.get("isGroup"))
-		dialog = wx.MessageDialog(
+		answer = askThreeWay(
 			self,
 			# Translators: Asked before reporting a chat to WhatsApp, with its name.
 			_("Report {name} to WhatsApp? The last messages in this chat are sent to WhatsApp.").format(
 				name=chat["title"]
 			),
+			# Translators: The title of the question before reporting a chat.
 			_("Report"),
-			wx.YES_NO | wx.CANCEL | wx.NO_DEFAULT | wx.ICON_WARNING,
-		)
-		dialog.SetYesNoCancelLabels(
 			# Translators: A button that reports a group and leaves it, or reports a person and blocks them.
 			_("Report and &exit group") if isGroup else _("Report and &block"),
 			# Translators: A button that only reports a chat.
 			_("&Report only"),
+			# Translators: A button that closes the question without reporting.
 			_("Cancel"),
 		)
-		try:
-			answer = dialog.ShowModal()
-		finally:
-			dialog.Destroy()
 		if answer == wx.ID_CANCEL:
 			return
 		# Translators: Reported after a chat was reported to WhatsApp.
 		self._chatSet(lambda: self.session.reportChat(chat["id"], answer == wx.ID_YES), _("Reported"))
 
 	def _clearChat(self, chat: dict) -> None:
-		dialog = wx.MessageDialog(
+		answer = askThreeWay(
 			self,
 			# Translators: Asked before clearing a chat's messages, with its name.
 			_("Clear all messages in {name}? The chat stays in your list.").format(name=chat["title"]),
+			# Translators: The title of the question before clearing a chat.
 			_("Clear chat"),
-			wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
-		)
-		dialog.SetYesNoCancelLabels(
 			# Translators: A button that clears a chat but keeps its starred messages.
 			_("Clear, &keep starred"),
 			# Translators: A button that clears a chat with its starred messages.
 			_("Clear &all"),
+			# Translators: A button that closes the question without clearing the chat.
 			_("Cancel"),
 		)
-		try:
-			answer = dialog.ShowModal()
-		finally:
-			dialog.Destroy()
 		if answer == wx.ID_CANCEL:
 			return
 
@@ -3394,36 +3420,38 @@ class ChatWindow(wx.Dialog):
 		self._run(lambda: self.session.clearChat(chat["id"], answer == wx.ID_YES), done)
 
 	def _deleteChat(self, chat: dict) -> None:
-		# Translators: Asked before deleting one chat, with its name.
 		if not self._confirm(
+			# Translators: Asked before deleting one chat, with its name.
 			_("Delete the chat with {name}? Its messages are removed from this device.").format(
 				name=chat["title"]
 			),
+			# Translators: The title of the question before deleting chats.
 			_("Delete chats"),
 		):
 			return
 
 		def done(result: Any) -> None:
 			sounds.play(sounds.DISCARD)
+			# Translators: Reported after a chat was deleted.
 			ui.message(_("Deleted"))
 			self.showChats()
 
 		self._run(lambda: self.session.deleteChat(chat["id"]), done)
 
 	def _exitGroup(self, chat: dict) -> None:
-		dialog = wx.MessageDialog(
+		answer = askThreeWay(
 			self,
 			# Translators: Asked before leaving a group, with its name.
 			_("Exit {name}? Only the group's admins are told.").format(name=chat["title"]),
+			# Translators: The title of the question before leaving a group.
 			_("Exit group"),
-			wx.YES_NO | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING,
+			# Translators: Buttons when leaving a group: leave and also delete the chat, or only leave.
+			_("Exit and &delete"),
+			# Translators: A button that leaves a group but keeps the chat.
+			_("&Exit"),
+			# Translators: A button that closes the question without leaving the group.
+			_("Cancel"),
 		)
-		# Translators: Buttons when leaving a group: leave and also delete the chat, or only leave.
-		dialog.SetYesNoCancelLabels(_("Exit and &delete"), _("&Exit"), _("Cancel"))
-		try:
-			answer = dialog.ShowModal()
-		finally:
-			dialog.Destroy()
 		if answer == wx.ID_CANCEL:
 			return
 
@@ -3450,8 +3478,8 @@ class ChatWindow(wx.Dialog):
 
 			def done(failed: int) -> None:
 				if failed:
-					# Translators: Reported when some people could not be added, usually for their privacy.
 					ui.message(
+						# Translators: Reported when some people could not be added, usually for their privacy.
 						_("{count} could not be added. WhatsApp offers to send them an invite.").format(
 							count=failed
 						)
@@ -3482,6 +3510,7 @@ class ChatWindow(wx.Dialog):
 			return
 
 		def pick(contacts: list[dict]) -> None:
+			# Translators: The title and button of the list of people to put in a new group.
 			dialog = ChatPickerDialog(self, contacts, title=_("New group"), okLabel=_("&Create"))
 			try:
 				if dialog.ShowModal() != wx.ID_OK:
@@ -3496,6 +3525,7 @@ class ChatWindow(wx.Dialog):
 				# Translators: Reported after a group was made, with its name.
 				message = _("Group {name} created").format(name=name)
 				if result.get("failed"):
+					# Translators: Added after a new group was created: some people could not be added, usually for their privacy.
 					message += ". " + _(
 						"{count} could not be added. WhatsApp offers to send them an invite."
 					).format(count=result["failed"])
@@ -3520,7 +3550,12 @@ class ChatWindow(wx.Dialog):
 		self._run(
 			lambda: self.session.searchAll(query),
 			lambda found: self._pickMessage(
-				found["messages"], _("Messages found"), _("No messages found"), withChat=True
+				found["messages"],
+				# Translators: The title of the messages found in every chat, and what it says when nothing was found.
+				_("Messages found"),
+				# Translators: What the list of messages found says when nothing was found.
+				_("No messages found"),
+				withChat=True,
 			),
 		)
 
@@ -3549,6 +3584,7 @@ class ChatWindow(wx.Dialog):
 			self,
 			# Translators: The title of the dialog for choosing a photo or video to post as a status.
 			_("Choose a photo or video for your status"),
+			# Translators: The file type in the dialog for choosing a photo or video for a status.
 			wildcard=_("Photos and videos") + "|*.jpg;*.jpeg;*.png;*.webp;*.mp4;*.3gp;*.mov",
 			style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
 		)
@@ -3567,6 +3603,7 @@ class ChatWindow(wx.Dialog):
 
 		def done(result: Any) -> None:
 			sounds.play(sounds.SENT)
+			# Translators: Reported after the user's status was posted.
 			ui.message(_("Status posted"))
 
 		# Translators: Reported while a status photo or video is sent.
@@ -3582,8 +3619,8 @@ class ChatWindow(wx.Dialog):
 			lines = []
 			for s in statuses:
 				names = ", ".join(v["name"] for v in s.get("viewers", []))
-				# Translators: One of the user's statuses: what it is, then who saw it.
 				lines.append(
+					# Translators: One of the user's statuses: what it is, then who saw it.
 					_("{status}. Seen by {count}: {names}").format(
 						status=messageText.content(s) if not s.get("text") else s["text"],
 						count=len(s.get("viewers", [])),
@@ -3607,6 +3644,7 @@ class ChatWindow(wx.Dialog):
 			if self._confirm(_("Delete this status for everyone?"), _("My status")):
 				self._run(
 					lambda: self.session.deleteMyStatus(chosen["id"]),
+					# Translators: Reported after one of the user's statuses was deleted.
 					lambda r: (sounds.play(sounds.DISCARD), ui.message(_("Deleted"))),
 				)
 
@@ -3674,9 +3712,13 @@ class ChatWindow(wx.Dialog):
 				# Translators: Reported when the user blocked nobody.
 				ui.message(_("You blocked nobody"))
 				return
-			# Translators: The title of the list of blocked contacts; its button unblocks one.
 			picker = ListDialog(
-				self, _("Blocked contacts"), [b["name"] for b in blocked], okLabel=_("&Unblock")
+				self,
+				# Translators: The title of the list of blocked contacts; its button unblocks one.
+				_("Blocked contacts"),
+				[b["name"] for b in blocked],
+				# Translators: The button of the list of blocked contacts: unblocks the chosen one.
+				okLabel=_("&Unblock"),
 			)
 			try:
 				if picker.ShowModal() != wx.ID_OK:
@@ -3684,6 +3726,7 @@ class ChatWindow(wx.Dialog):
 				chosen = blocked[picker.selection()]
 			finally:
 				picker.Destroy()
+			# Translators: Reported after a contact was unblocked.
 			self._run(lambda: self.session.unblock(chosen["id"]), lambda r: ui.message(_("Unblocked")))
 
 		self._run(self.session.blockedContacts, show)
@@ -4023,15 +4066,18 @@ class ChatWindow(wx.Dialog):
 
 			# Translators: The first, disabled item of the menu for several selected messages.
 			menu.Append(wx.ID_ANY, _("{count} messages selected").format(count=len(ids))).Enable(False)
+			# Translators: An item in the menu for several selected messages: copies their text.
 			add(_("&Copy"), self._copySelected)
 			# Translators: An item in the menu for several selected messages.
 			add(_("&Forward\tAlt+F"), self._forward)
 			if actions.get("star"):
 				starred = not actions.get("allStarred")
 				add(
+					# Translators: An item in the menu for several selected messages: stars or unstars them.
 					_("&Star") if starred else _("Un&star"),
 					lambda: self._run(
 						lambda: self.session.starMessages(ids, starred),
+						# Translators: Reported after the selected messages were starred or unstarred.
 						lambda r: ui.message(_("Starred") if starred else _("Unstarred")),
 					),
 				)
@@ -4058,21 +4104,32 @@ class ChatWindow(wx.Dialog):
 		# Translators: The first, disabled item of the menu for several selected chats.
 		menu.Append(wx.ID_ANY, _("{count} chats selected").format(count=len(ids))).Enable(False)
 		if archived:
+			# Translators: An item in the menu for selected chats, and what is said after it was done.
 			add(menu, _("Un&archive chat"), "unarchive", _("Unarchived"))
 		else:
+			# Translators: An item in the menu for selected chats, and what is said after it was done.
 			add(menu, _("&Archive chat"), "archive", _("Archived"))
 		muteMenu = wx.Menu()
+		# Translators: How long to mute the selected chats, in a submenu.
 		for label, seconds in ((_("8 hours"), 8 * 3600), (_("1 week"), 7 * 86400), (_("Always"), -1)):
+			# Translators: Reported after the selected chats were muted.
 			add(muteMenu, label, "mute", _("Muted"), seconds)
+		# Translators: A submenu in the menu for selected chats: how long to mute them.
 		menu.AppendSubMenu(muteMenu, _("Mute n&otifications"))
+		# Translators: An item in the menu for selected chats, and what is said after it was done.
 		add(menu, _("Unmute n&otifications"), "unmute", _("Unmuted"))
+		# Translators: An item in the menu for selected chats, and what is said after it was done.
 		add(menu, _("Pin &chat"), "pin", _("Pinned"))
+		# Translators: An item in the menu for selected chats, and what is said after it was done.
 		add(menu, _("Unpin &chat"), "unpin", _("Unpinned"))
+		# Translators: An item in the menu for selected chats, and what is said after it was done.
 		add(menu, _("Mark as &read"), "markRead", _("Marked as read"))
+		# Translators: An item in the menu for selected chats, and what is said after it was done.
 		add(menu, _("Ma&rk as unread"), "markUnread", _("Marked as unread"))
 		# Translators: An item in the menu for selected chats: deletes them.
 		item = menu.Append(wx.ID_ANY, _("&Delete chats\tDelete"))
 		menu.Bind(wx.EVT_MENU, lambda evt: self._deleteChats(), item)
+		# Translators: An item in the menu for selected chats: unselects them all.
 		item = menu.Append(wx.ID_ANY, _("C&lear selection\tEscape"))
 		menu.Bind(wx.EVT_MENU, lambda evt: self._clearSelection(listBox), item)
 		listBox.PopupMenu(menu)
@@ -4091,22 +4148,21 @@ class ChatWindow(wx.Dialog):
 		if not chats:
 			return
 		names = ", ".join(c.get("title", "") for c in chats[:5]) + ("…" if len(chats) > 5 else "")
-		answer = wx.MessageBox(
+		if not askYesNo(
+			self,
 			# Translators: Asked before deleting chats, with how many and their names.
 			_("Delete {count} chats? Their messages are removed from this device.\n\n{names}").format(
 				count=len(chats), names=names
 			),
 			# Translators: The title of the question before deleting chats.
 			_("Delete chats"),
-			wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-			self,
-		)
-		if answer != wx.YES:
+		):
 			return
 
 		def done(result: dict) -> None:
 			self._selectedChatIds.clear()
 			sounds.play(sounds.DISCARD)
+			# Translators: Reported after selected chats were deleted, with how many.
 			message = _("{count} deleted").format(count=result.get("done", 0))
 			if result.get("skipped"):
 				# Translators: Added when some selected groups were not deleted because the user is still in them.
@@ -4436,6 +4492,7 @@ class ContactInfoDialog(wx.Dialog):
 			label = _("&Groups in common ({count}):").format(count=len(items))
 		sizer.Add(wx.StaticText(self, label=label))
 		sizer.Add(wx.ListBox(self, choices=items, size=(500, 160)), 1, wx.EXPAND | wx.BOTTOM, 6)
+		# Translators: The button that closes a list of information.
 		closeButton = wx.Button(self, wx.ID_CANCEL, label=_("Close"))
 		sizer.Add(closeButton, 0, wx.ALIGN_RIGHT)
 		outer = wx.BoxSizer(wx.VERTICAL)
@@ -4518,6 +4575,7 @@ class PollDialog(wx.Dialog):
 		buttons = wx.StdDialogButtonSizer()
 		# Translators: The button that sends the user's choice in a poll.
 		buttons.AddButton(wx.Button(self, wx.ID_OK, label=_("&Vote")))
+		# Translators: The button that closes a poll without voting.
 		buttons.AddButton(wx.Button(self, wx.ID_CANCEL, label=_("Close")))
 		buttons.Realize()
 		sizer.Add(buttons, 0, wx.ALIGN_RIGHT)
@@ -4574,7 +4632,11 @@ class TextDialog(wx.Dialog):
 		)
 		sizer.Add(box, 1, wx.EXPAND | wx.ALL, 10)
 		sizer.Add(
-			wx.Button(self, wx.ID_CANCEL, label=_("Close")), 0, wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM, 10
+			# Translators: The button that closes a message's details.
+			wx.Button(self, wx.ID_CANCEL, label=_("Close")),
+			0,
+			wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM,
+			10,
 		)
 		self.SetSizerAndFit(sizer)
 		self.CentreOnParent()
@@ -4592,21 +4654,24 @@ class DeleteDialog(wx.Dialog):
 		# Translators: The title of the question before deleting a message.
 		super().__init__(parent, title=_("Delete message"))
 		sizer = wx.BoxSizer(wx.VERTICAL)
-		# Translators: Asked before deleting a message, with the message.
 		sizer.Add(
+			# Translators: Asked before deleting a message, with the message.
 			wx.StaticText(self, label=_("Delete this message?\n\n{message}").format(message=summary)),
 			0,
 			wx.ALL,
 			10,
 		)
 		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: A button that deletes a message on this computer and the user's phone only.
 		choices = [(self.FOR_ME, _("Delete for &me"))]
 		if canDeleteForEveryone:
+			# Translators: A button that deletes a message for everyone in the chat.
 			choices.append((self.FOR_EVERYONE, _("Delete for &everyone")))
 		for choiceId, label in choices:
 			button = wx.Button(self, choiceId, label=label)
 			button.Bind(wx.EVT_BUTTON, lambda evt, choiceId=choiceId: self.EndModal(choiceId))
 			buttons.Add(button, 0, wx.RIGHT, 6)
+		# Translators: A button that closes the question without deleting.
 		buttons.Add(wx.Button(self, wx.ID_CANCEL, label=_("Cancel")))
 		sizer.Add(buttons, 0, wx.ALL, 10)
 		self.SetSizerAndFit(sizer)
@@ -4637,8 +4702,11 @@ def _passesFilter(chat: dict, chatFilter: str) -> bool:
 	return True
 
 
-def _findDescriber():
-	"""The AI Content Describer add-on's plugin, which can describe an image path on the clipboard."""
+def _findDescriber() -> Any | None:
+	"""The AI Content Describer add-on's plugin, which can describe an image path on the clipboard.
+
+	:return: That global plugin, or None when the add-on is not installed or running.
+	"""
 	import globalPluginHandler
 
 	for plugin in globalPluginHandler.runningPlugins:
@@ -4653,6 +4721,8 @@ class ListDialog(wx.Dialog):
 	def __init__(self, parent: wx.Window, title: str, items: list[str], okLabel: str | None = None) -> None:
 		super().__init__(parent, title=title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
 		sizer = wx.BoxSizer(wx.VERTICAL)
+		# The list is named after the dialog, so NVDA says what it lists when it gets the focus.
+		sizer.Add(wx.StaticText(self, label=title), 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
 		self.list = wx.ListBox(self, choices=items, size=(600, 300))
 		self.list.SetSelection(0)
 		self.list.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: self.EndModal(wx.ID_OK))
@@ -4661,6 +4731,7 @@ class ListDialog(wx.Dialog):
 		buttons = wx.StdDialogButtonSizer()
 		# Translators: The button that goes to the chosen message.
 		buttons.AddButton(wx.Button(self, wx.ID_OK, label=okLabel or _("&Go to message")))
+		# Translators: The button that closes a list of messages.
 		buttons.AddButton(wx.Button(self, wx.ID_CANCEL, label=_("Close")))
 		buttons.Realize()
 		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM, 10)
@@ -4685,7 +4756,10 @@ class ChatPickerDialog(wx.Dialog):
 		self, parent: wx.Window, chats: list[dict], title: str | None = None, okLabel: str | None = None
 	) -> None:
 		super().__init__(
-			parent, title=title or _("Forward to"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER
+			parent,
+			# Translators: The title of the dialog for choosing the chats to forward a message to.
+			title=title or _("Forward to"),
+			style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
 		)
 		self.chats = chats
 		self.shown: list[dict] = []
@@ -4704,6 +4778,7 @@ class ChatPickerDialog(wx.Dialog):
 		buttons = wx.StdDialogButtonSizer()
 		# Translators: The button that forwards the message to the checked chats.
 		buttons.AddButton(wx.Button(self, wx.ID_OK, label=okLabel or _("&Forward")))
+		# Translators: A button that closes the dialog without forwarding.
 		buttons.AddButton(wx.Button(self, wx.ID_CANCEL, label=_("Cancel")))
 		buttons.Realize()
 		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
@@ -4882,6 +4957,7 @@ class StatusViewer(wx.Dialog):
 			button = wx.Button(self, label=label)
 			button.Bind(wx.EVT_BUTTON, lambda evt, action=action: action())
 			buttons.Add(button, 0, wx.RIGHT, 6)
+		# Translators: The button that closes the status viewer.
 		buttons.Add(wx.Button(self, wx.ID_CANCEL, label=_("Close")))
 		sizer.Add(buttons, 0, wx.ALL, 8)
 		self.SetSizerAndFit(sizer)
@@ -5040,6 +5116,7 @@ class StatusViewer(wx.Dialog):
 				wx.CallAfter(ui.message, errorText(e))
 				return
 			sounds.play(sounds.SENT)
+			# Translators: Reported after a reply to a status was sent.
 			wx.CallAfter(ui.message, _("Sent"))
 
 		threading.Thread(target=work, name="whatsAppAccess.statusReply", daemon=True).start()
@@ -5118,10 +5195,15 @@ class NotificationDialog(wx.Dialog):
 				choices=[
 					# Translators: A choice of sound for one chat: the sound of personal chats or groups.
 					_("As in the general settings"),
+					# Translators: A sound for new messages in one chat's settings.
 					_("Classic"),
+					# Translators: A sound for new messages in one chat's settings.
 					_("Bell"),
+					# Translators: A sound for new messages in one chat's settings.
 					_("Kalimba"),
+					# Translators: A sound for new messages in one chat's settings.
 					_("Flute"),
+					# Translators: No sound for new messages in one chat's settings.
 					_("None"),
 					# Translators: A choice of sound for one chat: a WAV file the user picks.
 					_("A WAV file of your own"),
