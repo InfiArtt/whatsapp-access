@@ -60,6 +60,18 @@ Steadier:
 - Reloading NVDA's plugins right after NVDA starts no longer leaves an extra hidden browser running.
 - Pressing NVDA+Shift+W just as WhatsApp starts with NVDA no longer starts it a second time, which could
   wrongly ask to link the phone again. If WhatsApp is still starting, the window opens once it is ready.
+- Deleting, starring and sending contacts now wait for WhatsApp, so a failure, such as deleting for
+  everyone too late, is said instead of "Deleted".
+- Files that are too large to download (over 200 MB) are refused with a clear message, and files whose
+  download or upload never finished no longer stay in the hidden browser's memory.
+- Only WhatsApp's own page can tell the add-on about messages and calls; another frame inside it can no
+  longer make NVDA announce a message that never came.
+- Manage group no longer saves an empty description when Save description is pressed before the
+  description has loaded; the box waits for it. Closing a dialog before WhatsApp answers no longer
+  causes an error.
+- In calls, NVDA now says when the microphone, raising your hand or "who is speaking" did not work,
+  instead of saying nothing.
+- Moving quickly through statuses no longer stops the next voice or video status as it starts.
 
 ## [0.4.1]
 
