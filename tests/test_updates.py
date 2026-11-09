@@ -98,3 +98,26 @@ def test_download_checks_the_checksum(tmp_path, monkeypatch):
         updates.download(good, str(path))
     # A damaged download is not left behind.
     assert not path.exists()
+
+
+def test_an_interrupted_download_is_not_left_behind(tmp_path, monkeypatch):
+    class Broken:
+        def __init__(self):
+            self.parts = [b"half of it"]
+
+        def read(self, size):
+            if self.parts:
+                return self.parts.pop(0)
+            raise OSError("connection reset")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(updates, "_open", lambda url, accept, timeout: Broken())
+    path = tmp_path / "a.nvda-addon"
+    with pytest.raises(updates.UpdateError, match="network"):
+        updates.download(updates.parseRelease(release_data()), str(path))
+    assert not path.exists()

@@ -5,6 +5,7 @@
 """Asking about a new version from GitHub, and installing it with NVDA's own add-on installer."""
 
 import os
+import shutil
 import tempfile
 import threading
 import time
@@ -26,7 +27,9 @@ addonHandler.initTranslation()
 AUTO_CHECK_DELAY_MS = 30000
 AUTO_CHECK_EVERY_SECONDS = 24 * 3600
 
-_checking = False
+_busy = False
+"""Set from the start of a check until its offer is declined or its download is installed or fails, so two
+checks never open two windows or download into the same file."""
 
 
 def currentVersion() -> str:
@@ -49,37 +52,50 @@ def _checked(when: int) -> None:
 	config.conf[CONFIG_SECTION]["lastUpdateCheck"] = when
 
 
+def _done() -> None:
+	global _busy
+	_busy = False
+
+
 def check(manual: bool) -> None:
 	"""Look for a newer release. manual says whether the user asked: only then is "no update" said."""
-	global _checking
-	if _checking:
+	global _busy
+	if _busy:
 		return
-	_checking = True
+	_busy = True
 	if manual:
 		# Translators: Said while the add-on looks for a new version.
 		ui.message(_("Checking for updates…"))
 
 	def work() -> None:
-		global _checking
+		offered = False
 		try:
-			release = updates.latestRelease()
-		except updates.UpdateError as e:
-			log.info(f"WhatsApp Access: update check: {e}")
-			if manual:
-				wx.CallAfter(_failed, str(e))
-			return
+			try:
+				release = updates.latestRelease()
+			except updates.UpdateError as e:
+				log.info(f"WhatsApp Access: update check: {e}")
+				if manual:
+					wx.CallAfter(_failed, str(e))
+				return
+			wx.CallAfter(_checked, int(time.time()))
+			if updates.isNewer(release.version, currentVersion()):
+				wx.CallAfter(_offer, release)
+				offered = True
+			elif manual:
+				# Translators: Said when the user checked for a new version and has the newest one.
+				wx.CallAfter(
+					ui.message, _("You have the newest version, {version}").format(version=currentVersion())
+				)
 		finally:
-			_checking = False
-		wx.CallAfter(_checked, int(time.time()))
-		if updates.isNewer(release.version, currentVersion()):
-			wx.CallAfter(_offer, release)
-		elif manual:
-			# Translators: Said when the user checked for a new version and has the newest one.
-			wx.CallAfter(
-				ui.message, _("You have the newest version, {version}").format(version=currentVersion())
-			)
+			# Once offered, the offer says when it is over.
+			if not offered:
+				_done()
 
-	threading.Thread(target=work, name="whatsAppAccess.updates", daemon=True).start()
+	try:
+		threading.Thread(target=work, name="whatsAppAccess.updates", daemon=True).start()
+	except BaseException:
+		_done()
+		raise
 
 
 def _failed(error: str) -> None:
@@ -93,41 +109,70 @@ def _failed(error: str) -> None:
 
 
 def _offer(release: updates.Release) -> None:
-	dialog = UpdateDialog(gui.mainFrame, release)
-	gui.mainFrame.prePopup()
+	answer = wx.ID_CANCEL
 	try:
-		answer = dialog.ShowModal()
+		dialog = UpdateDialog(gui.mainFrame, release)
+		gui.mainFrame.prePopup()
+		try:
+			answer = dialog.ShowModal()
+		finally:
+			dialog.Destroy()
+			gui.mainFrame.postPopup()
 	finally:
-		dialog.Destroy()
-		gui.mainFrame.postPopup()
+		if answer != wx.ID_OK:
+			_done()
 	if answer == wx.ID_OK:
 		_download(release)
 
 
-def _download(release: updates.Release) -> None:
-	# Translators: Said while a new version of the add-on downloads.
-	ui.message(_("Downloading version {version}…").format(version=release.version))
-	path = os.path.join(tempfile.gettempdir(), release.fileName)
+def _removeFolder(folder: str) -> None:
+	shutil.rmtree(folder, ignore_errors=True)
 
+
+def _download(release: updates.Release) -> None:
 	def work() -> None:
+		# A folder of its own for each download: nobody else's file is used or replaced, and it is all
+		# removed afterwards.
+		folder = ""
+		installing = False
 		try:
+			folder = tempfile.mkdtemp(prefix="whatsAppAccess-update-")
+			path = os.path.join(folder, release.fileName)
 			updates.download(release, path)
-		except updates.UpdateError as e:
+			wx.CallAfter(_install, folder, path)
+			installing = True
+		except (updates.UpdateError, OSError) as e:
 			log.info(f"WhatsApp Access: update download: {e}")
 			wx.CallAfter(
 				ui.message,
 				# Translators: Said when the new version could not be downloaded or was damaged.
 				_("The new version could not be downloaded. Try again later."),
 			)
-			return
-		wx.CallAfter(_install, path)
+		finally:
+			# Once handed to the installer, it removes the folder when done.
+			if not installing:
+				if folder:
+					_removeFolder(folder)
+				_done()
 
-	threading.Thread(target=work, name="whatsAppAccess.updateDownload", daemon=True).start()
+	try:
+		# Translators: Said while a new version of the add-on downloads.
+		ui.message(_("Downloading version {version}…").format(version=release.version))
+		threading.Thread(target=work, name="whatsAppAccess.updateDownload", daemon=True).start()
+	except BaseException:
+		_done()
+		raise
 
 
-def _install(path: str) -> None:
-	# NVDA's own installer checks the file, asks about compatibility, and replaces the add-on at restart.
-	if addonGui.installAddon(gui.mainFrame, path):
+def _install(folder: str, path: str) -> None:
+	try:
+		# NVDA's own installer checks the file, asks about compatibility, and copies the add-on for the
+		# restart, so the downloaded file is no longer needed once it returns.
+		installed = addonGui.installAddon(gui.mainFrame, path)
+	finally:
+		_removeFolder(folder)
+		_done()
+	if installed:
 		addonGui.promptUserForRestart()
 
 
