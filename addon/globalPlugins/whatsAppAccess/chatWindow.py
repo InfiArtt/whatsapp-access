@@ -11,6 +11,7 @@ import threading
 import time
 import webbrowser
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import api
@@ -194,6 +195,9 @@ def errorText(error: Exception, browserName: str = "") -> str:
 	if code == "noDownload":
 		# Translators: Reported when a file in a message cannot be downloaded.
 		return _("This file cannot be downloaded any more. Open it in WhatsApp on your phone.")
+	if code == "downloadTooLarge":
+		# Translators: Reported when a file in a message is too large for the add-on to download.
+		return _("This file is larger than {size} MB. Open it in WhatsApp on your phone.").format(size=detail)
 	if code == "saveFailed":
 		# Translators: Reported when a downloaded file could not be written to disk. {reason} is Windows' reason.
 		return _("The file could not be saved ({reason}).").format(reason=detail)
@@ -1393,8 +1397,10 @@ class ChatWindow(wx.Dialog):
 			return
 
 		def ask(name: str) -> None:
+			# The status viewer that asked may have been closed while WhatsApp answered.
+			owner = parent if parent else self
 			dialog = wx.FileDialog(
-				parent or self,
+				owner,
 				# Translators: The title of the dialog for saving a file from a message.
 				_("Save file"),
 				defaultDir=os.path.join(os.path.expanduser("~"), "Downloads"),
@@ -4794,6 +4800,10 @@ class StatusViewer(wx.Dialog):
 		self.describe = describe
 		self.saveFile = save
 		self._playingId: str | None = None
+		# Stopping and playing go to the browser one after another, in the order asked: from two threads,
+		# the stop for the status left could arrive after the play for the next one, and cut it off.
+		self._audio = ThreadPoolExecutor(max_workers=1, thread_name_prefix="whatsAppAccess.statusAudio")
+		self.Bind(wx.EVT_WINDOW_DESTROY, self._onDestroy)
 		items = people[personIndex].get("items") or []
 		# Start at the first status not seen yet, as WhatsApp does.
 		self.item = next((i for i, item in enumerate(items) if not item.get("viewed")), 0)
@@ -4863,8 +4873,13 @@ class StatusViewer(wx.Dialog):
 		except WhatsAppError as e:
 			log.debugWarning(f"WhatsApp Access: status: {e}")
 
+	def _onDestroy(self, evt: wx.WindowDestroyEvent) -> None:
+		if evt.GetEventObject() is self:
+			self._audio.shutdown(wait=False)
+		evt.Skip()
+
 	def move(self, step: int, byPerson: bool = False) -> None:
-		threading.Thread(target=self._quietly, args=(self.session.stopAudio,), daemon=True).start()
+		self._audio.submit(self._quietly, self.session.stopAudio)
 		person, item = self.person, self.item
 		if byPerson:
 			person += step
@@ -4923,9 +4938,7 @@ class StatusViewer(wx.Dialog):
 			self.session.setPlaybackVolume(volume)
 			self.session.playMessage(itemId)
 
-		threading.Thread(
-			target=self._quietly, args=(work,), name="whatsAppAccess.status", daemon=True
-		).start()
+		self._audio.submit(self._quietly, work)
 
 	def like(self) -> None:
 		item = self.current
@@ -4999,7 +5012,7 @@ class StatusViewer(wx.Dialog):
 			}[key]()
 			return
 		if key == wx.WXK_ESCAPE:
-			threading.Thread(target=self._quietly, args=(self.session.stopAudio,), daemon=True).start()
+			self._audio.submit(self._quietly, self.session.stopAudio)
 		evt.Skip()
 
 
