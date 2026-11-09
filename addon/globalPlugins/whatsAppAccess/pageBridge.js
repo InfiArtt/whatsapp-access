@@ -3192,6 +3192,13 @@
 		};
 		on(C.Msg, "change:latestEditMsgKey", edited);
 		on(C.Msg, "change:body", edited);
+		// Deleted for everyone, by the user or by its sender: the message stays, as "This message was
+		// deleted", so its line must change at once rather than when the chat is opened again.
+		on(C.Msg, "change:type", (m) => {
+			if (m.type === "revoked" && m.id && m.id.remote) {
+				emit({ type: "edited", chatId: m.id.remote._serialized, message: messageInfo(m) });
+			}
+		});
 	}
 
 	function hookReceipts(C) {
