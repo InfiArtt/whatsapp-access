@@ -47,7 +47,7 @@ def test_the_users_choice_wins_when_it_is_new_enough():
 
 
 def test_the_hidden_browser_says_it_is_chrome_not_headless():
-    arguments = browserLauncher.launchArguments(browser("brave", 157), r"C:\profile")
+    arguments = browserLauncher.launchArguments(browser("brave", 157), r"C:\profile", (11, 22))
     assert "--headless=new" in arguments
     assert r"--user-data-dir=C:\profile" in arguments
     agent = next(a for a in arguments if a.startswith("--user-agent="))
@@ -68,3 +68,12 @@ def test_a_profile_is_in_use_while_its_lockfile_is_open(tmp_path):
     # Once the browser is gone the stale lockfile is cleared.
     assert not browserLauncher.profileInUse(str(tmp_path))
     assert not lock.exists()
+
+
+def test_devtools_goes_over_a_pipe_never_a_port():
+    arguments = browserLauncher.launchArguments(browser("brave", 157), r"C:\profile", (11, 22))
+    assert "--remote-debugging-pipe" in arguments
+    assert "--remote-debugging-io-pipes=11,22" in arguments
+    assert not [
+        a for a in arguments if a.startswith(("--remote-debugging-port", "--remote-debugging-address"))
+    ]

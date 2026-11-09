@@ -155,8 +155,13 @@ class WhatsAppSession:
 	def debuggableBrowsers(self) -> list[cdp.DebuggableBrowser]:
 		return self._findBrowsers()
 
-	def connect(self, target: cdp.DebuggableBrowser, hidden: "HiddenOptions | None" = None) -> str:
+	def connect(
+		self, target: cdp.DebuggableBrowser | cdp.PipeBrowser, hidden: HiddenOptions | None = None
+	) -> str:
 		"""Connect to the browser, which may ask the user first, then attach to WhatsApp Web.
+
+		target is the user's own browser, reached through its debugging port, or the add-on's hidden
+		browser, reached through its pipe.
 
 		With hidden, the browser is the add-on's own: it may still be on a blank page, and it gets
 		Chrome's user agent before WhatsApp opens. Returns "ready", or "needsLink" when WhatsApp waits
@@ -421,7 +426,12 @@ class WhatsAppSession:
 	def _lost(self) -> None:
 		wasConnected = self._sessionId is not None
 		self._sessionId = None
-		self._connection = None
+		connection, self._connection = self._connection, None
+		if connection is not None and not connection.closed:
+			# WhatsApp's page detached while the browser stayed: let go of the connection rather than leave
+			# its reader thread behind. For the hidden browser this closes the pipe, and the next start
+			# brings a fresh browser.
+			connection.close()
 		if wasConnected and not self._closing and self._onDisconnect is not None:
 			self._onDisconnect()
 
