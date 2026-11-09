@@ -30,6 +30,7 @@ from . import browserLauncher, dataFolder, messageText, notifications, sounds, u
 from .callWindow import CallAnnouncer
 from .chatWindow import ChatWindow, errorText
 from .configSpec import ANNOUNCE_CHOICES, CONFIG_SECTION, CONFIG_SPEC
+from .questions import askYesNo
 from .setupDialogs import LinkDialog, SetupDialog
 from .whatsApp import HiddenOptions, WhatsAppError, WhatsAppSession
 
@@ -359,6 +360,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	)
 	def script_hangUp(self, gesture) -> None:
 		if not self.calls.hangUp():
+			# Translators: Reported when there is no WhatsApp call to decline or end.
 			ui.message(_("No WhatsApp call"))
 
 	# The first time --------------------------------------------------------------------------------------
@@ -1309,7 +1311,8 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			self._fillDevices(choice, keys, names, current, isMicrophone)
 
 	def _onUnlink(self, evt: wx.CommandEvent) -> None:
-		answer = wx.MessageBox(
+		answer = askYesNo(
+			self,
 			_(
 				# Translators: Asked before unlinking the hidden browser from WhatsApp.
 				"Log out of WhatsApp on this computer and remove the chats it keeps here? Your phone and your "
@@ -1317,10 +1320,8 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			),
 			# Translators: The title of the question before unlinking.
 			_("Unlink WhatsApp"),
-			wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-			self,
 		)
-		if answer == wx.YES and self.plugin is not None:
+		if answer and self.plugin is not None:
 			self.plugin.unlink()
 
 	def onDiscard(self) -> None:
