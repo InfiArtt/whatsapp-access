@@ -13,7 +13,7 @@ from whatsAppAccess import fileSafety
         ("", "WhatsApp file"),
         ("..\\..\\Windows\\win.ini", "win.ini"),
         # U+202E would show "fdp.exe" as "exe.pdf".
-        ("tagihan‮fdp.exe", "tagihanfdp.exe"),
+        ("tagihan\u202efdp.exe", "tagihanfdp.exe"),
         ("baris\nbaru.txt", "baris_baru.txt"),
         ("NUL", "_NUL"),
         ("nul.txt", "_nul.txt"),

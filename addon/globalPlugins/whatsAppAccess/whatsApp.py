@@ -18,7 +18,7 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, BinaryIO
+from typing import Any
 
 from . import cdp, fileSafety
 
@@ -98,17 +98,20 @@ class HiddenOptions:
 	url: str
 
 
-def _createFreeFile(folder: str, name: str) -> tuple[str, BinaryIO]:
-	"""Create folder/name, or folder/name (2) and so on, without ever replacing a file that is there.
+def _createFreeFile(folder: str, name: str) -> str:
+	"""Create an empty folder/name, or folder/name (2) and so on, never replacing a file that is there.
 
-	:return: The path and the file, open for writing.
+	Creating it is what claims the name, so another file made at the same moment can't be overwritten.
+
+	:return: The path of the new, empty file.
 	"""
 	stem, extension = os.path.splitext(name)
 	number = 1
 	while True:
 		path = os.path.join(folder, name if number == 1 else f"{stem} ({number}){extension}")
 		try:
-			return path, open(path, "xb")
+			with open(path, "xb"):
+				return path
 		except FileExistsError:
 			number += 1
 
@@ -808,23 +811,22 @@ class WhatsAppSession:
 		info = self._bridge("downloadStart", messageId, timeout=300)
 		if not isinstance(info, dict) or not info.get("id"):
 			raise WhatsAppError("noDownload")
-		file: BinaryIO | None = None
+		# Set once a file exists that is only part of the download, to remove if it fails.
+		partial = False
 		try:
 			try:
-				if path:
-					file = open(path, "wb")
-				else:
-					name = fileSafety.safeFileName(str(info.get("name") or ""))
-					path, file = _createFreeFile(folder, name)
-				offset, size = 0, int(info.get("size") or 0)
-				while offset < size:
-					piece = self._bridge("downloadChunk", info["id"], offset, UPLOAD_CHUNK_BYTES)
-					file.write(base64.b64decode(piece or ""))
-					offset += UPLOAD_CHUNK_BYTES
-				file.close()
+				if not path:
+					path = _createFreeFile(folder, fileSafety.safeFileName(str(info.get("name") or "")))
+					partial = True
+				with open(path, "wb") as file:
+					partial = True
+					offset, size = 0, int(info.get("size") or 0)
+					while offset < size:
+						piece = self._bridge("downloadChunk", info["id"], offset, UPLOAD_CHUNK_BYTES)
+						file.write(base64.b64decode(piece or ""))
+						offset += UPLOAD_CHUNK_BYTES
 			except BaseException:
-				if file is not None:
-					file.close()
+				if partial:
 					try:
 						os.remove(path)
 					except OSError:

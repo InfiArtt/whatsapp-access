@@ -161,7 +161,7 @@ def test_a_call_is_tried_again_only_when_the_page_lost_the_bridge():
             value = True
         elif expression.startswith('typeof window.__waAccess === "undefined"'):
             value = len(sends) == 1
-        elif expression.startswith(CURRENT_BRIDGE) or expression.startswith("window.__waAccess.install()"):
+        elif expression.startswith((CURRENT_BRIDGE, "window.__waAccess.install()")):
             value = True
         elif expression.startswith("window.__waAccess.authState()"):
             value = LINKED["window.__waAccess.authState()"]
