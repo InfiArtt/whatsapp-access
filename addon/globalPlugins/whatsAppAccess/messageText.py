@@ -322,6 +322,23 @@ def cannotSendText(chat: dict) -> str:
 	return _("Only admins can send messages. Alt+R replies privately to the sender of a message.")
 
 
+def defaultDescribeQuestion() -> str:
+	"""What Alt+P asks Meta AI about a photo, unless the user wrote their own question in the settings."""
+	# Translators: What the add-on asks Meta AI when it sends it a photo to describe (Alt+P). It is sent in
+	# the user's language, so the answer comes in it too. Short first, details after, as a screen reader
+	# reads it from the start.
+	return _(
+		"Describe this image for a blind person. Start with one sentence saying what it is. Then give the "
+		"important details in a few short sentences. Read out any text in it word for word. Leave out "
+		"colours, background and lighting unless they matter."
+	)
+
+
+def describeQuestion(written: str) -> str:
+	"""The question for Meta AI: the user's own, or the default when they wrote none."""
+	return written.strip() or defaultDescribeQuestion()
+
+
 def repliesText(count: int) -> str:
 	"""How many replies a community announcement has."""
 	if count == 1:

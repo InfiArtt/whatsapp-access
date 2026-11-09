@@ -430,3 +430,9 @@ def test_chats_where_the_user_cannot_send_say_why():
     assert "replies" in messageText.cannotSendText({"isGroup": True, "announcementGroup": True})
     assert "no longer a member" in messageText.cannotSendText({"isGroup": True, "left": True})
     assert "channel" in messageText.cannotSendText({"isChannel": True})
+
+
+def test_photos_are_described_with_the_users_own_question_or_the_default():
+    assert messageText.describeQuestion("  Apa ini?  ") == "Apa ini?"
+    assert messageText.describeQuestion("") == messageText.defaultDescribeQuestion()
+    assert messageText.describeQuestion("   ") == messageText.defaultDescribeQuestion()

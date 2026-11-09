@@ -1836,12 +1836,7 @@ class ChatWindow(wx.Dialog):
 			# Translators: Reported when asking for a description of a message that is not a photo.
 			ui.message(_("This message has no photo"))
 			return
-		# Translators: What the add-on asks Meta AI when it sends it a photo to describe (Alt+P), in the
-		# user's language, so the answer comes in it too.
-		question = _(
-			"Describe this image in detail for a blind person: what is in it, where things are, colours, "
-			"and any text in it, word for word."
-		)
+		question = messageText.describeQuestion(config.conf[CONFIG_SECTION]["describeQuestion"])
 
 		# Translators: Reported while Meta AI describes a photo.
 		ui.message(_("Asking Meta AI to describe the photo…"))

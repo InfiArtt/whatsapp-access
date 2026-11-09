@@ -47,6 +47,9 @@ CONFIG_SPEC = {
 	"readContent": "boolean(default=True)",
 	# Name people outside the contacts with their phone number too, such as "+62812… ~Budi", not just "~Budi".
 	"showNumbers": "boolean(default=False)",
+	# What Meta AI is asked when Alt+P sends it a photo; empty for the add-on's own question, in the
+	# user's language (messageText.defaultDescribeQuestion).
+	"describeQuestion": 'string(default="")',
 	# Each chat's own notification rule, as JSON; see notifications.py.
 	"chatRules": 'string(default="{}")',
 	# Play the add-on's sounds: sent, new message, recording and so on.

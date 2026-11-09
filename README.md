@@ -178,7 +178,7 @@ all of this in the add-on's settings.
 | Alt+D | Save its file to a folder you choose. |
 | Alt+L | Open a link in it. WhatsApp links open here: a group's invite link asks whether to join, a channel's whether to follow, and a wa.me link opens that chat. |
 | Alt+I | For your own message: who received, read and played it, and when. |
-| Alt+P | Meta AI describes the photo, and the description is read out. The photo is sent to your chat with Meta AI with a question, as you could in WhatsApp, and stays there with the answer. |
+| Alt+P | Meta AI describes the photo, and the description is read out. The photo is sent to your chat with Meta AI with a question, as you could in WhatsApp, and stays there with the answer. The question is in the add-on's settings, where you can write your own. |
 | Delete | Delete it, for you or for everyone. |
 | Applications | Its menu: also star, edit, pin for 24 hours, 7 days or 30 days, reply privately in a group, see who reacted, and answer an event. |
 

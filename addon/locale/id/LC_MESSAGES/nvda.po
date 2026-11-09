@@ -2935,3 +2935,9 @@ msgstr "Foto dideskripsikan oleh Meta AI. Mulai dulu chat dengan Meta AI di What
 
 msgid "Meta AI did not answer in time. Its answer may still come in the chat with Meta AI."
 msgstr "Meta AI tidak menjawab tepat waktu. Jawabannya mungkin masih akan muncul di chat dengan Meta AI."
+
+msgid "Describe this image for a blind person. Start with one sentence saying what it is. Then give the important details in a few short sentences. Read out any text in it word for word. Leave out colours, background and lighting unless they matter."
+msgstr "Deskripsikan gambar ini untuk orang tunanetra. Mulai dengan satu kalimat tentang gambar apa ini. Lalu sebutkan detail yang penting dalam beberapa kalimat pendek. Bacakan semua teks di dalamnya kata demi kata. Tidak perlu menyebut warna, latar belakang, dan pencahayaan kecuali penting."
+
+msgid "&Question Meta AI is asked to describe a photo (Alt+P):"
+msgstr "&Pertanyaan untuk Meta AI saat mendeskripsikan foto (Alt+P):"
