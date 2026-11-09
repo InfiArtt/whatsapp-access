@@ -1,3 +1,8 @@
+import os
+import subprocess
+import sys
+
+import pytest
 from whatsAppAccess import browserLauncher
 
 
@@ -82,3 +87,65 @@ def test_devtools_goes_over_a_pipe_never_a_port():
     assert not [
         a for a in arguments if a.startswith(("--remote-debugging-port", "--remote-debugging-address"))
     ]
+
+
+def fake_browser(profile):
+    """A process whose command line has the profile, as the hidden browser's has."""
+    return subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)", f"--user-data-dir={profile}", "--headless=new"],
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows processes")
+def test_a_process_is_the_hidden_browser_only_with_this_profile(tmp_path):
+    # [ ] and ' would be wildcards or quotes inside a pattern; here they are plain characters.
+    profile = str(tmp_path / "D Tools [portable]" / "Rafli's profile")
+    executable = os.path.basename(sys.executable)
+    process = fake_browser(profile)
+    try:
+        assert browserLauncher.isHiddenBrowser(process.pid, profile, executable)
+        # The id now names another program, or the same program with another profile.
+        assert not browserLauncher.isHiddenBrowser(process.pid, profile, "brave.exe")
+        assert not browserLauncher.isHiddenBrowser(process.pid, profile[:-1], executable)
+        assert not browserLauncher.isHiddenBrowser(process.pid, str(tmp_path / "other"), executable)
+    finally:
+        process.kill()
+        process.wait()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows processes")
+def test_leftovers_are_found_by_their_profile(tmp_path):
+    profile = str(tmp_path / "D Tools [portable]" / "profile")
+    other = str(tmp_path / "D Tools [portable]" / "profile2")
+    executable = os.path.basename(sys.executable)
+    leftover, bystander = fake_browser(profile), fake_browser(other)
+    try:
+        browserLauncher.stopHiddenBrowsers(profile, executable)
+        assert leftover.wait(15) is not None
+        assert bystander.poll() is None
+    finally:
+        for process in (leftover, bystander):
+            process.kill()
+            process.wait()
+
+
+def test_a_reused_process_id_is_never_closed(tmp_path, monkeypatch):
+    """The pid file names a process that is no longer the hidden browser, such as the user's own Brave."""
+    (tmp_path / "lockfile").write_text("")
+    (tmp_path / browserLauncher.PID_FILE).write_text("4242", encoding="ascii")
+    ran = []
+    monkeypatch.setattr(browserLauncher.sys, "platform", "win32")
+    monkeypatch.setattr(browserLauncher, "profileInUse", lambda profile: True)
+    monkeypatch.setattr(browserLauncher, "_waitUntilFree", lambda profile, seconds: False)
+    monkeypatch.setattr(browserLauncher, "isHiddenBrowser", lambda pid, profile, exe: False)
+    monkeypatch.setattr(browserLauncher, "stopHiddenBrowsers", lambda profile, exe: ran.append("byProfile"))
+    monkeypatch.setattr(browserLauncher, "_quiet", lambda arguments, timeout, env=None: ran.append(arguments))
+    browserLauncher.closeLeftovers(str(tmp_path), "brave.exe")
+    assert ran == ["byProfile"]
+    # Once confirmed as the hidden browser, it is closed with its own processes.
+    ran.clear()
+    monkeypatch.setattr(browserLauncher, "isHiddenBrowser", lambda pid, profile, exe: pid == 4242)
+    browserLauncher.closeLeftovers(str(tmp_path), "brave.exe")
+    assert "PID eq 4242" in ran[0]
+    assert ran[1] == "byProfile"

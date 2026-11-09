@@ -150,6 +150,11 @@ def test_the_hidden_browser_answers_on_its_pipe_and_opens_no_port(tmp_path):
         again = hidden.start()
         assert again.transport is not target.transport
         assert hidden.running
+        # Its id is kept while it runs, to close it if NVDA cannot, and forgotten once it is stopped.
+        pidFile = tmp_path / "profile" / browserLauncher.PID_FILE
+        assert pidFile.read_text(encoding="ascii") == str(hidden.process.pid)
+        hidden.stop()
+        assert not pidFile.exists()
     finally:
         hidden.stop()
         time.sleep(0.5)
