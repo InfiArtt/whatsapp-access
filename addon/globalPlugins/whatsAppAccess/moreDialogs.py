@@ -489,7 +489,7 @@ class ManageGroupDialog(wx.Dialog):
 			)
 			for action, label in actions:
 				item = menu.Append(wx.ID_ANY, label)
-				self.Bind(
+				menu.Bind(
 					wx.EVT_MENU,
 					lambda evt, action=action, label=label: self._change(person, action, label),
 					item,

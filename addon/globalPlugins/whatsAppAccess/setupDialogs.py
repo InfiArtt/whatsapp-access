@@ -5,6 +5,7 @@
 """The first-time setup, and linking the hidden browser to the user's phone with a code."""
 
 import threading
+import time
 from collections.abc import Callable
 
 import api
@@ -86,6 +87,7 @@ class LinkDialog(wx.Dialog):
 		self._waitUntilLinked = waitUntilLinked
 		self._describeError = describeError
 		self._waiting = False
+		self._codeAt = 0.0
 		sizer = wx.BoxSizer(wx.VERTICAL)
 		# Translators: The label of the box for the phone number to link.
 		sizer.Add(
@@ -157,6 +159,8 @@ class LinkDialog(wx.Dialog):
 	def _gotCode(self, code: str) -> None:
 		if not self:
 			return
+		# Each new code may be typed for the whole wait again, however long the earlier one waited.
+		self._codeAt = time.monotonic()
 		shown = f"{code[:4]}-{code[4:]}" if len(code) == 8 else code
 		self.codeBox.SetValue(shown)
 		self.copyButton.Enable()
@@ -174,9 +178,9 @@ class LinkDialog(wx.Dialog):
 			self._waiting = True
 			threading.Thread(target=self._wait, name="whatsAppAccess.linkWait", daemon=True).start()
 
-	def _wait(self) -> None:
+	def _wait(self, seconds: float = LINK_WAIT_SECONDS) -> None:
 		try:
-			linked = self._waitUntilLinked(LINK_WAIT_SECONDS)
+			linked = self._waitUntilLinked(seconds)
 		except Exception as e:  # noqa: BLE001 - reported to the user
 			wx.CallAfter(self._failed, e)
 			return
@@ -191,9 +195,17 @@ class LinkDialog(wx.Dialog):
 			# Translators: Reported when the phone accepted the code and WhatsApp is linked.
 			ui.message(_("Linked. Loading your chats…"))
 			self.EndModal(wx.ID_OK)
-		else:
-			# Translators: Reported when the code was not typed on the phone in time.
-			self._say(_("The code expired. Press New code to get another one."))
+			return
+		remaining = LINK_WAIT_SECONDS - (time.monotonic() - self._codeAt)
+		if remaining > 5 and not self._waiting:
+			# The wait that just ended was for an earlier code; the newest one is still fresh.
+			self._waiting = True
+			threading.Thread(
+				target=self._wait, args=(remaining,), name="whatsAppAccess.linkWait", daemon=True
+			).start()
+			return
+		# Translators: Reported when the code was not typed on the phone in time.
+		self._say(_("The code expired. Press New code to get another one."))
 
 	def _failed(self, error: Exception) -> None:
 		if not self:

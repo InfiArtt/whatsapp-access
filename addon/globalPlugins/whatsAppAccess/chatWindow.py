@@ -508,7 +508,7 @@ class ChatWindow(wx.Dialog):
 
 		def add(label: str, handler: Callable[[], None]) -> None:
 			item = menu.Append(wx.ID_ANY, label)
-			self.Bind(wx.EVT_MENU, lambda evt: handler(), item)
+			menu.Bind(wx.EVT_MENU, lambda evt: handler(), item)
 
 		# Translators: An item in a starred message's menu: opens its chat at the message.
 		add(_("&Open in chat"), self._openStarred)
@@ -556,10 +556,10 @@ class ChatWindow(wx.Dialog):
 			return
 		menu = wx.Menu()
 		item = menu.Append(wx.ID_ANY, _("&Open"))
-		self.Bind(wx.EVT_MENU, lambda evt: self.openChat(channel), item)
+		menu.Bind(wx.EVT_MENU, lambda evt: self.openChat(channel), item)
 		# Translators: An item in a channel's menu: stops following it.
 		item = menu.Append(wx.ID_ANY, _("&Unfollow"))
-		self.Bind(wx.EVT_MENU, lambda evt: self._followChannel(channel, False), item)
+		menu.Bind(wx.EVT_MENU, lambda evt: self._followChannel(channel, False), item)
 		self.channelList.PopupMenu(menu)
 		menu.Destroy()
 
@@ -845,11 +845,11 @@ class ChatWindow(wx.Dialog):
 		menu = wx.Menu()
 		# Translators: An item in a recent call's menu: calls the person back.
 		item = menu.Append(wx.ID_ANY, _("&Call back"))
-		self.Bind(wx.EVT_MENU, lambda e: self._callBack(), item)
+		menu.Bind(wx.EVT_MENU, lambda e: self._callBack(), item)
 		# Translators: An item in a recent call's menu: opens the chat with the person.
 		item = menu.Append(wx.ID_ANY, _("&Open chat"))
 		chat = next((c for c in self._chats + self._archivedChats if c["id"] == call["chatId"]), None)
-		self.Bind(wx.EVT_MENU, lambda e: self.openChat(chat) if chat else None, item)
+		menu.Bind(wx.EVT_MENU, lambda e: self.openChat(chat) if chat else None, item)
 		item.Enable(chat is not None)
 		self.callsList.PopupMenu(menu)
 		menu.Destroy()
@@ -1432,14 +1432,14 @@ class ChatWindow(wx.Dialog):
 	# Links, search, forwarding, receipts and photos -----------------------------------------------------
 
 	def _startCall(self) -> None:
-		"""Ctrl+Shift+C: a voice call to the person in this chat. The call window takes it from there."""
+		"""Ctrl+Shift+C: a voice call to the person in this chat, or to everyone in a group, as the More
+		options menu and the Calls section already offer. The call window takes it from there."""
 		if not self.chat:
 			return
-		if self.chat.get("isGroup"):
-			# Translators: Reported when the user tries to call a group, which the add-on cannot do yet.
-			ui.message(_("Group calls are not supported yet"))
-			return
 		chatId = self.chat["id"]
+		if self.chat.get("isGroup"):
+			self._run(lambda: self.session.startGroupCall(chatId))
+			return
 		self._run(lambda: self.session.startCall(chatId))
 
 	def _openLinks(self) -> None:
@@ -1458,7 +1458,7 @@ class ChatWindow(wx.Dialog):
 		menu = wx.Menu()
 		for link in links:
 			item = menu.Append(wx.ID_ANY, link)
-			self.Bind(wx.EVT_MENU, lambda evt, link=link: self._openLink(link), item)
+			menu.Bind(wx.EVT_MENU, lambda evt, link=link: self._openLink(link), item)
 		self.messageList.PopupMenu(menu)
 		menu.Destroy()
 
@@ -1593,17 +1593,15 @@ class ChatWindow(wx.Dialog):
 		os.makedirs(folder, exist_ok=True)
 
 		def describe(path: str) -> None:
-			# The describer reads an image's path from the clipboard; the user's clipboard comes back after.
-			try:
-				previous = api.getClipData()
-			except Exception:  # noqa: BLE001 - an empty or non-text clipboard
-				previous = None
+			# The describer reads an image's path from the clipboard; the user's clipboard comes back after,
+			# copied files and pictures too, not only text.
+			previous = _saveClipboard()
 			api.copyToClip(path)
 			try:
 				describer.describe_clipboard()
 			finally:
 				if previous is not None:
-					wx.CallLater(4000, api.copyToClip, previous)
+					wx.CallLater(4000, _restoreClipboard, previous)
 
 		# Translators: Reported while a photo is downloaded to be described.
 		ui.message(_("Describing photo…"))
@@ -1794,11 +1792,11 @@ class ChatWindow(wx.Dialog):
 				# Translators: In the React menu, the emoji the user reacted with, such as "👍 2 (yours)".
 				label = _("{reaction} (yours)").format(reaction=label)
 			item = menu.Append(wx.ID_ANY, label)
-			self.Bind(wx.EVT_MENU, lambda evt, emoji=emoji: self._react(message, emoji), item)
+			menu.Bind(wx.EVT_MENU, lambda evt, emoji=emoji: self._react(message, emoji), item)
 		if mine:
 			# Translators: In a message's React menu: takes away the user's reaction.
 			item = menu.Append(wx.ID_ANY, _("Remove my reaction"))
-			self.Bind(wx.EVT_MENU, lambda evt: self._react(message, ""), item)
+			menu.Bind(wx.EVT_MENU, lambda evt: self._react(message, ""), item)
 		return menu
 
 	def _deleteChoice(self) -> None:
@@ -2530,7 +2528,7 @@ class ChatWindow(wx.Dialog):
 
 		def add(target: wx.Menu, label: str, handler: Callable[[], None]) -> None:
 			item = target.Append(wx.ID_ANY, label)
-			self.Bind(wx.EVT_MENU, lambda evt: handler(), item)
+			target.Bind(wx.EVT_MENU, lambda evt: handler(), item)
 
 		if message.get("type") in PLAYED_TYPES:
 			# Translators: An item in a voice message's menu.
@@ -2811,7 +2809,7 @@ class ChatWindow(wx.Dialog):
 
 		def add(target: wx.Menu, label: str, handler: Callable[[], None]) -> None:
 			item = target.Append(wx.ID_ANY, label)
-			self.Bind(wx.EVT_MENU, lambda evt: handler(), item)
+			target.Bind(wx.EVT_MENU, lambda evt: handler(), item)
 
 		# Translators: An item in a chat's menu: opens the conversation.
 		add(menu, _("&Open"), lambda: self.openChat(chat))
@@ -2880,7 +2878,7 @@ class ChatWindow(wx.Dialog):
 
 		def add(target: wx.Menu, label: str, handler: Callable[[], None]) -> None:
 			item = target.Append(wx.ID_ANY, label)
-			self.Bind(wx.EVT_MENU, lambda evt: handler(), item)
+			target.Bind(wx.EVT_MENU, lambda evt: handler(), item)
 
 		add(
 			menu,
@@ -3009,7 +3007,7 @@ class ChatWindow(wx.Dialog):
 			):
 				item = ephemeralMenu.AppendRadioItem(wx.ID_ANY, label)
 				item.Check(seconds == current)
-				self.Bind(
+				ephemeralMenu.Bind(
 					wx.EVT_MENU,
 					lambda evt, seconds=seconds, label=label: self._chatSet(
 						lambda: (
@@ -3291,7 +3289,9 @@ class ChatWindow(wx.Dialog):
 			finally:
 				picker.Destroy()
 			self._run(
-				lambda: self.session.sendSticker(chatId, chosen["kind"], chosen["index"]),
+				lambda: self.session.sendSticker(
+					chatId, chosen["kind"], chosen["index"], chosen.get("key", "")
+				),
 				lambda r: (sounds.play(sounds.SENT), ui.message(_("Sent"))),
 			)
 
@@ -3634,8 +3634,16 @@ class ChatWindow(wx.Dialog):
 				elif photo:
 					self.session.setProfilePhoto(photo)
 
-			# Translators: Reported after the user's profile was saved.
-			self._run(work, lambda r: ui.message(_("Profile saved")))
+			def saved(result: Any) -> None:
+				if not about and profile.get("about"):
+					# WhatsApp keeps an About; saying "saved" for an emptied one would not be true.
+					# Translators: Reported after saving the profile when the user emptied the About text.
+					ui.message(_("Profile saved. About was not emptied: WhatsApp needs some text there."))
+					return
+				# Translators: Reported after the user's profile was saved.
+				ui.message(_("Profile saved"))
+
+			self._run(work, saved)
 
 		self._run(self.session.profile, show)
 
@@ -4011,7 +4019,7 @@ class ChatWindow(wx.Dialog):
 
 			def add(label: str, handler: Callable[[], None]) -> None:
 				item = menu.Append(wx.ID_ANY, label)
-				self.Bind(wx.EVT_MENU, lambda evt: handler(), item)
+				menu.Bind(wx.EVT_MENU, lambda evt: handler(), item)
 
 			# Translators: The first, disabled item of the menu for several selected messages.
 			menu.Append(wx.ID_ANY, _("{count} messages selected").format(count=len(ids))).Enable(False)
@@ -4045,7 +4053,7 @@ class ChatWindow(wx.Dialog):
 
 		def add(target: wx.Menu, label: str, action: str, doneText: str, seconds: int = 0) -> None:
 			item = target.Append(wx.ID_ANY, label)
-			self.Bind(wx.EVT_MENU, lambda evt: self._chatsAction(ids, action, doneText, seconds), item)
+			target.Bind(wx.EVT_MENU, lambda evt: self._chatsAction(ids, action, doneText, seconds), item)
 
 		# Translators: The first, disabled item of the menu for several selected chats.
 		menu.Append(wx.ID_ANY, _("{count} chats selected").format(count=len(ids))).Enable(False)
@@ -4064,9 +4072,9 @@ class ChatWindow(wx.Dialog):
 		add(menu, _("Ma&rk as unread"), "markUnread", _("Marked as unread"))
 		# Translators: An item in the menu for selected chats: deletes them.
 		item = menu.Append(wx.ID_ANY, _("&Delete chats\tDelete"))
-		self.Bind(wx.EVT_MENU, lambda evt: self._deleteChats(), item)
+		menu.Bind(wx.EVT_MENU, lambda evt: self._deleteChats(), item)
 		item = menu.Append(wx.ID_ANY, _("C&lear selection\tEscape"))
-		self.Bind(wx.EVT_MENU, lambda evt: self._clearSelection(listBox), item)
+		menu.Bind(wx.EVT_MENU, lambda evt: self._clearSelection(listBox), item)
 		listBox.PopupMenu(menu)
 		menu.Destroy()
 
@@ -4747,6 +4755,33 @@ def tabNames() -> list[str]:
 		# Translators: A section of the add-on's window, like WhatsApp's: profile, privacy and more.
 		_("Settings (Ctrl+8)"),
 	]
+
+
+def _saveClipboard() -> wx.DataObject | None:
+	"""What is on the clipboard now, as files, a picture or text, to put back later; None if nothing."""
+	if not wx.TheClipboard.Open():
+		return None
+	try:
+		for dataFormat, make in (
+			(wx.DF_FILENAME, wx.FileDataObject),
+			(wx.DF_BITMAP, wx.BitmapDataObject),
+			(wx.DF_UNICODETEXT, wx.TextDataObject),
+		):
+			if wx.TheClipboard.IsSupported(wx.DataFormat(dataFormat)):
+				data = make()
+				if wx.TheClipboard.GetData(data):
+					return data
+	finally:
+		wx.TheClipboard.Close()
+	return None
+
+
+def _restoreClipboard(data: wx.DataObject) -> None:
+	if wx.TheClipboard.Open():
+		try:
+			wx.TheClipboard.SetData(data)
+		finally:
+			wx.TheClipboard.Close()
 
 
 def _selectedId(listBox: wx.ListBox, items: list[dict]) -> str | None:

@@ -456,6 +456,10 @@ class CallAnnouncer:
 		if new:
 			self.connectedAt = None
 			self.muted = False
+			self._expectedMute = None
+			if self.window is not None:
+				# A window kept open for the last call's end must not say "Declined" for this one.
+				self.window.declined = False
 			if call.get("incoming"):
 				sounds.startRing(config.conf[CONFIG_SECTION]["ringSound"])
 				# Translators: Read out when someone calls the user: the kind of call and who.
