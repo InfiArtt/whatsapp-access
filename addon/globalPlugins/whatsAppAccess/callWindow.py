@@ -112,9 +112,9 @@ class CallWindow(wx.Dialog):
 		self.CentreOnScreen()
 		self.Bind(wx.EVT_CHAR_HOOK, self._onKey)
 		self.Bind(wx.EVT_CLOSE, self._onClose)
-		self.timer = wx.Timer(self)
-		self.Bind(wx.EVT_TIMER, lambda evt: self._refresh(), self.timer)
-		self.timer.Start(1000)
+		# The call's time, each second. Not a wx.Timer owned by this window: one firing after the window was
+		# destroyed, as on reloading plugins, crashes NVDA. A CallLater checks the window is still there.
+		self.timer = wx.CallLater(1000, self._tick)
 
 	# Background calls ----------------------------------------------------------------------------------
 
@@ -188,6 +188,12 @@ class CallWindow(wx.Dialog):
 		self.connectedAt = connectedAt
 		self._refresh()
 		self._updateButtons()
+
+	def _tick(self) -> None:
+		if not self:
+			return
+		self._refresh()
+		self.timer = wx.CallLater(1000, self._tick)
 
 	def _refresh(self) -> None:
 		if self.call:

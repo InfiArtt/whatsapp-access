@@ -24,6 +24,7 @@ import wx
 from gui import guiHelper, nvdaControls
 from gui.settingsDialogs import NVDASettingsDialog, SettingsPanel
 from logHandler import log
+from NVDAObjects import NVDAObject
 from scriptHandler import script
 
 from . import browserLauncher, dataFolder, messageText, notifications, sounds, updateCheck
@@ -126,6 +127,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		updateCheck.onRequired = self._requiredUpdateFound
 		self._updateTimer = updateCheck.scheduleAutoCheck()
 		WhatsAppSettingsPanel.plugin = self
+		PositionSlider.plugin = self
 		NVDASettingsDialog.categoryClasses.append(WhatsAppSettingsPanel)
 
 	def _moveDataOutOfConfig(self) -> None:
@@ -142,6 +144,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def _callChanged(self) -> None:
 		if self.window:
 			self.window.onCallChanged()
+
+	def chooseNVDAObjectOverlayClasses(self, obj, clsList) -> None:
+		window = self.window
+		if window and getattr(obj, "windowHandle", 0) == window.positionSlider.GetHandle():
+			clsList.insert(0, PositionSlider)
 
 	def event_gainFocus(self, obj, nextHandler) -> None:
 		"""Coming back to the WhatsApp window while one of its dialogs is open goes to that dialog.
@@ -215,6 +222,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			updateCheck.onRequired = None
 		sounds.stopRing()
 		self.calls.connectionGone(announce=False)
+		if PositionSlider.plugin is self:
+			PositionSlider.plugin = None
 		if WhatsAppSettingsPanel in NVDASettingsDialog.categoryClasses:
 			NVDASettingsDialog.categoryClasses.remove(WhatsAppSettingsPanel)
 		if self.window:
@@ -966,6 +975,19 @@ class SoundSetting:
 		self._fill()
 		self.choice.SetFocus()
 		self._preview()
+
+
+class PositionSlider(NVDAObject):
+	"""The voice message position slider: NVDA reads Windows sliders as a percentage; this one says the time,
+	such as "12 sec of 45 sec"."""
+
+	plugin: "GlobalPlugin | None" = None
+
+	def _get_value(self) -> str:
+		window = self.plugin.window if self.plugin else None
+		if not window:
+			return super().value
+		return window.positionText()
 
 
 class WhatsAppSettingsPanel(SettingsPanel):

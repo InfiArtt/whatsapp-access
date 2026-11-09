@@ -3,6 +3,20 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.6.3]
+
+**Required update.** In 0.6.2, Enter on a playing voice message did nothing, and voice messages could
+stop playing altogether. WhatsApp stays closed until this version is installed.
+
+- Voice messages could stop playing altogether, silently: blank tabs had gathered in the hidden
+  browser, and Chromium does not load sound in a tab behind another. WhatsApp's tab is now the only one
+  and stays in front; tabs opened later are closed.
+- Enter on a voice message that was playing did nothing in 0.6.2 but write an error to NVDA's log:
+  pausing it called the voice note recorder's pause by mistake. It pauses and goes on again now.
+- The position slider is read as the time, such as "12 sec of 45 sec", not as a percentage.
+- Reloading NVDA's plugins (NVDA+Ctrl+F3) while a voice message played, or during a call, could make
+  NVDA crash: a timer of the closed window went on firing.
+
 ## [0.6.2]
 
 - Enter on the voice message playing pauses it, and Enter again goes on from there, as WhatsApp's

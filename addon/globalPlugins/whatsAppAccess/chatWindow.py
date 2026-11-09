@@ -951,8 +951,9 @@ class ChatWindow(wx.Dialog):
 		sizer.Add(self.messageList, 1, wx.EXPAND | wx.BOTTOM, 6)
 		# On a voice message, Tab from the messages reaches where it is playing, as WhatsApp's slider:
 		# Left and Right go back and on 5 seconds, Page Up and Page Down 30.
-		# Translators: The label of the slider for where a voice message plays, in seconds.
-		self.positionLabel = wx.StaticText(panel, label=_("Voice message position, seconds:"))
+		# Translators: The label of the slider for where a voice message plays; NVDA reads its value as the
+		# time, such as "12 sec of 45 sec".
+		self.positionLabel = wx.StaticText(panel, label=_("Voice message position:"))
 		sizer.Add(self.positionLabel)
 		self.positionSlider = wx.Slider(panel, value=0, minValue=0, maxValue=1)
 		self.positionSlider.SetLineSize(POSITION_STEP_SECONDS)
@@ -962,8 +963,9 @@ class ChatWindow(wx.Dialog):
 		self.positionLabel.Hide()
 		self.positionSlider.Hide()
 		self.messageList.Bind(wx.EVT_LISTBOX, self._onMessageMoved)
-		self._positionTimer = wx.Timer(self)
-		self.Bind(wx.EVT_TIMER, lambda evt: self._followPosition(), self._positionTimer)
+		# A wx.Timer owned by this window crashed NVDA when it fired after the window was destroyed, as on
+		# reloading plugins during playback; a CallLater that checks the window is still there cannot.
+		self._positionFollow: wx.CallLater | None = None
 		# A position chosen on the slider before playing: (message id, seconds).
 		self._startAt: tuple[str, float] | None = None
 		self.replyingText = wx.StaticText(panel, label="")
@@ -1617,7 +1619,7 @@ class ChatWindow(wx.Dialog):
 			if self._playingId == message["id"]:
 				# Enter again pauses, and once more goes on from there, as WhatsApp's play button does.
 				# Escape stops.
-				self._togglePause(message)
+				self._togglePlaybackPause(message)
 				return
 			# Started by the user: a new run of voice messages, if more follow.
 			self._voiceRun = False
@@ -2108,7 +2110,7 @@ class ChatWindow(wx.Dialog):
 
 		self._run(lambda: self.session.messageActions(message["id"]), ask)
 
-	def _togglePause(self, message: dict) -> None:
+	def _togglePlaybackPause(self, message: dict) -> None:
 		def done(state: str) -> None:
 			if state == "stopped":
 				# It had ended meanwhile: play it again from the start.
@@ -4310,7 +4312,7 @@ class ChatWindow(wx.Dialog):
 			),
 			onError=lambda e: self._playbackEnded(),
 		)
-		self._positionTimer.Start(POSITION_FOLLOW_MS)
+		self._followPositionSoon()
 
 	# The position slider -----------------------------------------------------------------------------------
 
@@ -4332,6 +4334,14 @@ class ChatWindow(wx.Dialog):
 			self.positionSlider.Show(show)
 			self.conversationPanel.Layout()
 
+	def positionText(self) -> str:
+		"""What NVDA says for the position slider: where it is and how long the message is."""
+		# Translators: The position slider of a voice message, such as "12 sec of 45 sec".
+		return _("{position} of {length}").format(
+			position=messageText.duration(self.positionSlider.GetValue()),
+			length=messageText.duration(self.positionSlider.GetMax()),
+		)
+
 	def _seek(self) -> None:
 		message = self._selectedMessage()
 		if not message or message.get("type") not in SEEKABLE_TYPES:
@@ -4350,11 +4360,15 @@ class ChatWindow(wx.Dialog):
 			# Not playing: Enter plays it from here.
 			self._startAt = (message["id"], seconds)
 
+	def _followPositionSoon(self) -> None:
+		if self._positionFollow is None or not self._positionFollow.IsRunning():
+			self._positionFollow = wx.CallLater(POSITION_FOLLOW_MS, self._followPosition)
+
 	def _followPosition(self) -> None:
 		"""While a voice message plays, the slider follows it, unless the user is on it."""
-		if self._playingId is None or not self:
-			self._positionTimer.Stop()
+		if not self or self._playingId is None:
 			return
+		self._followPositionSoon()
 		message = self._selectedMessage()
 		if not message or message["id"] != self._playingId or not self.positionSlider.IsShown():
 			return
@@ -4937,6 +4951,9 @@ class ChatWindow(wx.Dialog):
 		if self._ackTimer is not None:
 			self._ackTimer.Stop()
 			self._ackTimer = None
+		if self._positionFollow is not None:
+			self._positionFollow.Stop()
+			self._positionFollow = None
 		# Offline again, as WhatsApp Web is when it is no longer in front.
 		if self._online:
 			self._online = False
