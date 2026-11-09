@@ -352,6 +352,11 @@ class HiddenBrowser:
 				self._stopLocked()
 			os.makedirs(self.profileDir, exist_ok=True)
 			leftover = closeLeftovers(self.profileDir, os.path.basename(self.browser.path))
+			# Left by versions that used a debugging port; it names a port nothing listens on any more.
+			try:
+				(Path(self.profileDir) / "DevToolsActivePort").unlink()
+			except OSError:
+				pass
 			transport, handles = cdp.PipeTransport.forChild()
 			info = subprocess.STARTUPINFO()
 			# Only the two pipe ends (and the standard handles subprocess adds) reach the browser.
