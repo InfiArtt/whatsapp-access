@@ -3,7 +3,7 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
-## [Unreleased]
+## [0.5.0]
 
 Safer files and a safer place for your WhatsApp login.
 
