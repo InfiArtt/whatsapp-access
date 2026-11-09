@@ -211,6 +211,8 @@ def _play(path: str, volume: float, keep: bool = False) -> None:
 		finally:
 			if keep:
 				with _ringLock:
-					_ringPlayer = None
+					# Only its own: a newer ring may have started meanwhile, and must stay stoppable.
+					if _ringPlayer is player:
+						_ringPlayer = None
 	except Exception:  # noqa: BLE001 - a sound that cannot play must not break anything
 		log.debugWarning(f"WhatsApp Access: could not play {path}", exc_info=True)

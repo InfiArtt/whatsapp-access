@@ -29,6 +29,12 @@ Safer files and a safer place for your WhatsApp login.
   without closing it. WhatsApp Web in your own browser still uses that browser's remote debugging, as
   before.
 
+- The hidden browser keeps each website in its own sandboxed process again (site isolation). It uses
+  somewhat more memory, but a flaw shown through someone's link preview or media can't reach WhatsApp.
+- Updates are installed only with GitHub's checksum of the file, and a damaged download is removed.
+- Photos, videos, voice messages and documents are checked against WhatsApp's own seal (MAC) before
+  they are played, opened or saved, so a damaged or altered file is refused.
+
 Fixed, so nothing goes to the wrong chat or twice:
 
 - A voice note recorded and stopped in one chat could be sent to the next chat opened, after going back
@@ -77,6 +83,15 @@ Steadier:
 - Liking a status (Alt+Y) failed with an error, because WhatsApp Web cannot react to a status. It now
   sends a heart as a reply to the status in the poster's chat, as a quick reaction on the phone does, and
   says so. A status can be liked once each time the viewer is open.
+- A sticker chosen from the list is the one sent, even if a sticker sent from the phone meanwhile
+  changed the order of recent stickers.
+- Ctrl+Shift+C in a group now starts a group voice call, as More options and the Calls section do.
+- A new link code waits its full time on its own; it is no longer reported as expired because an earlier
+  code ran out.
+- A call that follows a declined one is no longer announced as "Declined" when it ends.
+- A ringtone that starts while another is ending can be stopped again.
+- Describing a photo (Alt+P) puts back copied files or pictures on the clipboard afterwards, not only text.
+- Emptying About in the profile now says it was not emptied, instead of "Profile saved".
 
 ## [0.4.1]
 

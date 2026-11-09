@@ -2727,3 +2727,7 @@ msgstr "Disukai: hati dikirim ke {name} sebagai balasan status"
 #. Translators: Said when the user likes a status they already liked.
 msgid "Already liked"
 msgstr "Sudah disukai"
+
+#. Translators: Reported after saving the profile when the user emptied the About text.
+msgid "Profile saved. About was not emptied: WhatsApp needs some text there."
+msgstr "Profil disimpan. Info tidak dikosongkan: WhatsApp memerlukan teks di sana."
