@@ -24,6 +24,22 @@ Safer files and a safer place for your WhatsApp login.
   A portable NVDA keeps the login with its own settings, as before.
 - The add-on does nothing on the Windows sign-in screen and other secure screens.
 
+Fixed, so nothing goes to the wrong chat or twice:
+
+- A voice note recorded and stopped in one chat could be sent to the next chat opened, after going back
+  to the chat list. Leaving a chat now throws its voice note away, as Ctrl+Tab already refused to move
+  on with one. A voice note thrown away while it was still stopping can no longer come back and be sent.
+- Pressing Enter or Ctrl+Shift+R again before WhatsApp answered sent the message, files or voice note
+  twice.
+- When files stop sending partway, those already sent are taken off the list, so Enter sends only the
+  rest.
+- Moving to another chat right after sending no longer clears that chat's draft or reply.
+- A chat that failed to load no longer closes another chat opened meanwhile, and More options no longer
+  pops up for a chat already left.
+- In Archived, Starred, Channels, Communities, Calls and Status, the selection stays on the same item when
+  the list updates by itself, so Enter, Delete or the menu act on the item you last heard.
+- In groups, mentioning "An" no longer changes "@Andi" into a mention of An.
+
 ## [0.4.1]
 
 Translation, closing WhatsApp fully, and fixes for groups. This includes everything from 0.4.0.
