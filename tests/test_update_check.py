@@ -34,7 +34,7 @@ class Nvda:
                 "initTranslation": lambda: None,
                 "getCodeAddon": lambda: types.SimpleNamespace(version="1.0.0"),
             },
-            "config": {"conf": {"whatsAppAccess": {}}},
+            "config": {"conf": {"whatsAppAccess": {"requiredVersion": ""}}},
             "gui": {"mainFrame": types.SimpleNamespace(prePopup=lambda: None, postPopup=lambda: None)},
             "gui.addonGui": {"installAddon": self._install, "promptUserForRestart": lambda: None},
             "ui": {"message": self.messages.append},
@@ -96,7 +96,7 @@ def test_a_second_check_waits_until_the_offer_is_answered(monkeypatch):
     nvda = Nvda(monkeypatch)
     asked = []
 
-    def latestRelease():
+    def latestRelease(current):
         asked.append(1)
         return RELEASE
 
@@ -123,7 +123,7 @@ def test_a_second_check_waits_until_the_offer_is_answered(monkeypatch):
 def test_a_download_goes_to_a_folder_of_its_own_that_is_removed(monkeypatch):
     nvda = Nvda(monkeypatch)
     nvda.answer = ID_OK
-    monkeypatch.setattr(nvda.module.updates, "latestRelease", lambda: RELEASE)
+    monkeypatch.setattr(nvda.module.updates, "latestRelease", lambda current: RELEASE)
     folders = []
 
     def download(release, path):
@@ -149,7 +149,7 @@ def test_a_download_goes_to_a_folder_of_its_own_that_is_removed(monkeypatch):
 def test_a_failed_download_leaves_nothing_behind(monkeypatch, error):
     nvda = Nvda(monkeypatch)
     nvda.answer = ID_OK
-    monkeypatch.setattr(nvda.module.updates, "latestRelease", lambda: RELEASE)
+    monkeypatch.setattr(nvda.module.updates, "latestRelease", lambda current: RELEASE)
     folders = []
 
     def download(release, path):
@@ -164,3 +164,43 @@ def test_a_failed_download_leaves_nothing_behind(monkeypatch, error):
     assert not os.path.exists(folders[0])
     assert not nvda.module._busy
     assert "The new version could not be downloaded. Try again later." in nvda.messages
+
+
+REQUIRED = updates.Release(
+    "2.0.0", "**Required update.**", "https://example.invalid/x", "whatsAppAccess-2.0.0.nvda-addon", "0", True
+)
+
+
+def test_a_required_update_stops_whatsapp_and_is_offered(monkeypatch):
+    nvda = Nvda(monkeypatch)
+    stopped = []
+    nvda.module.onRequired = lambda: stopped.append(True)
+    monkeypatch.setattr(nvda.module.updates, "latestRelease", lambda current: REQUIRED)
+    # Even the quiet check at every start, with daily checks off, finds it.
+    nvda.module.check(False, onlyIfRequired=True)
+    nvda.runThreads()
+    assert stopped == [True]
+    assert nvda.offers == 1
+    assert nvda.module.isUpdateRequired()
+    # Declined: opening WhatsApp offers it again, without asking GitHub.
+    nvda.module.offerRequired()
+    assert nvda.offers == 2
+    assert not nvda.pending
+
+
+def test_the_quiet_check_offers_only_a_required_update(monkeypatch):
+    nvda = Nvda(monkeypatch)
+    monkeypatch.setattr(nvda.module.updates, "latestRelease", lambda current: RELEASE)
+    nvda.module.check(False, onlyIfRequired=True)
+    nvda.runThreads()
+    assert nvda.offers == 0
+    assert not nvda.module.isUpdateRequired()
+    assert not nvda.module._busy
+
+
+def test_once_installed_the_required_update_no_longer_blocks(monkeypatch):
+    nvda = Nvda(monkeypatch)
+    sys.modules["config"].conf["whatsAppAccess"]["requiredVersion"] = "1.0.0"
+    assert not nvda.module.isUpdateRequired()
+    sys.modules["config"].conf["whatsAppAccess"]["requiredVersion"] = "1.0.1"
+    assert nvda.module.isUpdateRequired()

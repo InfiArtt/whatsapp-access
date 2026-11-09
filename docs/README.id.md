@@ -311,6 +311,11 @@ dimulai ulang. **Nanti saja** menanyakan lagi keesokan harinya. Anda juga bisa m
 pengaturan add-on, **Periksa pembaruan sekarang**. File-nya dicocokkan dengan checksum dari GitHub
 sebelum dipasang, dan add-on tidak mengirim apa pun tentang Anda.
 
+Kadang WhatsApp Web berubah sehingga versi add-on yang lama tidak bisa dipakai lagi. Versi barunya
+lalu menjadi **update wajib**: setiap kali NVDA menyala, walaupun pemeriksaan harian dimatikan,
+add-on mencarinya, dan kalau ada, WhatsApp ditutup (kecuali saat panggilan, yang tetap berjalan) dan
+tetap tertutup sampai update dipasang. NVDA+Shift+W menawarkan update itu lagi.
+
 ## Memakai browser Anda sendiri
 
 Kalau Anda memilih WhatsApp Web di browser Anda sendiri, bukan browser tersembunyi:

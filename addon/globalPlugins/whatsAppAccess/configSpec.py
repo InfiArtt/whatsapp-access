@@ -60,6 +60,8 @@ CONFIG_SPEC = {
 	# Look for new versions on the add-on's GitHub page once a day, and when the last look was.
 	"checkUpdates": "boolean(default=True)",
 	"lastUpdateCheck": "integer(default=0)",
+	# A required update that is not installed yet: WhatsApp cannot be used until it is. See updates.py.
+	"requiredVersion": 'string(default="")',
 	# How loud the other person is in calls.
 	"callVolume": "integer(min=0, max=100, default=100)",
 	# Sound processing on the microphone during calls: WhatsApp's own, echo cancellation only, or none

@@ -294,6 +294,11 @@ it shows what is new and offers **Download and install**; NVDA installs it and a
 now**. The file is checked against GitHub's checksum before it is installed, and the add-on sends
 nothing about you.
 
+Sometimes WhatsApp Web changes so that older versions of the add-on stop working. The new version
+is then a **required update**: at every start, even with daily checks turned off, the add-on looks
+for one, and when there is one, WhatsApp closes (except during a call, which goes on) and stays
+closed until it is installed. NVDA+Shift+W offers the update again.
+
 ## Using your own browser
 
 If you choose WhatsApp Web in your own browser instead of the hidden one:

@@ -2761,3 +2761,15 @@ msgstr "Rekaman berhenti setelah 30 menit"
 #. is not opened; the user can still save it.
 msgid "The file could not be opened safely here. Save it with Alt+D instead."
 msgstr "File ini tidak bisa dibuka dengan aman di sini. Simpan dengan Alt+D saja."
+
+msgid "The update needed to use WhatsApp is on its way"
+msgstr "Update yang diperlukan untuk memakai WhatsApp sedang disiapkan"
+
+msgid "WhatsApp Web changed, and WhatsApp Access {current} no longer works with it. Install version {new} to use WhatsApp again; until then WhatsApp stays closed."
+msgstr "WhatsApp Web berubah, dan WhatsApp Access {current} tidak bisa dipakai lagi dengannya. Pasang versi {new} untuk memakai WhatsApp lagi; sampai saat itu WhatsApp tetap tertutup."
+
+msgid "&Later"
+msgstr "&Nanti"
+
+msgid "WhatsApp Access must be updated before WhatsApp can be used again"
+msgstr "WhatsApp Access harus diperbarui dulu sebelum WhatsApp bisa dipakai lagi"
