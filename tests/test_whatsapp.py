@@ -248,26 +248,74 @@ def test_page_errors_become_codes(thrown, code, detail):
     session.close()
 
 
+def main_context(browser, contextId=7):
+    """The browser reports WhatsApp's own page context, as Runtime.enable does."""
+    browser.send(
+        {
+            "method": "Runtime.executionContextCreated",
+            "params": {
+                "context": {
+                    "id": contextId,
+                    "origin": "https://web.whatsapp.com",
+                    "auxData": {"isDefault": True, "frameId": "T1"},
+                }
+            },
+            "sessionId": "S1",
+        }
+    )
+
+
+def binding(browser, payload, contextId=7):
+    browser.send(
+        {
+            "method": "Runtime.bindingCalled",
+            "params": {
+                "name": whatsApp.EVENT_BINDING,
+                "payload": json.dumps(payload),
+                "executionContextId": contextId,
+            },
+            "sessionId": "S1",
+        }
+    )
+
+
 def test_events_from_the_page_reach_the_listener():
     events = []
     received = threading.Event()
 
     def onEvent(event):
-        events.append(event)
-        received.set()
+        if event.get("type") == "message":
+            events.append(event)
+            received.set()
 
     browser = page({"window.__waAccess.install()": True, **LINKED})
     session = session_for(browser, onEvent=onEvent)
+    main_context(browser)
     payload = {"type": "message", "message": {"id": "m1", "text": "halo"}, "chat": {"id": "1@c.us"}}
-    browser.send(
-        {
-            "method": "Runtime.bindingCalled",
-            "params": {"name": whatsApp.EVENT_BINDING, "payload": json.dumps(payload)},
-            "sessionId": "S1",
-        }
-    )
+    binding(browser, payload)
     assert received.wait(5)
     assert events == [payload]
+    session.close()
+
+
+def test_events_before_whatsapps_own_context_is_known_are_dropped():
+    events = []
+    received = threading.Event()
+
+    def onEvent(event):
+        if event.get("type") == "message":
+            events.append(event["message"]["text"])
+            received.set()
+
+    browser = page({"window.__waAccess.install()": True, **LINKED})
+    session = session_for(browser, onEvent=onEvent)
+    early = {"type": "message", "message": {"id": "e", "text": "early"}, "chat": {"id": "1@c.us"}}
+    binding(browser, early)
+    main_context(browser)
+    real = {"type": "message", "message": {"id": "r", "text": "real"}, "chat": {"id": "1@c.us"}}
+    binding(browser, real)
+    assert received.wait(5)
+    assert events == ["real"]
     session.close()
 
 
@@ -421,9 +469,13 @@ def test_the_hidden_browser_gets_chromes_user_agent_before_whatsapp_opens():
     )
     assert session.connect(target, hidden) == "ready"
     methods = [m["method"] for m in browser.received]
-    override = methods.index("Network.setUserAgentOverride")
+    assert not [m for m in methods if m.startswith("Network.")]
+    override = methods.index("Emulation.setUserAgentOverride")
     assert override < methods.index("Page.navigate")
-    assert browser.received[override]["params"]["userAgent"] == "Mozilla/5.0 Chrome/157.0.0.0"
+    assert browser.received[override]["params"] == {
+        "userAgent": "Mozilla/5.0 Chrome/157.0.0.0",
+        "userAgentMetadata": {"brands": []},
+    }
     session.close()
 
 
@@ -439,16 +491,10 @@ def test_memory_is_given_back_when_a_call_ends():
 
     browser.handler = handler
     session = session_for(browser)
+    main_context(browser)
 
     def call(state):
-        payload = {"type": "call", "call": state}
-        browser.send(
-            {
-                "method": "Runtime.bindingCalled",
-                "params": {"name": whatsApp.EVENT_BINDING, "payload": json.dumps(payload)},
-                "sessionId": "S1",
-            }
-        )
+        binding(browser, {"type": "call", "call": state})
 
     call({"state": "connected", "isGroup": True})
     call(None)

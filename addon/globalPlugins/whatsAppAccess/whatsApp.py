@@ -230,9 +230,10 @@ class WhatsAppSession:
 						"Browser.grantPermissions",
 						{"origin": hidden.url.rstrip("/"), "permissions": ["audioCapture", "notifications"]},
 					)
-					self._call("Network.enable")
+					# Emulation, not Network: the Network domain, once enabled, would keep response bodies and send
+					# every WebSocket frame over the pipe for as long as WhatsApp runs.
 					self._call(
-						"Network.setUserAgentOverride",
+						"Emulation.setUserAgentOverride",
 						{"userAgent": hidden.userAgent, "userAgentMetadata": hidden.userAgentMetadata},
 					)
 					# The override applies from the next load, so WhatsApp always opens with it.
@@ -413,9 +414,10 @@ class WhatsAppSession:
 			return
 		if method == "Runtime.bindingCalled" and params.get("name") == EVENT_BINDING:
 			contextId = params.get("executionContextId")
-			if self._mainContextId is not None and contextId != self._mainContextId:
+			if self._mainContextId is None or contextId != self._mainContextId:
 				# A frame inside the page, or a script in another world, called the binding: whatever it
 				# says, such as a message or a call, did not come from the bridge, so NVDA must not say it.
+				# Until WhatsApp's own context is known, nothing can be told apart, so nothing is taken.
 				return
 			try:
 				event = json.loads(params.get("payload", ""))
