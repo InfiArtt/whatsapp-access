@@ -145,6 +145,13 @@ def errorText(error: Exception, browserName: str = "") -> str:
 		return _(
 			"WhatsApp Web is not open in {browser}. Open web.whatsapp.com, log in, then try again."
 		).format(browser=browser)
+	if code == "pageNotLoaded":
+		return _(
+			# Translators: Reported when the hidden browser could not open WhatsApp Web. {detail} is what the
+			# browser's page said, in English, such as "This site can't be reached".
+			"WhatsApp Web did not open in {browser}. The page said: {detail} Check the internet connection, "
+			"and whether a firewall or antivirus blocks {browser}."
+		).format(browser=browser, detail=detail or "-")
 	if code == "notReady":
 		# Translators: Reported when WhatsApp Web has not finished loading.
 		return _("WhatsApp Web is still loading. Try again in a moment.")

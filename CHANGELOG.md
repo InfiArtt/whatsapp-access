@@ -3,6 +3,15 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [Unreleased]
+
+- When the hidden browser cannot open WhatsApp Web, for example because there is no connection or a
+  firewall or antivirus blocks the browser, the add-on says so, with what the browser's page says,
+  instead of "Still connecting" again and again. NVDA's log tells what the page showed.
+- Once WhatsApp is connected, the add-on waits up to about three and a half minutes for it to load
+  the chats, as a slow computer or a first sync of many chats needs, instead of giving up after one.
+- A hidden browser starting on a new profile could be asked for its page before it had opened one.
+
 ## [0.6.0]
 
 **Required update.** WhatsApp Web changed how it marks chats unread and how Meta AI answers, so older

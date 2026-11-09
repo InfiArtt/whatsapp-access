@@ -25,6 +25,31 @@ from . import cdp, fileSafety
 
 EVENT_BINDING = "__waAccessEvent"
 READY_TIMEOUT_SECONDS = 60.0
+# Once WhatsApp is connected, it may still be loading the chats, which on a slow computer or a first
+# sync of many chats takes minutes: the wait goes on this long while it does, within the plugin's
+# CONNECT_STALE_SECONDS, after which it would start again.
+LOADING_CHATS_TIMEOUT_SECONDS = 200.0
+# What the page shows when it never becomes ready, for NVDA's log: no messages or names, only where the
+# page is, whether WhatsApp's code loaded, and the start of what the page says, such as an error.
+PAGE_DIAGNOSIS = """(() => {
+	const out = { url: location.host + location.pathname, title: document.title, require: typeof window.require };
+	try {
+		out.socket = String(window.require("WAWebSocketModel").Socket.state);
+	} catch (e) {
+		out.socket = "error: " + String((e && e.message) || e).slice(0, 80);
+	}
+	try {
+		const names = Object.keys(window.require("__debug").modulesMap);
+		out.modules = names.length;
+		out.socketModules = names.filter((n) => /Socket(Model)?$/.test(n)).slice(0, 8);
+	} catch (e) {}
+	try {
+		out.chats = window.require("WAWebCollections").Chat.getModelsArray().length;
+	} catch (e) {}
+	out.bridge = !!window.__waAccess;
+	out.text = String((document.body && document.body.innerText) || "").replace(/\\s+/g, " ").slice(0, 200);
+	return out;
+})()"""
 UPLOAD_CHUNK_BYTES = 512 * 1024
 # Files go through the browser's memory; WhatsApp's own limit for documents is higher.
 MAX_FILE_BYTES = 200 * 2**20
@@ -86,6 +111,7 @@ def _codeFromPageError(description: str) -> WhatsAppError:
 		"noUpload",
 		"oneOptionOnly",
 		"inviteInvalid",
+		"pageNotLoaded",
 		"noMetaAi",
 		"aiTimeout",
 		"joinFailed",
@@ -94,6 +120,13 @@ def _codeFromPageError(description: str) -> WhatsAppError:
 	if code in known:
 		return WhatsAppError(code, detail)
 	return WhatsAppError("failed", description[:500])
+
+
+def stillLoadingChats(state: dict, waited: float) -> bool:
+	"""Whether WhatsApp is connected and only its chats are still loading, within the longer wait for that."""
+	socket = str(state.get("socket") or "")
+	connected = socket not in ("", "LOADING", "PAIRING") and not socket.startswith("UN")
+	return connected and waited < LOADING_CHATS_TIMEOUT_SECONDS
 
 
 def _bridgeWasMissing(error: WhatsAppError, function: str) -> bool:
@@ -216,12 +249,18 @@ class WhatsAppSession:
 				raise WhatsAppError("noBrowser", str(e)) from e
 			self.browserName = target.browser.name
 			try:
-				targets = connection.call("Target.getTargets")["targetInfos"]
-				pages = [
-					t for t in targets if t.get("type") == "page" and cdp.isWhatsAppUrl(t.get("url", ""))
-				]
-				if not pages and hidden is not None:
-					pages = [t for t in targets if t.get("type") == "page"]
+				pages = []
+				# A hidden browser on a new profile may not have opened its first page yet.
+				for _attempt in range(20 if hidden is not None else 1):
+					targets = connection.call("Target.getTargets")["targetInfos"]
+					pages = [
+						t for t in targets if t.get("type") == "page" and cdp.isWhatsAppUrl(t.get("url", ""))
+					]
+					if not pages and hidden is not None:
+						pages = [t for t in targets if t.get("type") == "page"]
+					if pages or hidden is None:
+						break
+					time.sleep(0.5)
 				if not pages:
 					raise WhatsAppError("noWhatsAppTab")
 				self._targetId = pages[0]["targetId"]
@@ -280,7 +319,8 @@ class WhatsAppSession:
 				self._bridgeSource = file.read()
 			self._bridgeHash = hashlib.sha256(self._bridgeSource.encode("utf-8")).hexdigest()[:16]
 		hashLiteral = json.dumps(self._bridgeHash)
-		deadline = time.monotonic() + READY_TIMEOUT_SECONDS
+		started = time.monotonic()
+		deadline = started + READY_TIMEOUT_SECONDS
 		while True:
 			# The page may still be loading, or loading again: install the bridge until it is there. A bridge
 			# from another version of the add-on, left in a page that stayed open, is replaced: the new
@@ -318,9 +358,24 @@ class WhatsAppSession:
 					},
 				)
 				return "ready"
-			if time.monotonic() > deadline:
-				raise WhatsAppError("notReady")
+			if time.monotonic() > deadline and not stillLoadingChats(state, time.monotonic() - started):
+				diagnosis = self._diagnosePage()
+				_log.warning(f"WhatsApp Access: WhatsApp Web did not become ready: {state} {diagnosis}")
+				if not str(diagnosis.get("url") or "").startswith("web.whatsapp.com"):
+					# The page is not WhatsApp at all: the browser's error page, such as no connection or a
+					# firewall blocking it. What it says is passed on, rather than "still loading".
+					raise WhatsAppError(
+						"pageNotLoaded", str(diagnosis.get("text") or diagnosis.get("url") or "")[:200]
+					)
+				raise WhatsAppError("notReady", str(diagnosis)[:500])
 			time.sleep(0.5)
+
+	def _diagnosePage(self) -> dict:
+		"""What the page shows, for the log when it never becomes ready; see PAGE_DIAGNOSIS."""
+		try:
+			return self._evaluate(PAGE_DIAGNOSIS) or {}
+		except WhatsAppError as e:
+			return {"error": e.code}
 
 	def requestLinkCode(self, phone: str) -> str:
 		"""The code to type on the phone to link this browser to WhatsApp. The phone shows a notification."""
