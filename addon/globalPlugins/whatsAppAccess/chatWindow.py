@@ -2457,6 +2457,14 @@ class ChatWindow(wx.Dialog):
 
 		self._run(self.session.stopRecording, stopped, failed)
 
+	def onRecordingLimit(self) -> None:
+		"""The page stopped a recording that reached its longest length: finish it as if the user had."""
+		if not self._recording:
+			return
+		# Translators: Said when a voice note stops by itself because it reached the longest length.
+		ui.message(_("Recording stopped after 30 minutes"))
+		self._stopRecording()
+
 	def _sendVoiceNow(self) -> None:
 		"""Ctrl+Shift+R: send the voice note, stopping the recording first if needed."""
 		if self._recording:

@@ -707,6 +707,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			self.calls.onCall(event.get("call"))
 		elif kind == "playbackEnded" and window:
 			window.onPlaybackEnded(event.get("messageId"))
+		elif kind == "recordingLimit" and window:
+			window.onRecordingLimit()
 		elif kind == "connection":
 			self._onConnection(event.get("state") or {})
 

@@ -2743,3 +2743,7 @@ msgstr "Sebagian data WhatsApp di komputer ini tidak bisa dihapus. Mulai ulang N
 #. Translators: Reported when the data was removed but WhatsApp could not be told of the unlinking.
 msgid "WhatsApp's data was removed from this computer, but WhatsApp could not be told. Remove this computer under Linked devices on your phone."
 msgstr "Data WhatsApp sudah dihapus dari komputer ini, tetapi WhatsApp tidak bisa diberi tahu. Hapus komputer ini di Perangkat tertaut di HP Anda."
+
+#. Translators: Said when a voice note stops by itself because it reached the longest length.
+msgid "Recording stopped after 30 minutes"
+msgstr "Rekaman berhenti setelah 30 menit"
