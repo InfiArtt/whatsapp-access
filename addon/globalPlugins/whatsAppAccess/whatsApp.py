@@ -16,9 +16,9 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, BinaryIO
 
-from . import cdp
+from . import cdp, fileSafety
 
 EVENT_BINDING = "__waAccessEvent"
 READY_TIMEOUT_SECONDS = 60.0
@@ -39,7 +39,7 @@ class WhatsAppError(Exception):
 	"""Something went wrong. code says what, for the add-on to explain to the user.
 
 	Codes: noBrowser, refused, approvalTimedOut, noWhatsAppTab, notReady, disconnected, chatNotFound, emptyMessage, sendFailed,
-	microphone, notRecording, noRecording, emptyRecording, mediaGone, failed.
+	microphone, notRecording, noRecording, emptyRecording, mediaGone, noDownload, saveFailed, failed.
 	"""
 
 	def __init__(self, code: str, detail: str = "") -> None:
@@ -93,22 +93,19 @@ class HiddenOptions:
 	url: str
 
 
-def _safeFileName(name: str) -> str:
-	"""A name Windows accepts: no path, no reserved characters."""
-	name = os.path.basename(name.replace("\\", "/"))
-	cleaned = "".join("_" if c in '<>:"/\\|?*' or ord(c) < 32 else c for c in name).strip(" .")
-	return cleaned or "WhatsApp file"
+def _createFreeFile(folder: str, name: str) -> tuple[str, BinaryIO]:
+	"""Create folder/name, or folder/name (2) and so on, without ever replacing a file that is there.
 
-
-def _freePath(folder: str, name: str) -> str:
-	"""folder/name, or folder/name (2) and so on when that file already exists."""
+	:return: The path and the file, open for writing.
+	"""
 	stem, extension = os.path.splitext(name)
-	path = os.path.join(folder, name)
-	number = 2
-	while os.path.exists(path):
-		path = os.path.join(folder, f"{stem} ({number}){extension}")
-		number += 1
-	return path
+	number = 1
+	while True:
+		path = os.path.join(folder, name if number == 1 else f"{stem} ({number}){extension}")
+		try:
+			return path, open(path, "xb")
+		except FileExistsError:
+			number += 1
 
 
 class WhatsAppSession:
@@ -759,28 +756,58 @@ class WhatsAppSession:
 		return uploadId
 
 	def download(self, messageId: str, folder: str = "", path: str = "") -> str:
-		"""Save a message's photo, video, audio or document. Give a folder to use WhatsApp's name for the
-		file there, or a full path. Returns where it was saved."""
+		"""Save a message's photo, video, audio or document.
+
+		The file gets the mark Windows gives files from the internet, so SmartScreen and Office's Protected
+		View check it before it runs or opens. A file that fails halfway is removed.
+
+		:param messageId: The message with the file.
+		:param folder: Save there, under a safe form of the sender's name for the file. A file that is
+			already there is never replaced.
+		:param path: Or save at this full path, which the user chose.
+		:return: Where the file was saved.
+		"""
 		info = self._bridge("downloadStart", messageId, timeout=300)
+		if not isinstance(info, dict) or not info.get("id"):
+			raise WhatsAppError("noDownload")
+		file: BinaryIO | None = None
 		try:
-			if not path:
-				path = _freePath(folder, _safeFileName(info.get("name") or "WhatsApp file"))
-			with open(path, "wb") as file:
+			try:
+				if path:
+					file = open(path, "wb")
+				else:
+					name = fileSafety.safeFileName(str(info.get("name") or ""))
+					path, file = _createFreeFile(folder, name)
 				offset, size = 0, int(info.get("size") or 0)
 				while offset < size:
 					piece = self._bridge("downloadChunk", info["id"], offset, UPLOAD_CHUNK_BYTES)
-					file.write(base64.b64decode(piece))
+					file.write(base64.b64decode(piece or ""))
 					offset += UPLOAD_CHUNK_BYTES
+				file.close()
+			except BaseException:
+				if file is not None:
+					file.close()
+					try:
+						os.remove(path)
+					except OSError:
+						pass
+				raise
+		except OSError as e:
+			raise WhatsAppError("saveFailed", str(e)) from e
+		except (ValueError, TypeError) as e:
+			# A piece that is not base64: the page sent something else.
+			raise WhatsAppError("failed", f"download: {e}") from e
 		finally:
 			try:
 				self._bridge("downloadEnd", info["id"])
 			except WhatsAppError:
 				pass
+		fileSafety.markFromInternet(path)
 		return path
 
 	def suggestedFileName(self, messageId: str) -> str:
-		"""The name WhatsApp would give the file, without downloading it."""
-		return self._bridge("suggestedFileName", messageId)
+		"""A safe form of the name WhatsApp would give the file, without downloading it."""
+		return fileSafety.safeFileName(str(self._bridge("suggestedFileName", messageId) or ""))
 
 	def pollInfo(self, messageId: str) -> dict:
 		"""A poll: question, whether several options may be chosen, how many people voted, and each
