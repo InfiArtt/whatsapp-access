@@ -2947,3 +2947,9 @@ msgstr "WhatsApp Web tidak terbuka di {browser}. Halamannya menyebutkan: {detail
 
 msgid "Voice message position, seconds:"
 msgstr "Posisi pesan suara, detik:"
+
+msgid "Voice message position:"
+msgstr "Posisi pesan suara:"
+
+msgid "{position} of {length}"
+msgstr "{position} dari {length}"
