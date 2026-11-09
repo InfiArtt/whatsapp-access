@@ -23,6 +23,11 @@ Safer files and a safer place for your WhatsApp login.
   If you ever pressed that button, press it again once after updating, so the old copy is replaced.
   A portable NVDA keeps the login with its own settings, as before.
 - The add-on does nothing on the Windows sign-in screen and other secure screens.
+- The hidden browser no longer opens a debugging port. The add-on now talks to it over a private pipe
+  that only the add-on holds. Before, any program running on the computer could have connected to that
+  port and read your chats or sent messages. The hidden browser also closes by itself if NVDA stops
+  without closing it. WhatsApp Web in your own browser still uses that browser's remote debugging, as
+  before.
 
 Fixed, so nothing goes to the wrong chat or twice:
 
