@@ -271,6 +271,53 @@ def test_events_from_the_page_reach_the_listener():
     session.close()
 
 
+def test_only_whatsapps_own_page_can_raise_events():
+    events = []
+    received = threading.Event()
+
+    def onEvent(event):
+        events.append(event)
+        if event.get("type") == "message":
+            received.set()
+
+    browser = page({"window.__waAccess.install()": True, **LINKED})
+    session = session_for(browser, onEvent=onEvent)
+
+    def binding(contextId, text):
+        payload = {"type": "message", "message": {"id": text, "text": text}, "chat": {"id": "1@c.us"}}
+        browser.send(
+            {
+                "method": "Runtime.bindingCalled",
+                "params": {
+                    "name": whatsApp.EVENT_BINDING,
+                    "payload": json.dumps(payload),
+                    "executionContextId": contextId,
+                },
+                "sessionId": "S1",
+            }
+        )
+
+    # The page's own frame (frame id = target id) becomes the only source of events.
+    browser.send(
+        {
+            "method": "Runtime.executionContextCreated",
+            "params": {
+                "context": {
+                    "id": 7,
+                    "origin": "https://web.whatsapp.com",
+                    "auxData": {"isDefault": True, "frameId": "T1"},
+                }
+            },
+            "sessionId": "S1",
+        }
+    )
+    binding(9, "forged")
+    binding(7, "real")
+    assert received.wait(5)
+    assert [e["message"]["text"] for e in events if e.get("type") == "message"] == ["real"]
+    session.close()
+
+
 def test_losing_the_browser_is_reported():
     lost = threading.Event()
     browser = page({"window.__waAccess.install()": True, **LINKED})
