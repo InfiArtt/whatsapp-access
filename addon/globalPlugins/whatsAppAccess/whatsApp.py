@@ -194,9 +194,7 @@ class WhatsAppSession:
 			try:
 				targets = connection.call("Target.getTargets")["targetInfos"]
 				pages = [
-					t
-					for t in targets
-					if t.get("type") == "page" and t.get("url", "").startswith(cdp.WHATSAPP_URL_PREFIX)
+					t for t in targets if t.get("type") == "page" and cdp.isWhatsAppUrl(t.get("url", ""))
 				]
 				if not pages and hidden is not None:
 					pages = [t for t in targets if t.get("type") == "page"]
@@ -419,7 +417,7 @@ class WhatsAppSession:
 		elif method == "Runtime.executionContextCreated":
 			context = params.get("context", {})
 			auxData = context.get("auxData", {})
-			isWhatsApp = context.get("origin", "").startswith(cdp.WHATSAPP_URL_PREFIX)
+			isWhatsApp = cdp.isWhatsAppOrigin(context.get("origin", ""))
 			if auxData.get("isDefault") and isWhatsApp and auxData.get("frameId") == self._targetId:
 				# The page's own frame: in Chromium a page's main frame has the page target's id.
 				self._mainContextId = context.get("id")

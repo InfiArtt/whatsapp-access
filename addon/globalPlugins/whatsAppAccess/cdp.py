@@ -23,6 +23,7 @@ from ctypes import wintypes
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from .webSocket import MAX_MESSAGE_BYTES, HandshakeRefused, WebSocket, WebSocketError
 
@@ -31,7 +32,28 @@ __all__ = ["HandshakeRefused", "WebSocketError"]
 # How long to wait for the user to answer the browser's "Allow remote debugging?" question.
 APPROVAL_TIMEOUT_SECONDS = 180.0
 COMMAND_TIMEOUT_SECONDS = 30.0
-WHATSAPP_URL_PREFIX = "https://web.whatsapp.com"
+WHATSAPP_HOST = "web.whatsapp.com"
+# WhatsApp Web's origin, as the browser gives it for the page's JavaScript.
+WHATSAPP_ORIGIN = f"https://{WHATSAPP_HOST}"
+
+
+def isWhatsAppUrl(url: str) -> bool:
+	"""Whether a page's address is WhatsApp Web itself, not a look-alike such as web.whatsapp.com.example.
+
+	:param url: The address of a tab.
+	:return: True only for https on web.whatsapp.com, on its usual port.
+	"""
+	try:
+		parts = urlsplit(url)
+		port = parts.port
+	except ValueError:
+		return False
+	return parts.scheme == "https" and parts.hostname == WHATSAPP_HOST and port in (None, 443)
+
+
+def isWhatsAppOrigin(origin: str) -> bool:
+	"""Whether a JavaScript context's origin is WhatsApp Web's, exactly."""
+	return origin == WHATSAPP_ORIGIN
 
 
 @dataclass(frozen=True)

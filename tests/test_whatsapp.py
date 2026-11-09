@@ -456,3 +456,59 @@ def test_memory_is_given_back_when_a_call_ends():
     methods = [m["method"] for m in browser.received]
     assert methods.index("Memory.simulatePressureNotification") < methods.index("HeapProfiler.collectGarbage")
     session.close()
+
+
+def test_a_look_alike_tab_is_not_taken_for_whatsapp():
+    browser = page(
+        {}, targets=[{"type": "page", "url": "https://web.whatsapp.com.evil.example/", "targetId": "T1"}]
+    )
+    with pytest.raises(whatsApp.WhatsAppError) as error:
+        session_for(browser)
+    assert error.value.code == "noWhatsAppTab"
+
+
+def test_a_look_alike_origin_cannot_become_the_source_of_events():
+    events = []
+    received = threading.Event()
+
+    def onEvent(event):
+        events.append(event)
+        if event.get("type") == "message":
+            received.set()
+
+    browser = page({"window.__waAccess.install()": True, **LINKED})
+    session = session_for(browser, onEvent=onEvent)
+
+    def context(contextId, origin):
+        browser.send(
+            {
+                "method": "Runtime.executionContextCreated",
+                "params": {
+                    "context": {
+                        "id": contextId,
+                        "origin": origin,
+                        "auxData": {"isDefault": True, "frameId": "T1"},
+                    }
+                },
+                "sessionId": "S1",
+            }
+        )
+
+    context(7, "https://web.whatsapp.com")
+    context(8, "https://web.whatsapp.com.evil.example")
+    for contextId, text in ((8, "forged"), (7, "real")):
+        payload = {"type": "message", "message": {"id": text, "text": text}, "chat": {"id": "1@c.us"}}
+        browser.send(
+            {
+                "method": "Runtime.bindingCalled",
+                "params": {
+                    "name": whatsApp.EVENT_BINDING,
+                    "payload": json.dumps(payload),
+                    "executionContextId": contextId,
+                },
+                "sessionId": "S1",
+            }
+        )
+    assert received.wait(5)
+    assert [e["message"]["text"] for e in events if e.get("type") == "message"] == ["real"]
+    session.close()
