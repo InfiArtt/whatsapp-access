@@ -3,7 +3,11 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
-## [Unreleased]
+## [0.6.0]
+
+**Required update.** WhatsApp Web changed how it marks chats unread and how Meta AI answers, so older
+versions marked chats read when asked to mark them unread and read out only "Thinking" from Meta AI.
+WhatsApp stays closed until this version is installed.
 
 - Alt+P describes a photo with Meta AI, with no other add-on needed: the photo goes to your chat with
   Meta AI with a question in your language, and its answer is read out when it is finished. The
