@@ -7,6 +7,11 @@ notes the add-on shows before it installs an update.
 
 Safer files and a safer place for your WhatsApp login.
 
+- An open chat now sits beside the chat list, as in WhatsApp on a computer, instead of taking its
+  place. Tab goes from the chat's last button to the chat list. Escape or the new Ctrl+W closes the
+  chat; Escape again closes the window. While a chat is open, the window is named after it, such as
+  "Budi - WhatsApp", without the phone number of someone outside your contacts.
+
 - WhatsApp Access now works with NVDA 2025.1 and later, including the 32-bit NVDA of 2025, not only
   NVDA 2026.3. On a 32-bit NVDA, 64-bit browsers such as Brave are now found in Program Files and
   in the registry.

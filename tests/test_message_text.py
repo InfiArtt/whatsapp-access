@@ -97,6 +97,14 @@ def test_the_open_chat_says_the_message_even_when_content_is_off():
     )
 
 
+def test_the_window_title_names_the_chat_without_a_phone_number():
+    assert messageText.windowTitleName("Qisti") == "Qisti"
+    assert messageText.windowTitleName("+6285640306004 ~Prima Agus Setiyawan") == "~Prima Agus Setiyawan"
+    assert messageText.windowTitleName("~Prima Agus Setiyawan") == "~Prima Agus Setiyawan"
+    assert messageText.windowTitleName("+6285640306004") == "+6285640306004"
+    assert messageText.windowTitleName("Tim ~Kreatif") == "Tim ~Kreatif"
+
+
 def test_a_deleted_message_is_said_deleted_once():
     deleted = {"type": "revoked", "text": "This message was deleted", "sender": "~Ali"}
     assert messageText.content(deleted) == "This message was deleted"

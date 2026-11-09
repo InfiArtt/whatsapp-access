@@ -55,6 +55,8 @@ def sections() -> list[tuple[str, list[tuple[str, str]]]]:
 				("Ctrl+/", _("Keyboard shortcuts")),
 				# Translators: In the keyboard shortcuts list.
 				("Escape", _("Close chat, or close the window; WhatsApp keeps running")),
+				# Translators: In the keyboard shortcuts list.
+				("Ctrl+W", _("Close the open chat; the chat list stays")),
 			],
 		),
 		(

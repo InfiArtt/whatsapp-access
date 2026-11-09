@@ -68,7 +68,8 @@ atau tidak memakai WhatsApp di ponsel sekitar 14 hari, seperti semua perangkat t
 | NVDA+Alt+M | Di mana saja | Mematikan atau menyalakan mikrofon saat panggilan. |
 | NVDA+Alt+Backspace | Di mana saja | Menutup WhatsApp sepenuhnya, setelah menjelaskan artinya: tidak ada pesan atau panggilan sampai dibuka lagi. |
 | Ctrl+/ | Jendela | Semua pintasan keyboard, per bagian. |
-| Escape | Jendela | Kembali ke daftar chat, atau menutup jendela. WhatsApp tetap berjalan. |
+| Escape | Jendela | Menutup chat yang terbuka, atau menutup jendela. WhatsApp tetap berjalan. |
+| Ctrl+W | Jendela | Menutup chat yang terbuka. Daftar chat tetap ada di sampingnya. |
 
 Lima tombol yang bekerja di mana saja (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H, NVDA+Alt+M, dan
 NVDA+Alt+Backspace) bisa diganti di dialog Input Gestures NVDA, kategori WhatsApp Access. Tombol di dalam jendela WhatsApp tidak
@@ -82,6 +83,11 @@ Jendela punya bagian, seperti bilah samping WhatsApp: **Chat** (Ctrl+1), **Statu
 berikutnya dan sebelumnya; di dalam chat, keduanya pindah ke chat berikutnya dan sebelumnya. Bagian ini bukan tab: tekan Tab melewati kontrol sebuah bagian untuk
 sampai ke daftar **Bagian**, yang menyebut bagian mana yang sedang dibuka; pilih yang lain dengan
 panah lalu tekan Enter.
+
+Seperti WhatsApp di komputer, chat yang dibuka ada di samping daftar chat, dan daftar chat tetap ada.
+Tab berjalan di dalam chat, dari nama dan tombolnya ke pesan, kotak pesan, dan tombol voice note,
+lalu lanjut ke daftar chat. **Escape** atau **Ctrl+W** menutup chat. Selama chat terbuka, judul
+jendela adalah namanya, misalnya "Budi - WhatsApp".
 
 Selama jendela ada di depan, Anda online bagi kontak Anda, seperti di WhatsApp Web. Saat Anda pindah
 ke program lain atau menutup jendela, Anda offline lagi; WhatsApp tetap berjalan di belakang untuk

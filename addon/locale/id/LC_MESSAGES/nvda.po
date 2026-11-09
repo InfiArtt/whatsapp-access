@@ -121,8 +121,17 @@ msgstr "&Kirim"
 
 
 
-msgid "&Back to chats"
-msgstr "Kembali ke daftar c&hat"
+msgid "Close chat (Ctrl+W)"
+msgstr "Tutup chat (Ctrl+W)"
+
+msgid "{chat} - WhatsApp"
+msgstr "{chat} - WhatsApp"
+
+msgid "No chat open"
+msgstr "Tidak ada chat yang terbuka"
+
+msgid "Close the open chat; the chat list stays"
+msgstr "Tutup chat yang terbuka; daftar chat tetap ada"
 
 msgid "No earlier messages"
 msgstr "Tidak ada pesan sebelumnya"

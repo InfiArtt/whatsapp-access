@@ -65,7 +65,8 @@ phone for about 14 days, as for every linked device.
 | NVDA+Alt+H | Anywhere | Decline a call, or end it. |
 | NVDA+Alt+M | Anywhere | Microphone off or on during a call. |
 | NVDA+Alt+Backspace | Anywhere | Close WhatsApp fully, after saying what that means: no messages or calls until you open it again. |
-| Escape | Window | Back to the chat list, or close the window. WhatsApp keeps running. |
+| Escape | Window | Close the open chat, or close the window. WhatsApp keeps running. |
+| Ctrl+W | Window | Close the open chat. The chat list stays beside it. |
 | Ctrl+/ | Window | Every keyboard shortcut, by section. |
 
 The five keys that work anywhere (NVDA+Shift+W, NVDA+Alt+A, NVDA+Alt+H, NVDA+Alt+M and
@@ -78,6 +79,11 @@ The window has sections, like WhatsApp's sidebar: **Chats** (Ctrl+1), **Status**
 **Communities** (Ctrl+7) and **Settings** (Ctrl+8). Ctrl+Tab and Ctrl+Shift+Tab move to the next and
 previous one; in a chat they move to the next and previous chat instead. They are not tabs: press Tab past a section's controls to reach the **Sections** list,
 which says which one is current; choose another with the arrows and press Enter.
+
+As in WhatsApp on a computer, an open chat sits beside the chat list, which stays. Tab goes through the
+chat, from its name and buttons to the messages, the message box and the voice note button, then on
+to the chat list. **Escape** or **Ctrl+W** closes the chat. While a chat is open, the window's title is
+its name, such as "Budi - WhatsApp".
 
 While the window is in front, you are online for your contacts, as with WhatsApp Web. When you switch
 to another program or close the window, you are offline again; WhatsApp keeps running in the

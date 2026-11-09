@@ -331,12 +331,19 @@ class ChatWindow(wx.Dialog):
 		sectionsSizer.Add(self.sectionList, 0, wx.EXPAND)
 		self.sectionsPanel.SetSizer(sectionsSizer)
 		self._updateSections()
-		main.Add(self.tabs, 1, wx.EXPAND | wx.ALL, 6)
-		main.Add(self.conversationPanel, 1, wx.EXPAND | wx.ALL, 6)
-		main.Add(self.sectionsPanel, 0, wx.EXPAND | wx.ALL, 6)
+		# As in WhatsApp's desktop app, the open chat is beside the sections, which stay: chats on the left,
+		# the conversation on the right. Tab goes through the conversation, then on to the chat list.
+		side = wx.BoxSizer(wx.VERTICAL)
+		side.Add(self.tabs, 1, wx.EXPAND | wx.ALL, 6)
+		side.Add(self.sectionsPanel, 0, wx.EXPAND | wx.ALL, 6)
+		body = wx.BoxSizer(wx.HORIZONTAL)
+		body.Add(side, 2, wx.EXPAND)
+		body.Add(self.conversationPanel, 3, wx.EXPAND | wx.ALL, 6)
+		main.Add(body, 1, wx.EXPAND)
+		self.conversationPanel.MoveBeforeInTabOrder(self.tabs)
 		self.conversationPanel.Hide()
 		self.SetSizer(main)
-		self.SetSize(wx.Size(700, 600))
+		self.SetSize(wx.Size(1000, 650))
 		self.CentreOnScreen()
 		self.Bind(wx.EVT_CHAR_HOOK, self._onCharHook)
 		self.Bind(wx.EVT_CLOSE, self._onClose)
@@ -368,6 +375,8 @@ class ChatWindow(wx.Dialog):
 		self.chatList.Bind(wx.EVT_KEY_DOWN, self._onChatListKey)
 		self.chatList.Bind(wx.EVT_CONTEXT_MENU, self._onChatMenu)
 		sizer.Add(self.chatList, 1, wx.EXPAND | wx.BOTTOM, 6)
+		# The list first, then the search and filter: Tab from an open chat's last button reaches the chats.
+		self.chatList.MoveBeforeInTabOrder(self.searchBox)
 		# Translators: A button that closes the add-on's window. WhatsApp Web stays open.
 		closeButton = wx.Button(panel, wx.ID_CLOSE, label=_("Close"))
 		closeButton.Bind(wx.EVT_BUTTON, lambda evt: self.Close())
@@ -735,10 +744,8 @@ class ChatWindow(wx.Dialog):
 	) = range(8)
 
 	def showTab(self, index: int) -> None:
-		"""Ctrl+1 to Ctrl+8: Chats, Status, Calls, Archived, Starred, Channels, Communities or Settings, leaving the
-		open conversation if needed."""
-		if self.conversationPanel.IsShown():
-			self.showChats()
+		"""Ctrl+1 to Ctrl+8: Chats, Status, Calls, Archived, Starred, Channels, Communities or Settings. An
+		open conversation stays open beside it."""
 		self.tabs.ChangeSelection(index)
 		self._updateSections()
 		self._loadTab(index)
@@ -880,7 +887,11 @@ class ChatWindow(wx.Dialog):
 		# Translators: A button beside the contact's name in a chat: opens the chat's menu, as WhatsApp's.
 		self.moreButton = wx.Button(panel, label=_("More options"))
 		self.moreButton.Bind(wx.EVT_BUTTON, lambda evt: self._conversationMenu())
-		header.Add(self.moreButton, 0)
+		header.Add(self.moreButton, 0, wx.RIGHT, 6)
+		# Translators: A button beside the contact's name in a chat: closes the chat; the chat list stays.
+		closeChatButton = wx.Button(panel, label=_("Close chat (Ctrl+W)"))
+		closeChatButton.Bind(wx.EVT_BUTTON, lambda evt: self.showChats())
+		header.Add(closeChatButton, 0)
 		sizer.Add(header, 0, wx.EXPAND | wx.BOTTOM, 6)
 		self._presence: dict | None = None
 		self._presenceText = ""
@@ -943,9 +954,6 @@ class ChatWindow(wx.Dialog):
 		self.pauseButton = wx.Button(panel, label="")
 		self.pauseButton.Bind(wx.EVT_BUTTON, lambda evt: self._togglePause())
 		self._paused = False
-		# Translators: A button that goes back from a conversation to the list of chats.
-		backButton = wx.Button(panel, label=_("&Back to chats"))
-		backButton.Bind(wx.EVT_BUTTON, lambda evt: self.showChats())
 		for button in (
 			self.cancelReplyButton,
 			self.attachButton,
@@ -955,7 +963,6 @@ class ChatWindow(wx.Dialog):
 			self.sendVoiceButton,
 			self.listenButton,
 			self.discardButton,
-			backButton,
 		):
 			buttons.Add(button, 0, wx.RIGHT, 6)
 		sizer.Add(buttons)
@@ -1053,8 +1060,9 @@ class ChatWindow(wx.Dialog):
 
 	def _setFilter(self, index: int) -> None:
 		"""Alt+1 to Alt+4: show all chats, unread ones, groups or favorites, as WhatsApp's tabs."""
-		if self.conversationPanel.IsShown():
-			self.showChats()
+		if self.tabs.GetSelection() != self.TAB_CHATS:
+			self.tabs.ChangeSelection(self.TAB_CHATS)
+			self._updateSections()
 		self.filterChoice.SetSelection(index)
 		self._showChats()
 		self.chatList.SetFocus()
@@ -1066,7 +1074,7 @@ class ChatWindow(wx.Dialog):
 	def _nextUnread(self) -> None:
 		"""Alt+U. In a chat: go to its first unread message, where WhatsApp shows "5 unread messages".
 		In the chat list: select the next chat with unread messages, without opening it."""
-		if self.conversationPanel.IsShown():
+		if self._focusInConversation():
 			self._goToFirstUnread()
 			return
 		unread = [index for index, c in enumerate(self._shownChats) if c.get("unread")]
@@ -1204,7 +1212,19 @@ class ChatWindow(wx.Dialog):
 			self._drafts.pop(self.chat["id"], None)
 		self._stopTyping()
 
+	def _focusInConversation(self) -> bool:
+		"""Whether a chat is open and the focus is in it, not in the chat list or another section beside it."""
+		if self.chat is None or not self.conversationPanel.IsShown():
+			return False
+		focus = wx.Window.FindFocus()
+		while focus is not None:
+			if focus is self.conversationPanel:
+				return True
+			focus = focus.GetParent()
+		return False
+
 	def showChats(self) -> None:
+		"""Close the open chat (Escape or Ctrl+W); the section beside it, usually the chat list, gets the focus."""
 		self._keepDraft()
 		# A voice note belongs to the chat it was recorded in; one left behind could be sent to the next.
 		if self._recording or self._hasRecording:
@@ -1216,8 +1236,8 @@ class ChatWindow(wx.Dialog):
 		self.chat = None
 		self._messages = []
 		self.conversationPanel.Hide()
-		self.tabs.Show()
-		self.sectionsPanel.Show()
+		# Translators: The title of the add-on's window.
+		self.SetTitle(_("WhatsApp"))
 		self.Layout()
 		self._focusTab(self.tabs.GetSelection())
 		self.refreshChats()
@@ -1256,8 +1276,8 @@ class ChatWindow(wx.Dialog):
 			self.composeBox.SetInsertionPointEnd()
 		self._closeMentions()
 		self._closeEmoji()
-		self.tabs.Hide()
-		self.sectionsPanel.Hide()
+		# Translators: The add-on's window title while a chat is open, such as "Budi - WhatsApp".
+		self.SetTitle(_("{chat} - WhatsApp").format(chat=messageText.windowTitleName(chat.get("title", ""))))
 		self.conversationPanel.Show()
 		self.Layout()
 		chatId = chat["id"]
@@ -4251,8 +4271,21 @@ class ChatWindow(wx.Dialog):
 		key = evt.GetKeyCode()
 		if volumes.handleKey(key, evt.GetModifiers(), self.session):
 			return
-		inConversation = self.conversationPanel.IsShown()
+		# A chat's own keys work where its controls are; the chat list beside it keeps its own.
+		inConversation = self._focusInConversation()
+		chatOpen = self.chat is not None and self.conversationPanel.IsShown()
 		focus = wx.Window.FindFocus()
+		if key == ord("W") and evt.GetModifiers() == wx.MOD_CONTROL:
+			if chatOpen and (self._recording or self._hasRecording):
+				# Closing the chat would throw the voice note away; it says what to do instead, as Escape does.
+				sounds.play(sounds.DISCARD)
+				ui.message(_("Send the voice note with Ctrl+Shift+R or throw it away with Ctrl+D first"))
+			elif chatOpen:
+				self.showChats()
+			else:
+				# Translators: Said when the user presses Ctrl+W, which closes a chat, while none is open.
+				ui.message(_("No chat open"))
+			return
 		if focus in (self.chatList, self.archivedList, self.messageList) and self._handleSelectionKey(
 			focus, evt
 		):
@@ -4271,7 +4304,7 @@ class ChatWindow(wx.Dialog):
 				self._stopPlayback()
 			elif self._recording:
 				self._discardRecording()
-			elif inConversation and self._hasRecording:
+			elif chatOpen and self._hasRecording:
 				# A recorded note is not thrown away by Escape, as leaving the chat would: it says what to do.
 				self._run(self.session.stopAudio, onError=lambda e: None)
 				sounds.play(sounds.DISCARD)
@@ -4280,7 +4313,8 @@ class ChatWindow(wx.Dialog):
 				self._cancelEdit()
 			elif inConversation and self._replyTo is not None:
 				self._cancelReply()
-			elif inConversation:
+			elif chatOpen:
+				# From the chat or from the list beside it: the chat closes first, the window only after.
 				self.showChats()
 			else:
 				self.Close()
@@ -4440,7 +4474,15 @@ class ChatWindow(wx.Dialog):
 			else:
 				self._reactMenu()
 			return
-		if inConversation and key in (ord("R"), ord("D"), ord("T"), ord("S")):
+		# A voice note under way can be stopped, sent or thrown away from the chat list beside it too.
+		hasVoiceNote = chatOpen and (self._recording or self._hasRecording)
+		if (inConversation or hasVoiceNote) and key in (ord("R"), ord("D"), ord("T"), ord("S")):
+			if not inConversation and modifiers not in (wx.MOD_CONTROL, wx.MOD_CONTROL | wx.MOD_SHIFT):
+				evt.Skip()
+				return
+			if not inConversation and modifiers == wx.MOD_CONTROL and key in (ord("T"), ord("S")):
+				evt.Skip()
+				return
 			if modifiers == wx.MOD_ALT and key == ord("R"):
 				self._startReply()
 				return

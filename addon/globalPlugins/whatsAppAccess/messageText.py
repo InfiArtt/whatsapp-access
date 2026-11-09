@@ -185,6 +185,15 @@ def ackText(ack: int | None) -> str:
 	return _("played")
 
 
+def windowTitleName(title: str) -> str:
+	"""A chat's name for the window title: someone outside the contacts by the name they chose, without
+	the phone number in front, such as "~Budi" for "+62812… ~Budi". A number alone stays."""
+	number, separator, name = title.partition(" ~")
+	if separator and number.startswith("+") and name:
+		return "~" + name
+	return title
+
+
 def acksText(acks: list[int]) -> str:
 	"""What to say when several messages change state together: the furthest state, once.
 
