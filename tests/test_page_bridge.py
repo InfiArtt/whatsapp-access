@@ -447,3 +447,42 @@ def test_audio_of_ended_calls_is_forgotten():
         check=True,
     )
     assert json.loads(result.stdout) == {"gains": ["open"], "media": ["playing"]}
+
+
+AI_HELPER = r"""
+const fs = require("fs");
+const source = fs.readFileSync(process.argv[1], "utf8").replace(/\r\n/g, "\n");
+const take = (name) => {
+    const start = source.indexOf("\tfunction " + name + "(");
+    const end = source.indexOf("\n\t}\n", start) + 4;
+    return source.slice(start, end);
+};
+const f = new Function(take("isAiAnswer") + take("isAiWriting") + "; return { isAiAnswer, isAiWriting };")();
+const messages = JSON.parse(process.argv[2]);
+process.stdout.write(JSON.stringify(messages.map((m) => [f.isAiAnswer(m), f.isAiWriting(m)])));
+"""
+
+
+def test_meta_ai_answers_are_said_once_written():
+    messages = [
+        {"type": "chat", "body": "hi"},
+        {"type": "rich_response", "botResponseId": "x", "botEditType": "first"},
+        {"type": "rich_response", "botResponseId": "x", "botEditType": "inner"},
+        {"type": "rich_response", "botResponseId": "x", "botEditType": "last"},
+        # An answer from before, loaded with the chat.
+        {"type": "rich_response", "botResponseId": "y"},
+    ]
+    result = subprocess.run(
+        [NODE, "-e", AI_HELPER, str(PACKAGE_DIR / "pageBridge.js"), json.dumps(messages)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    assert json.loads(result.stdout) == [
+        [False, False],
+        [True, True],
+        [True, True],
+        [True, False],
+        [True, False],
+    ]

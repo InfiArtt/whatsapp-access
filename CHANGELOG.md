@@ -3,7 +3,38 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
-## [Unreleased]
+## [0.6.0]
+
+**Required update.** WhatsApp Web changed how it marks chats unread and how Meta AI answers, so older
+versions marked chats read when asked to mark them unread and read out only "Thinking" from Meta AI.
+WhatsApp stays closed until this version is installed.
+
+- Alt+P describes a photo with Meta AI, with no other add-on needed: the photo goes to your chat with
+  Meta AI with a question in your language, and its answer is read out when it is finished. The
+  question asks for a short answer, what the photo is first; you can write your own in the add-on's
+  settings. It also
+  works on statuses. The photo and the answer stay in the chat with Meta AI. The AI Content Describer
+  add-on is no longer used.
+- Chats with Meta AI: its answer is read out once it has finished writing it, whole, instead of
+  "Thinking" and then nothing. Its answers are no longer called "edited", the empty message it shows
+  while it starts is left out, and its chat no longer says "no info" for its online status.
+- In a group where only admins send messages, a community's announcements, a group you left, or a
+  channel you do not run, the message box is replaced by what WhatsApp says there, such as "Only
+  admins can send messages". Before, the box was there and what you typed could not be sent. In
+  such groups Alt+R replies privately to the message's sender.
+- Replies to community announcements. An announcement says how many replies it has, such as
+  "13 replies"; Alt+R on it, or Replies in its menu, lists them with who wrote them and lets you reply,
+  as WhatsApp shows them under the announcement.
+- Join a group from its invite link, follow a channel from its link, and open a wa.me link as a chat,
+  with its message ready in the box. Alt+L on a message opens WhatsApp links this way instead of in
+  the browser, and the new Options button under the chat list has Open a WhatsApp link, with a link
+  you copied filled in. Before joining you hear the group's name, community, members and whether its
+  admins approve new members; a link that was reset says so. Call links are not supported yet.
+- Mark all as read, in the Options button, as in WhatsApp's menu. It asks first, since read receipts
+  are sent.
+- Mark as unread marked the chat read instead: WhatsApp changed how it is asked. It works again, and a
+  chat marked unread says "marked unread", counts in the Unread filter and for Alt+U.
+- Copy invite link in a group's settings failed until WhatsApp's own invite window had been opened.
 
 - Questions before deleting, leaving, reporting or unlinking use NVDA's own message dialog: the safe
   answer is the one focused first and the one Escape gives.

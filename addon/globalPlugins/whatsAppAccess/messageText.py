@@ -267,6 +267,9 @@ def messageLine(message: dict, isGroup: bool, now: float | None = None) -> str:
 	if message.get("starred"):
 		# Translators: Said after a message the user starred.
 		parts.append(_("starred"))
+	replies = message.get("replies") or 0
+	if replies:
+		parts.append(repliesText(replies))
 	reactions = reactionsText(message.get("reactions"))
 	if reactions:
 		parts.append(reactions)
@@ -302,6 +305,54 @@ def disappearingText(seconds: int) -> str:
 	return _("disappearing messages, {count} hours").format(count=max(1, round(seconds / 3600)))
 
 
+def cannotSendText(chat: dict) -> str:
+	"""Why the user cannot send messages in a chat, and what they can do there, as WhatsApp's bar says."""
+	if chat.get("isChannel"):
+		# Translators: In place of the message box in a channel the user follows but does not run.
+		return _("Only the channel's admins can post. Alt+Y reacts to a post.")
+	if chat.get("left"):
+		# Translators: In place of the message box in a group the user left or was removed from.
+		return _("You can't send messages to this group because you're no longer a member.")
+	if chat.get("announcementGroup"):
+		# Translators: In place of the message box in a community's announcement group.
+		return _(
+			"Only community admins can send announcements. Alt+R lists an announcement's replies and replies to it."
+		)
+	# Translators: In place of the message box in a group where only admins may send messages.
+	return _("Only admins can send messages. Alt+R replies privately to the sender of a message.")
+
+
+def defaultDescribeQuestion() -> str:
+	"""What Alt+P asks Meta AI about a photo, unless the user wrote their own question in the settings."""
+	# Translators: What the add-on asks Meta AI when it sends it a photo to describe (Alt+P). It is sent in
+	# the user's language, so the answer comes in it too. Short first, details after, as a screen reader
+	# reads it from the start.
+	return _(
+		"Describe this image for a blind person. Start with one sentence saying what it is. Then give the "
+		"important details in a few short sentences. Read out any text in it word for word. Leave out "
+		"colours, background and lighting unless they matter."
+	)
+
+
+def describeQuestion(written: str) -> str:
+	"""The question for Meta AI: the user's own, or the default when they wrote none."""
+	return written.strip() or defaultDescribeQuestion()
+
+
+def repliesText(count: int) -> str:
+	"""How many replies a community announcement has."""
+	if count == 1:
+		# Translators: Said after a community announcement with one reply.
+		return _("1 reply")
+	# Translators: Said after a community announcement with several replies, such as "13 replies".
+	return _("{count} replies").format(count=count)
+
+
+def isUnread(chat: dict) -> bool:
+	"""Whether a chat has unread messages, or was marked unread."""
+	return bool(chat.get("unread") or chat.get("markedUnread"))
+
+
 def chatLine(chat: dict, now: float | None = None) -> str:
 	"""One chat in the list: name, unread count, then the last message."""
 	parts = [chat.get("title", "")]
@@ -309,6 +360,9 @@ def chatLine(chat: dict, now: float | None = None) -> str:
 	if unread:
 		# Translators: How many messages in a chat the user has not read.
 		parts.append(_("{count} unread").format(count=unread))
+	elif chat.get("markedUnread"):
+		# Translators: Said for a chat the user marked as unread, as WhatsApp's menu can.
+		parts.append(_("marked unread"))
 	if chat.get("pinned"):
 		# Translators: Said for a chat the user pinned to the top of the list.
 		parts.append(_("pinned"))
@@ -437,6 +491,19 @@ def isActivity(presence: dict | None) -> bool:
 
 
 _LINK_PATTERN = re.compile(r"(?:https?://|www\.)[^\s<>\"']+", re.IGNORECASE)
+
+
+# Links WhatsApp itself opens: groups, channels, call links and chats with a number.
+_WHATSAPP_LINK = re.compile(
+	r"^(?:https?://)?(?:chat\.whatsapp\.com/|(?:www\.)?whatsapp\.com/channel/|call\.whatsapp\.com/"
+	r"|wa\.me/|api\.whatsapp\.com/send)",
+	re.IGNORECASE,
+)
+
+
+def isWhatsAppLink(link: str) -> bool:
+	"""Whether a link is one the add-on opens itself, as WhatsApp does, rather than in the browser."""
+	return bool(_WHATSAPP_LINK.match((link or "").strip()))
 
 
 def linksIn(text: str) -> list[str]:

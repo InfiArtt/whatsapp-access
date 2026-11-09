@@ -106,6 +106,9 @@ pesan baru dan panggilan.
   tandai sudah atau belum dibaca. **Delete** menghapus chat setelah bertanya.
 - **Ctrl+N** memulai chat dengan nomor telepon, tanpa menyimpan kontak. **Ctrl+Shift+N** membuat
   grup baru. **Ctrl+Shift+F** mencari pesan di semua chat.
+- Tombol **Opsi** di bawah daftar chat (Alt+O) berisi **Buka link WhatsApp**, untuk link undangan
+  grup, channel, atau link wa.me (link yang sudah Anda salin langsung terisi), dan **Tandai semua
+  sudah dibaca**.
 
 ### Sebuah chat
 
@@ -182,9 +185,9 @@ jauh lebih jernih daripada perekam WhatsApp sendiri. Semuanya bisa diubah di pen
 | Alt+R | Membalasnya. |
 | Alt+F | Meneruskannya ke satu chat atau lebih. |
 | Alt+D | Menyimpan filenya ke folder pilihan Anda. |
-| Alt+L | Membuka tautan di dalamnya. |
+| Alt+L | Membuka tautan di dalamnya. Link WhatsApp dibuka di sini: link undangan grup menanyakan apakah Anda ingin bergabung, link channel apakah Anda ingin mengikutinya, dan link wa.me membuka chat itu. |
 | Alt+I | Untuk pesan Anda: siapa yang menerima, membaca, dan memutarnya, dan kapan. |
-| Alt+P | Mendeskripsikan foto dengan add-on AI Content Describer, bila terpasang. |
+| Alt+P | Meta AI mendeskripsikan foto, lalu deskripsinya dibacakan. Foto dikirim ke chat Anda dengan Meta AI beserta pertanyaannya, seperti yang bisa Anda lakukan di WhatsApp, dan tetap tersimpan di sana bersama jawabannya. Pertanyaannya ada di pengaturan add-on, dan Anda bisa menulis pertanyaan sendiri. |
 | Delete | Menghapusnya, untuk Anda atau untuk semua orang. |
 | Applications | Menunya: juga bintangi, edit, sematkan 24 jam, 7 hari, atau 30 hari, balas secara pribadi di grup, lihat siapa yang bereaksi, dan jawab acara. |
 
@@ -259,6 +262,8 @@ langsung pindah. Voice note dan status diputar di speaker yang sama.
   mencari di direktori WhatsApp; menu saluran bisa berhenti mengikutinya.
 - **Komunitas** (Ctrl+7) menampilkan komunitas Anda. Enter menampilkan grup-grupnya, pengumuman
   lebih dulu. Enter membuka grup yang Anda ikuti, atau meminta bergabung ke grup yang belum.
+  Di grup pengumuman, setiap pengumuman menyebut jumlah balasannya; Alt+R menampilkan balasan itu
+  dan Anda bisa ikut membalas.
 
 ## Pengaturan WhatsApp Anda
 

@@ -1,5 +1,6 @@
 import time
 
+import pytest
 from whatsAppAccess import messageText
 
 NOW = time.mktime((2026, 11, 8, 10, 0, 0, 0, 0, -1))
@@ -377,3 +378,61 @@ def test_polls_whatsapp_would_refuse_are_caught_first():
     assert "the same" in messageText.pollProblem("Makan?", ["Nasi", "nasi"])
     assert "255 characters" in messageText.pollProblem("x" * 256, ["a", "b"])
     assert "100 characters" in messageText.pollProblem("Makan?", ["a", "b" * 101])
+
+
+def test_chats_marked_unread_say_so_and_count_as_unread():
+    chat = {"title": "Budi", "unread": 0, "markedUnread": True, "last": None}
+    assert messageText.chatLine(chat, now=NOW) == "Budi, marked unread"
+    assert messageText.isUnread(chat)
+    assert messageText.isUnread({"unread": 2})
+    assert not messageText.isUnread({"unread": 0, "markedUnread": False})
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://chat.whatsapp.com/AbCdEfGhIjKlMnOpQrStUv",
+        "chat.whatsapp.com/invite/AbCdEfGhIjKlMnOpQrStUv",
+        "https://whatsapp.com/channel/0029VaAbCdEfGhIjKlMnOp12",
+        "https://www.whatsapp.com/channel/0029VaAbCdEfGhIjKlMnOp12",
+        "https://call.whatsapp.com/voice/AbCdEfGhIjKlMnOpQr",
+        "https://wa.me/6281234567890?text=halo",
+        "wa.me/6281234567890",
+        "https://api.whatsapp.com/send?phone=6281234567890",
+    ],
+)
+def test_whatsapp_links_open_in_the_addon(link):
+    assert messageText.isWhatsAppLink(link)
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://example.com/chat.whatsapp.com/AbCd",
+        "https://chat.whatsapp.com.example.com/AbCd",
+        "https://www.whatsapp.com/download",
+        "https://web.whatsapp.com/",
+        "https://infiartt.com",
+    ],
+)
+def test_other_links_open_in_the_browser(link):
+    assert not messageText.isWhatsAppLink(link)
+
+
+def test_community_announcements_say_how_many_replies():
+    message = {"type": "chat", "text": "Rapat besok", "sender": "Admin", "t": TODAY_0815, "replies": 13}
+    assert messageText.messageLine(message, isGroup=True, now=NOW) == "Admin: Rapat besok, 13 replies, 08:15"
+    assert messageText.repliesText(1) == "1 reply"
+
+
+def test_chats_where_the_user_cannot_send_say_why():
+    assert "Only admins" in messageText.cannotSendText({"isGroup": True, "canSend": False})
+    assert "replies" in messageText.cannotSendText({"isGroup": True, "announcementGroup": True})
+    assert "no longer a member" in messageText.cannotSendText({"isGroup": True, "left": True})
+    assert "channel" in messageText.cannotSendText({"isChannel": True})
+
+
+def test_photos_are_described_with_the_users_own_question_or_the_default():
+    assert messageText.describeQuestion("  Apa ini?  ") == "Apa ini?"
+    assert messageText.describeQuestion("") == messageText.defaultDescribeQuestion()
+    assert messageText.describeQuestion("   ") == messageText.defaultDescribeQuestion()

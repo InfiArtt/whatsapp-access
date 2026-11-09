@@ -702,7 +702,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		if kind == "message":
 			message, chat = event.get("message", {}), event.get("chat", {})
 			inOpenChat = bool(window and window.onMessage(message, chat))
-			if not message.get("fromMe"):
+			# Meta AI's answer is said when it is finished, which comes as this event again.
+			if not message.get("fromMe") and not message.get("aiWriting") and not message.get("describing"):
 				settings = config.conf[CONFIG_SECTION]
 				rule = notifications.loadRules(settings["chatRules"]).get(chat.get("id", ""))
 				decision = notifications.decide(
@@ -1172,6 +1173,15 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			wx.CheckBox(self, label=_("Show the phone number of people who are not in your &contacts"))
 		)
 		self.numbersBox.SetValue(settings["showNumbers"])
+		self.describeBox = helper.addLabeledControl(
+			# Translators: The label of the box in this add-on's settings with what Meta AI is asked when Alt+P
+			# sends it a photo to describe. The user can write their own question there.
+			_("&Question Meta AI is asked to describe a photo (Alt+P):"),
+			wx.TextCtrl,
+			value=messageText.describeQuestion(settings["describeQuestion"]),
+			style=wx.TE_MULTILINE,
+			size=(-1, 70),
+		)
 		self.hintsBox = helper.addItem(
 			# Translators: A checkbox in this add-on's settings: say which keys to press after messages.
 			wx.CheckBox(self, label=_("Use &hints, such as which keys send or throw away a voice note"))
@@ -1366,6 +1376,9 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		settings["groupSound"] = self.groupSound.value
 		settings["ringSound"] = self.ringSound.value
 		settings["readContent"] = self.contentBox.GetValue()
+		# The default question is kept as empty, so it follows the user's language if that changes.
+		question = self.describeBox.GetValue().strip()
+		settings["describeQuestion"] = "" if question == messageText.defaultDescribeQuestion() else question
 		settings["hints"] = self.hintsBox.GetValue()
 		settings["sayNextVoiceMessage"] = self.sayNextVoiceBox.GetValue()
 		settings["translateMessagesTo"] = self.messagesLanguages[self.messagesLanguageChoice.GetSelection()]

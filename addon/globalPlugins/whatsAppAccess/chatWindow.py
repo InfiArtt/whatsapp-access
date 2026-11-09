@@ -185,6 +185,23 @@ def errorText(error: Exception, browserName: str = "") -> str:
 		return _(
 			"WhatsApp did not start the call. Try calling once from WhatsApp on your phone or in a browser."
 		)
+	if code == "noMetaAi":
+		# Translators: Reported when Alt+P cannot describe a photo because the user has no chat with Meta AI.
+		return _(
+			"Photos are described by Meta AI. Start a chat with Meta AI in WhatsApp on your phone first."
+		)
+	if code == "aiTimeout":
+		# Translators: Reported when Meta AI did not describe a photo in time.
+		return _("Meta AI did not answer in time. Its answer may still come in the chat with Meta AI.")
+	if code == "inviteInvalid":
+		# Translators: Reported when a group's invite link was reset by its admins or never existed.
+		return _("This group link no longer works. Ask for a new one.")
+	if code == "joinFailed":
+		# Translators: Reported when joining a group from its link failed.
+		return _("Could not join the group. Try again, or join from WhatsApp on your phone.")
+	if code == "channelNotFound":
+		# Translators: Reported when a channel link leads nowhere.
+		return _("This channel could not be found.")
 	if code == "notOnWhatsApp":
 		# Translators: Reported when a phone number has no WhatsApp account.
 		return _("This number is not on WhatsApp.")
@@ -380,10 +397,17 @@ class ChatWindow(wx.Dialog):
 		sizer.Add(self.chatList, 1, wx.EXPAND | wx.BOTTOM, 6)
 		# The list first, then the search and filter: Tab from an open chat's last button reaches the chats.
 		self.chatList.MoveBeforeInTabOrder(self.searchBox)
+		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: A button under the chat list with WhatsApp's menu there: opening a WhatsApp link and
+		# marking all chats as read.
+		self.optionsButton = wx.Button(panel, label=_("&Options"))
+		self.optionsButton.Bind(wx.EVT_BUTTON, lambda evt: self._optionsMenu())
+		buttons.Add(self.optionsButton, 0, wx.RIGHT, 6)
 		# Translators: A button that closes the add-on's window. WhatsApp Web stays open.
 		closeButton = wx.Button(panel, wx.ID_CLOSE, label=_("Close"))
 		closeButton.Bind(wx.EVT_BUTTON, lambda evt: self.Close())
-		sizer.Add(closeButton)
+		buttons.Add(closeButton)
+		sizer.Add(buttons)
 		panel.SetSizer(sizer)
 
 	def _buildStatusPanel(self, panel: wx.Panel) -> None:
@@ -932,6 +956,11 @@ class ChatWindow(wx.Dialog):
 		self._mentionIndex = -1
 		self._mentions: dict[str, str] = {}
 		sizer.Add(self.composeBox, 0, wx.EXPAND | wx.BOTTOM, 6)
+		# In place of the message box where the user cannot send, as WhatsApp's bar there says why. It comes
+		# right after the box's label, so Alt+E reaches it as it would the box.
+		self.cannotSendBox = wx.TextCtrl(panel, style=wx.TE_READONLY | wx.TE_MULTILINE, size=(-1, 54))
+		self.cannotSendBox.Hide()
+		sizer.Add(self.cannotSendBox, 0, wx.EXPAND | wx.BOTTOM, 6)
 		buttons = wx.BoxSizer(wx.HORIZONTAL)
 		# Translators: A button that stops replying to a message; the message is then sent on its own.
 		self.cancelReplyButton = wx.Button(panel, label=_("Cancel reply"))
@@ -1085,7 +1114,7 @@ class ChatWindow(wx.Dialog):
 		if self._focusInConversation():
 			self._goToFirstUnread()
 			return
-		unread = [index for index, c in enumerate(self._shownChats) if c.get("unread")]
+		unread = [index for index, c in enumerate(self._shownChats) if messageText.isUnread(c)]
 		if not unread:
 			# Translators: Reported when no chat in the list has unread messages.
 			ui.message(_("No unread chats"))
@@ -1132,6 +1161,178 @@ class ChatWindow(wx.Dialog):
 			dialog.Destroy()
 		if number:
 			self._run(lambda: self.session.chatWithNumber(number), self.openChat)
+
+	def _optionsMenu(self) -> None:
+		"""The Options button under the chat list, like WhatsApp's menu above its chats."""
+		menu = wx.Menu()
+		for label, action in (
+			# Translators: An item in the Options menu: joins a group or opens a channel or chat from a link.
+			(_("Open a WhatsApp &link\u2026"), self._askForLink),
+			# Translators: An item in the Options menu, like WhatsApp's: marks every chat as read.
+			(_("Mark all as &read"), self._markAllRead),
+		):
+			item = menu.Append(wx.ID_ANY, label)
+			menu.Bind(wx.EVT_MENU, lambda evt, action=action: action(), item)
+		self.optionsButton.PopupMenu(menu)
+		menu.Destroy()
+
+	def _askForLink(self) -> None:
+		"""A WhatsApp link to open, such as a group's invite link; one copied already is filled in."""
+		try:
+			copied = (api.getClipData() or "").strip()
+		except Exception:  # noqa: BLE001 - nothing usable on the clipboard
+			copied = ""
+		dialog = wx.TextEntryDialog(
+			self,
+			# Translators: Asks for a WhatsApp link: a group's invite link, a channel, or a wa.me link.
+			_("WhatsApp link, such as a group's invite link, a channel or a wa.me link:"),
+			# Translators: The title of the dialog that opens a WhatsApp link.
+			_("Open a WhatsApp link"),
+			value=copied if messageText.isWhatsAppLink(copied) else "",
+		)
+		try:
+			if dialog.ShowModal() != wx.ID_OK:
+				return
+			link = dialog.GetValue().strip()
+		finally:
+			dialog.Destroy()
+		if link:
+			self.openWhatsAppLink(link)
+
+	def openWhatsAppLink(self, link: str) -> None:
+		"""Open a WhatsApp link as WhatsApp does: join a group, follow a channel or start a chat."""
+		url = link if "://" in link else "https://" + link
+		# Translators: Reported while the add-on asks WhatsApp what a link leads to.
+		ui.message(_("Opening link"))
+		self._run(lambda: self.session.linkInfo(url), self._gotLinkInfo)
+
+	def _gotLinkInfo(self, info: dict) -> None:
+		kind = info.get("kind")
+		if kind == "group":
+			self._offerGroup(info)
+		elif kind == "channel":
+			self._offerChannel(info)
+		elif kind == "chat":
+			phone, text = info["phone"], info.get("text") or ""
+
+			def opened(chat: dict) -> None:
+				if text and not self._drafts.get(chat["id"]):
+					self._drafts[chat["id"]] = text
+				self.openChat(chat)
+
+			self._run(lambda: self.session.chatWithNumber(phone), opened)
+		elif kind == "call":
+			# Translators: Reported for a WhatsApp call link, which the add-on cannot join yet.
+			ui.message(_("Call links cannot be joined from WhatsApp Access yet. Open it on your phone."))
+		else:
+			# Translators: Reported for a WhatsApp link the add-on does not know how to open.
+			ui.message(_("WhatsApp Access cannot open this kind of link."))
+
+	def _offerGroup(self, info: dict) -> None:
+		if info.get("inGroup") and info.get("chat"):
+			self.openChat(info["chat"])
+			return
+		if info.get("requested"):
+			ui.message(
+				# Translators: Reported for a group link when the user already asked to join and its admins have
+				# not answered yet.
+				_("You already asked to join {name}. Its admins have not answered yet.").format(
+					name=info["name"]
+				)
+			)
+			return
+		lines = []
+		if info.get("community"):
+			# Translators: The community a group belongs to, in the question before joining it.
+			lines.append(_("In the community {name}").format(name=info["community"]))
+		if info.get("size"):
+			# Translators: How many people a group has, in the question before joining it.
+			lines.append(_("{count} members").format(count=info["size"]))
+		if info.get("description"):
+			lines.append(info["description"][:500])
+		if info.get("needsApproval"):
+			# Translators: Asked before asking to join a group whose admins approve new members.
+			question = _("Ask to join {name}? Its admins approve new members.").format(name=info["name"])
+		else:
+			# Translators: Asked before joining a group from its invite link.
+			question = _("Join {name}?").format(name=info["name"])
+		# Translators: The title of the question before joining a group from its link.
+		title = _("Join group")
+		if not askYesNo(self, "\n\n".join([question, *lines]), title, warning=False):
+			return
+
+		def done(result: dict) -> None:
+			if result.get("requested"):
+				# Translators: Reported after asking to join a group whose admins approve new members.
+				ui.message(_("Request sent. You join when an admin approves it."))
+				return
+			# Translators: Reported after joining a group from its link.
+			ui.message(_("Joined {name}").format(name=info["name"]))
+			self.refreshChats()
+			if result.get("chat"):
+				self.openChat(result["chat"])
+
+		self._run(lambda: self.session.joinGroupLink(info["code"]), done)
+
+	def _offerChannel(self, info: dict) -> None:
+		chat = info["chat"]
+		if info.get("following"):
+			self.openChat(chat)
+			return
+		lines = []
+		if info.get("followers"):
+			# Translators: How many people follow a channel, in the question before following it.
+			lines.append(_("{count} followers").format(count=info["followers"]))
+		if info.get("description"):
+			lines.append(info["description"][:500])
+		# Translators: Asked when the user opens a channel's link, with its name.
+		question = _("Follow the channel {name}?").format(name=info["name"])
+		answer = askThreeWay(
+			self,
+			"\n\n".join([question, *lines]),
+			# Translators: The title of the question when opening a channel's link.
+			_("Channel"),
+			# Translators: A button that follows a channel and opens it.
+			_("&Follow"),
+			# Translators: A button that opens a channel without following it.
+			_("&Open without following"),
+			# Translators: A button that closes the question.
+			_("Cancel"),
+		)
+		if answer == wx.ID_CANCEL:
+			return
+		if answer == wx.ID_NO:
+			self.openChat(chat)
+			return
+
+		def followed(result: Any) -> None:
+			# Translators: Reported after following a channel, with its name.
+			ui.message(_("Following {name}").format(name=info["name"]))
+			self.openChat(chat)
+
+		self._run(lambda: self.session.followChannel(chat["id"], True), followed)
+
+	def _markAllRead(self) -> None:
+		if not askYesNo(
+			self,
+			# Translators: Asked before marking every chat as read.
+			_("Mark all chats as read? People who turned on read receipts see that you read their messages."),
+			# Translators: The title of the question before marking every chat as read.
+			_("Mark all as read"),
+			warning=False,
+		):
+			return
+
+		def done(count: int) -> None:
+			if count:
+				# Translators: Reported after marking every chat as read, with how many were unread.
+				ui.message(_("{count} chats marked as read").format(count=count))
+			else:
+				# Translators: Reported when "mark all as read" found no unread chats.
+				ui.message(_("No unread chats"))
+			self.refreshChats()
+
+		self._run(self.session.markAllRead, done)
 
 	def _selectedChat(self) -> dict | None:
 		if self.tabs.GetSelection() == self.TAB_ARCHIVED:
@@ -1265,9 +1466,10 @@ class ChatWindow(wx.Dialog):
 		# Channels have no calls, and only their admins post in them.
 		isChannel = bool(chat.get("isChannel"))
 		self.callButton.Show(not isChannel)
-		self._canWrite = not isChannel or bool(chat.get("canPost"))
-		self.composeLabel.Show(self._canWrite)
+		self._canWrite = bool(chat.get("canPost")) if isChannel else chat.get("canSend", True) is not False
 		self.composeBox.Show(self._canWrite)
+		self.cannotSendBox.ChangeValue("" if self._canWrite else messageText.cannotSendText(chat))
+		self.cannotSendBox.Show(not self._canWrite)
 		self.messageList.Set([])
 		self._messages = []
 		self._selectedMessageIds = set()
@@ -1314,7 +1516,8 @@ class ChatWindow(wx.Dialog):
 
 		self._run(load, lambda messages: self._gotMessages(chatId, messages, opening=True), loadFailed)
 		self._updateButtons()
-		if isChannel:
+		# Meta AI has no online or last seen, which would read as "no info".
+		if isChannel or chat.get("isAi"):
 			return
 		self._run(
 			lambda: self.session.watchPresence(chatId), lambda presence: self.onPresence(chatId, presence)
@@ -1506,6 +1709,10 @@ class ChatWindow(wx.Dialog):
 		menu.Destroy()
 
 	def _openLink(self, link: str) -> None:
+		if messageText.isWhatsAppLink(link):
+			# Groups, channels and wa.me chats open here, as in WhatsApp, not in the browser.
+			self.openWhatsAppLink(link)
+			return
 		url = link if "://" in link else "https://" + link
 		# Translators: Reported when a link from a message opens in the browser.
 		ui.message(_("Opening {link}").format(link=link))
@@ -1619,36 +1826,21 @@ class ChatWindow(wx.Dialog):
 		self._run(lambda: self.session.messageReceipts(message["id"]), show)
 
 	def _describePhoto(self) -> None:
-		"""Alt+P: describe the photo with the AI Content Describer add-on, if it is installed."""
+		"""Alt+P: Meta AI describes the photo, and the description is read out."""
 		self._describeFile(self._selectedMessage())
 
 	def _describeFile(self, message: dict | None) -> None:
+		"""Send a photo to the chat with Meta AI with a question, as the user could in WhatsApp, and read
+		out its answer. The photo and the answer stay in the chat with Meta AI."""
 		if message is None or message.get("type") not in ("image", "sticker"):
 			# Translators: Reported when asking for a description of a message that is not a photo.
 			ui.message(_("This message has no photo"))
 			return
-		describer = _findDescriber()
-		if describer is None:
-			# Translators: Reported when the add-on that describes photos is not installed.
-			ui.message(_("Install the AI Content Describer add-on to describe photos"))
-			return
-		folder = dataFolder.tempMediaPath()
-		os.makedirs(folder, exist_ok=True)
+		question = messageText.describeQuestion(config.conf[CONFIG_SECTION]["describeQuestion"])
 
-		def describe(path: str) -> None:
-			# The describer reads an image's path from the clipboard; the user's clipboard comes back after,
-			# copied files and pictures too, not only text.
-			previous = _saveClipboard()
-			api.copyToClip(path)
-			try:
-				describer.describe_clipboard()
-			finally:
-				if previous is not None:
-					wx.CallLater(4000, _restoreClipboard, previous)
-
-		# Translators: Reported while a photo is downloaded to be described.
-		ui.message(_("Describing photo…"))
-		self._run(lambda: self.session.download(message["id"], folder=folder), describe)
+		# Translators: Reported while Meta AI describes a photo.
+		ui.message(_("Asking Meta AI to describe the photo…"))
+		self._run(lambda: self.session.describePhoto(message["id"], question), ui.message)
 
 	# Reading, copying, reacting and deleting with keys -------------------------------------------------
 
@@ -2344,6 +2536,22 @@ class ChatWindow(wx.Dialog):
 
 	# Replying to one message ----------------------------------------------------------------------------
 
+	def _showReplies(self, message: dict) -> None:
+		"""A community announcement's replies, with a box to reply, as WhatsApp shows them."""
+		dialog = RepliesDialog(self, message)
+		try:
+			dialog.ShowModal()
+			count = len(dialog.replies) if dialog.loaded else None
+		finally:
+			dialog.Destroy()
+		# The count after the announcement follows what the replies window found, own replies included.
+		if count is not None and count != (message.get("replies") or 0) and message in self._messages:
+			message["replies"] = count
+			index = self._messages.index(message)
+			self.messageList.SetString(
+				index, messageText.messageLine(message, self.chat.get("isGroup", False))
+			)
+
 	def _startReply(self, message: dict | None = None) -> None:
 		message = message or self._selectedMessage()
 		if not self.chat:
@@ -2351,6 +2559,17 @@ class ChatWindow(wx.Dialog):
 		if message is None:
 			# Translators: Said when the user presses Alt+R but no message is selected in the chat.
 			ui.message(_("Select the message to reply to in the messages list first"))
+			return
+		if self.chat.get("announcementGroup"):
+			# In a community's announcements, replies go under the announcement, as in WhatsApp.
+			self._showReplies(message)
+			return
+		if not self._canWrite and self.chat.get("isGroup"):
+			if self.chat.get("left") or message.get("fromMe"):
+				ui.message(messageText.cannotSendText(self.chat))
+			else:
+				# Only admins send here: a reply goes to its sender privately, as WhatsApp offers.
+				self._replyPrivately(message)
 			return
 		self._cancelEdit(announce=False)
 		self._replyTo = message
@@ -2691,8 +2910,12 @@ class ChatWindow(wx.Dialog):
 		if message.get("type") == "poll_creation":
 			# Translators: An item in a poll's menu, like WhatsApp's: shows the options and votes, to vote.
 			add(menu, _("&View poll and vote"), lambda: self._showPoll(message))
-		# Translators: An item in a message's menu, like WhatsApp's.
-		add(menu, _("&Reply\tAlt+R"), lambda: self._startReply(message))
+		if self.chat and self.chat.get("announcementGroup"):
+			# Translators: An item in the menu of a community announcement: its replies, and a box to reply.
+			add(menu, _("&Replies\tAlt+R"), lambda: self._showReplies(message))
+		else:
+			# Translators: An item in a message's menu, like WhatsApp's.
+			add(menu, _("&Reply\tAlt+R"), lambda: self._startReply(message))
 		if actions.get("react"):
 			reactMenu = self._buildReactMenu(message, actions.get("reactions") or [])
 			# Translators: An item in a message's menu, like WhatsApp's: opens a list of emoji.
@@ -3010,7 +3233,7 @@ class ChatWindow(wx.Dialog):
 		else:
 			# Translators: An item in a chat's menu, like WhatsApp's.
 			add(menu, _("Pin &chat"), lambda: self._chatAction(chat, "pin", _("Pinned")))
-		if chat.get("unread"):
+		if messageText.isUnread(chat):
 			# Translators: An item in a chat's menu, like WhatsApp's.
 			add(menu, _("Mark as &read"), lambda: self._chatAction(chat, "markRead", _("Marked as read")))
 		else:
@@ -4876,7 +5099,7 @@ def filterNames() -> list[str]:
 
 def _passesFilter(chat: dict, chatFilter: str) -> bool:
 	if chatFilter == "unread":
-		return bool(chat.get("unread"))
+		return messageText.isUnread(chat)
 	if chatFilter == "groups":
 		return bool(chat.get("isGroup"))
 	if chatFilter == "favorites":
@@ -4884,17 +5107,92 @@ def _passesFilter(chat: dict, chatFilter: str) -> bool:
 	return True
 
 
-def _findDescriber() -> Any | None:
-	"""The AI Content Describer add-on's plugin, which can describe an image path on the clipboard.
+class RepliesDialog(wx.Dialog):
+	"""The replies to a community announcement, oldest first, and a box to reply to it."""
 
-	:return: That global plugin, or None when the add-on is not installed or running.
-	"""
-	import globalPluginHandler
+	def __init__(self, window: "ChatWindow", message: dict) -> None:
+		super().__init__(
+			window,
+			# Translators: The title of the window with the replies to a community announcement.
+			title=_("Replies"),
+			style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+		)
+		self.window = window
+		self.message = message
+		self.replies: list[dict] = []
+		self.loaded = False
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		announcement = messageText.messageLine(message, True)
+		sizer.Add(wx.StaticText(self, label=announcement[:300]), 0, wx.ALL, 10)
+		# Translators: The label of the list of replies to a community announcement.
+		sizer.Add(wx.StaticText(self, label=_("&Replies:")), 0, wx.LEFT | wx.RIGHT, 10)
+		# Translators: Shown in the list of replies while they load.
+		self.list = wx.ListBox(self, choices=[_("Loading\u2026")], size=(600, 300))
+		sizer.Add(self.list, 1, wx.EXPAND | wx.ALL, 10)
+		# Translators: The label of the box for replying to a community announcement.
+		sizer.Add(wx.StaticText(self, label=_("&Your reply:")), 0, wx.LEFT | wx.RIGHT, 10)
+		self.box = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+		self.box.Bind(wx.EVT_TEXT_ENTER, lambda evt: self._send())
+		sizer.Add(self.box, 0, wx.EXPAND | wx.ALL, 10)
+		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: The button that sends a reply to a community announcement.
+		send = wx.Button(self, label=_("&Send"))
+		send.Bind(wx.EVT_BUTTON, lambda evt: self._send())
+		buttons.Add(send, 0, wx.RIGHT, 6)
+		# Translators: The button that closes the replies window.
+		buttons.Add(wx.Button(self, wx.ID_CANCEL, label=_("Close")))
+		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM, 10)
+		self.SetSizerAndFit(sizer)
+		self.CentreOnParent()
+		self.list.SetFocus()
+		self._load()
 
-	for plugin in globalPluginHandler.runningPlugins:
-		if hasattr(plugin, "describe_clipboard"):
-			return plugin
-	return None
+	def _load(self, focusLast: bool = False) -> None:
+		self.window._run(
+			lambda: self.window.session.replies(self.message["id"]), lambda r: self._show(r, focusLast)
+		)
+
+	def _show(self, replies: list[dict], focusLast: bool) -> None:
+		if not self:
+			return
+		self.replies = replies
+		self.loaded = True
+		lines = [
+			messageText.messageLine(
+				{
+					"type": "revoked" if r.get("revoked") else "chat",
+					"fromMe": r.get("fromMe"),
+					"sender": r.get("sender"),
+					"text": r.get("text") or "",
+					"t": r.get("t", 0),
+					"ack": None,
+				},
+				True,
+			)
+			for r in replies
+		]
+		# Translators: Shown in the list of replies when an announcement has none yet.
+		self.list.Set(lines or [_("No replies yet")])
+		self.list.SetSelection(len(lines) - 1 if focusLast and lines else 0)
+		if focusLast and lines:
+			ui.message(lines[-1])
+
+	def _send(self) -> None:
+		text = self.box.GetValue().strip()
+		if not text:
+			self.box.SetFocus()
+			return
+
+		def sent(result: object) -> None:
+			if not self:
+				return
+			self.box.ChangeValue("")
+			sounds.play(sounds.SENT)
+			# Translators: Reported after replying to a community announcement.
+			ui.message(_("Reply sent"))
+			self._load(focusLast=True)
+
+		self.window._run(lambda: self.window.session.sendReply(self.message["id"], text), sent)
 
 
 class ListDialog(wx.Dialog):
@@ -5012,33 +5310,6 @@ def tabNames() -> list[str]:
 		# Translators: A section of the add-on's window, like WhatsApp's: profile, privacy and more.
 		_("Settings (Ctrl+8)"),
 	]
-
-
-def _saveClipboard() -> wx.DataObject | None:
-	"""What is on the clipboard now, as files, a picture or text, to put back later; None if nothing."""
-	if not wx.TheClipboard.Open():
-		return None
-	try:
-		for dataFormat, make in (
-			(wx.DF_FILENAME, wx.FileDataObject),
-			(wx.DF_BITMAP, wx.BitmapDataObject),
-			(wx.DF_UNICODETEXT, wx.TextDataObject),
-		):
-			if wx.TheClipboard.IsSupported(wx.DataFormat(dataFormat)):
-				data = make()
-				if wx.TheClipboard.GetData(data):
-					return data
-	finally:
-		wx.TheClipboard.Close()
-	return None
-
-
-def _restoreClipboard(data: wx.DataObject) -> None:
-	if wx.TheClipboard.Open():
-		try:
-			wx.TheClipboard.SetData(data)
-		finally:
-			wx.TheClipboard.Close()
 
 
 def _selectedId(listBox: wx.ListBox, items: list[dict]) -> str | None:

@@ -101,6 +101,8 @@ background for new messages and calls.
   as read or unread. **Delete** deletes the chat after asking.
 - **Ctrl+N** starts a chat with a phone number, without saving the contact. **Ctrl+Shift+N** makes a
   new group. **Ctrl+Shift+F** searches the messages of every chat.
+- The **Options** button under the chat list (Alt+O) has **Open a WhatsApp link**, for a group's
+  invite link, a channel or a wa.me link (one you copied is filled in), and **Mark all as read**.
 
 ### A chat
 
@@ -174,9 +176,9 @@ all of this in the add-on's settings.
 | Alt+R | Reply to it. |
 | Alt+F | Forward it to one or more chats. |
 | Alt+D | Save its file to a folder you choose. |
-| Alt+L | Open a link in it. |
+| Alt+L | Open a link in it. WhatsApp links open here: a group's invite link asks whether to join, a channel's whether to follow, and a wa.me link opens that chat. |
 | Alt+I | For your own message: who received, read and played it, and when. |
-| Alt+P | Describe a photo with the AI Content Describer add-on, if you have it. |
+| Alt+P | Meta AI describes the photo, and the description is read out. The photo is sent to your chat with Meta AI with a question, as you could in WhatsApp, and stays there with the answer. The question is in the add-on's settings, where you can write your own. |
 | Delete | Delete it, for you or for everyone. |
 | Applications | Its menu: also star, edit, pin for 24 hours, 7 days or 30 days, reply privately in a group, see who reacted, and answer an event. |
 
@@ -243,7 +245,8 @@ window: the call moves over at once. Voice notes and statuses play on the same s
   Alt+Y reacts, and only a channel's admins can post. **Find channels** searches WhatsApp's
   directory; a channel's menu unfollows it.
 - **Communities** (Ctrl+7) lists your communities. Enter shows a community's groups, announcements
-  first. Enter opens a group you are in, or asks to join one you are not in.
+  first. Enter opens a group you are in, or asks to join one you are not in. In the announcements,
+  each announcement says how many replies it has; Alt+R lists them and lets you reply.
 
 ## Your WhatsApp settings
 

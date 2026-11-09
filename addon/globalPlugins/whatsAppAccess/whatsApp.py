@@ -85,6 +85,11 @@ def _codeFromPageError(description: str) -> WhatsAppError:
 		"notOnWhatsApp",
 		"noUpload",
 		"oneOptionOnly",
+		"inviteInvalid",
+		"noMetaAi",
+		"aiTimeout",
+		"joinFailed",
+		"channelNotFound",
 	}
 	if code in known:
 		return WhatsAppError(code, detail)
@@ -554,6 +559,34 @@ class WhatsAppSession:
 	def chatWithNumber(self, phone: str) -> dict:
 		"""The chat with a phone number, made if needed. Fails with notOnWhatsApp."""
 		return self._bridge("chatWithNumber", phone, timeout=60)
+
+	def linkInfo(self, url: str) -> dict:
+		"""What a WhatsApp link leads to, without acting on it. kind is group (code, name, description,
+		community, size, inGroup, needsApproval, requested, chat when joined), channel (chat, name,
+		description, followers, following), chat (phone, text), call (video) or unsupported."""
+		return self._bridge("linkInfo", url, timeout=60)
+
+	def describePhoto(self, messageId: str, question: str) -> str:
+		"""Sends a message's photo to the chat with Meta AI with a question, and returns its answer.
+
+		Fails with noMetaAi when the user has no chat with Meta AI, aiTimeout when it does not answer."""
+		return self._bridge("describePhoto", messageId, question, timeout=150)
+
+	def joinGroupLink(self, code: str) -> dict:
+		"""Joins a group from its invite code. Returns chat, or requested when admins approve members."""
+		return self._bridge("joinGroupLink", code, timeout=60)
+
+	def replies(self, messageId: str) -> list[dict]:
+		"""The replies to a community announcement, oldest first: id, fromMe, sender, text, revoked, t."""
+		return self._bridge("replies", messageId, timeout=60)
+
+	def sendReply(self, messageId: str, text: str) -> None:
+		"""Replies to a community announcement, as WhatsApp's replies view does."""
+		self._bridge("sendReply", messageId, text, timeout=60)
+
+	def markAllRead(self) -> int:
+		"""Marks every unread chat read, archived ones too, and sends read receipts. Returns how many."""
+		return self._bridge("markAllRead", timeout=180)
 
 	def searchMessages(self, chatId: str, query: str, batches: int = 10) -> list[dict]:
 		return self._bridge("searchMessages", chatId, query, batches, timeout=120)

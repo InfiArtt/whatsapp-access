@@ -331,8 +331,16 @@
 		if (m.isViewOnce) {
 			info.viewOnce = true;
 		}
-		if (m.latestEditMsgKey) {
+		if (m.latestEditMsgKey && !isAiAnswer(m)) {
 			info.edited = true;
+		}
+		if (isAiWriting(m)) {
+			// Said once it is finished, not while Meta AI writes it.
+			info.aiWriting = true;
+		}
+		if (m.replyCount > 0) {
+			// Replies to a community announcement, which WhatsApp calls comments.
+			info.replies = Number(m.replyCount) || 0;
 		}
 		try {
 			const pin = req("WAWebPinInChatCollection").PinInChatCollection.getByParentMsgKey(m.id);
@@ -393,16 +401,33 @@
 			title: chatTitle(chat),
 			isGroup: isGroupChat(chat),
 			unread: Math.max(0, chat.unreadCount || 0),
+			// Marked unread by the user, as WhatsApp's menu does, which leaves the count at 0.
+			markedUnread: !!chat.markedUnread,
 			t: chat.t || 0,
 			pinned: !!chat.pin,
 			archived: !!chat.archive,
 			muted: isMutedChat(chat),
 			favorite: !!chat.isFavorite,
+			// Meta AI: no presence to watch, and its answers are said once written.
+			isAi: isAiChat(chat),
 			last: last,
 			disappearing: 0,
 			ongoingCall: false,
 		};
 		if (isGroupChat(chat)) {
+			// A community's announcement group: its announcements take replies (Alt+R).
+			// (Meta AI is not a group; isAi is set for every chat below.)
+			info.announcementGroup = isAnnouncementGroup(chat);
+			// Whether the user may send messages here: not after leaving the group, and only as an admin
+			// where its settings let only admins send, as in announcement groups.
+			info.left = !!chat.isReadOnly;
+			info.canSend = !chat.isReadOnly;
+			try {
+				const gm = chat.groupMetadata;
+				if (gm && gm.announce && !gm.participants.iAmAdmin()) {
+					info.canSend = false;
+				}
+			} catch (e) {}
 			try {
 				info.ongoingCall = !!req("WAWebVoipOngoingCallCollection").WAWebVoipOngoingCallCollection.getByChat(chat);
 			} catch (e) {}
@@ -440,7 +465,47 @@
 	const HIDDEN_TYPES = new Set(["e2e_notification", "notification_template", "gp2", "protocol", "ciphertext"]);
 
 	function visibleMessages(chat) {
-		return chat.msgs.getModelsArray().filter((m) => !HIDDEN_TYPES.has(m.type) && !m.isNotification);
+		return chat.msgs.getModelsArray().filter((m) => !HIDDEN_TYPES.has(m.type) && !m.isNotification && !isAiPlaceholder(m));
+	}
+
+	// Meta AI ---------------------------------------------------------------------------------------------
+	// Meta AI writes its answers bit by bit: WhatsApp adds the answer at once and edits it as it is
+	// written, botEditType "last" marking the finished one. Those edits are not edits by a person.
+
+	function isAiChat(chat) {
+		try {
+			return !!req("WAWebBotUtils").isAnyMetaAiBot(chat.id);
+		} catch (e) {
+			return false;
+		}
+	}
+
+	function isAiAnswer(m) {
+		return !!(m && (m.botResponseId || m.botEditType || m.type === "rich_response"));
+	}
+
+	// An answer still being written. Older answers have no botEditType, or "last".
+	function isAiWriting(m) {
+		return isAiAnswer(m) && !!m.botEditType && m.botEditType !== "last";
+	}
+
+	// The empty message Meta AI shows while it starts to answer, which says nothing.
+	function isAiPlaceholder(m) {
+		if (!m || (m.id && m.id.fromMe) || MEDIA_TYPES.has(m.type)) {
+			return false;
+		}
+		try {
+			const chat = m.id.remote && collections().Chat.get(m.id.remote);
+			if (!chat || !isAiChat(chat)) {
+				return false;
+			}
+			if (chat.botInitialTypingIndicatorMsgId && String(chat.botInitialTypingIndicatorMsgId) === msgId(m)) {
+				return true;
+			}
+		} catch (e) {
+			return false;
+		}
+		return !isAiAnswer(m) && !String(m.body || m.caption || "").trim();
 	}
 
 	async function loadEarlierOnce(chat) {
@@ -755,6 +820,220 @@
 			throw new Error("notOnWhatsApp");
 		}
 		return chatInfo(chat);
+	}
+
+	// WhatsApp links ---------------------------------------------------------------------------------------
+
+	// WhatsApp's group-join code is loaded with its join window; the add-on loads it without the window.
+	async function loadGroupInviteCode() {
+		await req("JSResourceForInteraction")("WAWebGroupInviteLinkModal.react")
+			.__setRef("WAWebGroupInviteLinkModalLoadable.react")
+			.load();
+	}
+
+	// A group's details from its invite code. A link that was reset or never existed gives inviteInvalid.
+	async function queryInvite(code) {
+		await loadGroupInviteCode();
+		try {
+			return await req("WAWebQueryGroupAction").queryGroupInviteInfo(code);
+		} catch (e) {
+			const status = e && e.status;
+			// 400 for a code that never existed, 404, 406 or 410 for one reset or gone.
+			if (status === 400 || status === 404 || status === 406 || status === 410) {
+				throw new Error("inviteInvalid:" + status);
+			}
+			throw new Error("joinFailed:" + (status || (e && e.message) || e));
+		}
+	}
+
+	// What a WhatsApp link leads to, as WhatsApp itself reads links, without acting on it: a group to
+	// join, a channel to follow, a chat with a number, or something the add-on cannot open.
+	async function linkInfo(url) {
+		const parsed = req("WAWebApiParse").parseAPICmd(String(url || "").trim());
+		const data = (parsed && parsed.data) || {};
+		switch (parsed && parsed.resultType) {
+			case "GROUP_INVITE": {
+				const info = await queryInvite(data.code);
+				const gm = info.groupMetadata;
+				let size = 0;
+				try {
+					size = gm.size || (gm.participants ? gm.participants.length : 0) || 0;
+				} catch (e) {}
+				return {
+					kind: "group",
+					code: data.code,
+					chatId: gm.id.toString(),
+					name: String(info.subject || ""),
+					description: String(gm.desc || ""),
+					community: String(info.parentGroupSubject || ""),
+					size: size,
+					inGroup: !!info.inGroup,
+					needsApproval: !!gm.membershipApprovalMode,
+					requested: !!info.membershipApprovalRequest,
+					chat: info.inGroup ? chatInfo(getChat(gm.id.toString())) : null,
+				};
+			}
+			case "NEWSLETTER": {
+				if (data.type !== "view") {
+					return { kind: "unsupported" };
+				}
+				const chat = await req("WAWebLoadNewsletterPreviewChatAction").loadNewsletterPreviewChat(data.identifier);
+				if (!chat) {
+					throw new Error("channelNotFound");
+				}
+				const info = chatInfo(chat);
+				const md = chat.newsletterMetadata || {};
+				return {
+					kind: "channel",
+					chat: info,
+					name: info.title,
+					description: String(md.description || ""),
+					// WhatsApp fills in size when it fetches the channel; a followed one may lack it.
+					followers: Number(md.size || 0) || 0,
+					following: FOLLOWING.has(md.membershipType),
+				};
+			}
+			case "MSG_SEND": {
+				const phone = String((data.phone && (data.phone.user || data.phone)) || "").split("@")[0];
+				if (!phone) {
+					return { kind: "unsupported" };
+				}
+				return { kind: "chat", phone: phone, text: String(data.text || "") };
+			}
+			case "CALL_LINK":
+				return { kind: "call", video: data.callType === "video" };
+			default:
+				return { kind: "unsupported" };
+		}
+	}
+
+	// Joins a group from its invite link, as WhatsApp's join window does. A group whose admins approve
+	// new members gets a request instead. Returns the chat, or requested.
+	async function joinGroupLink(code) {
+		const info = await queryInvite(code);
+		const gm = info.groupMetadata;
+		if (info.inGroup) {
+			return { chat: chatInfo(getChat(gm.id.toString())) };
+		}
+		const ask = !!gm.membershipApprovalMode;
+		try {
+			const chat = await req("WAWebGroupInviteAction").joinGroupViaInvite(code, ask, gm);
+			if (ask) {
+				return { requested: true };
+			}
+			if (chat && chat.contact && info.subject) {
+				chat.contact.set({ name: info.subject });
+			}
+			return { chat: chatInfo(chat || getChat(gm.id.toString())) };
+		} catch (e) {
+			// 304: already asked, or already in; WhatsApp then says the request was sent.
+			if (e && e.status === 304) {
+				return { requested: true };
+			}
+			// The group turned out to need approval, or the answer came in another shape.
+			if (e && e.gid) {
+				if (e.membershipApprovalMode) {
+					return { requested: true };
+				}
+				const found = await req("WAWebFindChatAction").findOrCreateLatestChat(e.gid, "newGroupInviteLink");
+				return { chat: chatInfo((found && found.chat) || found) };
+			}
+			throw new Error("joinFailed:" + ((e && e.status) || (e && e.message) || e));
+		}
+	}
+
+	// Every chat with unread messages, or marked unread, archived ones too, marked read as WhatsApp's
+	// "Mark all as read" does. Returns how many.
+	async function markAllRead() {
+		const unread = collections()
+			.Chat.getModelsArray()
+			.filter((c) => isListedChat(c) && ((c.unreadCount || 0) !== 0 || c.markedUnread));
+		let done = 0;
+		for (const chat of unread) {
+			try {
+				await markRead(chat);
+				done++;
+			} catch (e) {}
+		}
+		return done;
+	}
+
+	// Marks a chat read or unread as WhatsApp's own menu does. It takes options now; an older add-on
+	// passed true, which WhatsApp reads as "not unread" and so marked the chat read instead.
+	function setUnread(chat, unread) {
+		return req("WAWebUpdateUnreadChatAction").markUnread(chat, {
+			allowAction: false,
+			showToast: false,
+			unread: !!unread,
+		});
+	}
+
+	// A chat the user marked unread is cleared as WhatsApp's "Mark as read" does: sendSeen skips it while
+	// the mark is on. Otherwise read receipts are sent now, as markSeen explains.
+	async function markRead(chat) {
+		if (chat.markedUnread) {
+			await setUnread(chat, false);
+			return;
+		}
+		await markSeen(chat.id._serialized || chat.id.toString());
+	}
+
+	// Replies to community announcements ------------------------------------------------------------------
+	// WhatsApp calls them comments: members reply to an announcement, and everyone sees the replies under
+	// it, while the announcement group stays closed to messages.
+
+	// Whether a chat is a community's announcement group, where announcements take replies.
+	function isAnnouncementGroup(chat) {
+		const gm = chat && chat.groupMetadata;
+		return !!(gm && (gm.defaultSubgroup || groupKind(gm) === "LINKED_ANNOUNCEMENT_GROUP"));
+	}
+
+	// The replies to an announcement, oldest first, loaded from WhatsApp's store as its replies view does.
+	async function replies(messageId) {
+		const parent = getMsg(messageId);
+		if (!parent) {
+			throw new Error("messageNotFound");
+		}
+		await req("WAWebAddonHydrationUtils").hydrateAddons({
+			ids: [parent.id],
+			hydrationType: req("WAWebMsgType").MSG_TYPE.COMMENT,
+		});
+		const key = parent.id.toString();
+		const myIds = myIdSet();
+		return req("WAWebCommentCollection")
+			.CommentCollection.getModelsArray()
+			.filter((c) => c.parentMsgKey && c.parentMsgKey.toString() === key)
+			.sort((a, b) => (a.t || 0) - (b.t || 0))
+			.map((c) => {
+				const fromMe = !!(c.id && c.id.fromMe) || (c.author && myIds.has(c.author.toString()));
+				const revoked = c.type === "revoked" || !!c.revokeTimestamp;
+				return {
+					id: c.id.toString(),
+					fromMe: fromMe,
+					sender: fromMe ? null : c.author ? contactName(c.author) : "",
+					text: revoked ? "" : String(c.body || ""),
+					revoked: revoked,
+					t: c.t || 0,
+				};
+			});
+	}
+
+	// Replies to an announcement, as its replies view does.
+	async function sendReply(messageId, text) {
+		const parent = getMsg(messageId);
+		if (!parent) {
+			throw new Error("messageNotFound");
+		}
+		const words = String(text || "").trim();
+		if (!words) {
+			throw new Error("emptyMessage");
+		}
+		const result = await req("WAWebSendCommentMessageAction").sendCommentMessage(parent, words);
+		const OK = req("WAWebSendMsgResultAction").SendMsgResult.OK;
+		if (result && result.messageSendResult !== OK) {
+			throw new Error("sendFailed:" + result.messageSendResult);
+		}
+		return true;
 	}
 
 	// Messages in a chat whose text contains the query, loading older ones as WhatsApp's search would.
@@ -1317,6 +1596,8 @@
 
 	async function inviteLink(chatId, reset) {
 		const gm = getChat(chatId).groupMetadata;
+		// WhatsApp loads its invite code only with its own invite windows; without it, this failed.
+		await loadGroupInviteCode();
 		const invites = req("WAWebGroupInviteAction");
 		try {
 			if (reset) {
@@ -1921,9 +2202,9 @@
 		} else if (action === "pin" || action === "unpin") {
 			await req("WAWebSetPinChatAction").setPin(chat, action === "pin");
 		} else if (action === "markUnread") {
-			await req("WAWebUpdateUnreadChatAction").markUnread(chat, true);
+			await setUnread(chat, true);
 		} else if (action === "markRead") {
-			await markSeen(chatId);
+			await markRead(chat);
 		} else if (action === "mute") {
 			// -1 mutes until the user unmutes; otherwise seconds from now.
 			const expiration = seconds === -1 ? -1 : Math.floor(Date.now() / 1000) + seconds;
@@ -2527,6 +2808,82 @@
 			encrypted.slice(0, -10),
 		);
 		return new Blob([plain], { type: (m.mimetype || "audio/ogg").split(";")[0] });
+	}
+
+	// Describing photos with Meta AI ---------------------------------------------------------------------
+	// Alt+P sends the photo to the user's chat with Meta AI with a question, as the user could in WhatsApp,
+	// waits for the finished answer and gives it to the add-on to read out.
+
+	const DESCRIBE_MAX_BYTES = 20 * 1024 * 1024;
+	const DESCRIBE_WAIT_MS = 120 * 1000;
+	// While a description is awaited, Meta AI's answer is not announced as a new message as well.
+	let describingIn = null;
+
+	function aiChat() {
+		const chat = collections()
+			.Chat.getModelsArray()
+			.find((c) => isAiChat(c));
+		if (!chat) {
+			throw new Error("noMetaAi");
+		}
+		return chat;
+	}
+
+	async function describePhoto(messageId, question) {
+		const m = getMsg(messageId);
+		if (!m || (m.type !== "image" && m.type !== "sticker")) {
+			throw new Error("noMedia");
+		}
+		const chat = aiChat();
+		const blob = await downloadMedia(m, DESCRIBE_MAX_BYTES);
+		const type = blob.type || "image/jpeg";
+		const file = new File([blob], "photo" + (EXTENSIONS[type] || ".jpg"), { type: type });
+		const since = Math.floor(Date.now() / 1000) - 2;
+		const chatId = chat.id.toString();
+		describingIn = chatId;
+		try {
+			const data = await req("WAWebMediaOpaqueData").createFromData(file, file.type);
+			const prep = req("WAWebPrepRawMedia").prepRawMedia(data, {});
+			await prep.waitForPrep();
+			const result = await prep.sendToChat({ chat: chat, options: { caption: String(question || "") } });
+			const status = result && result.messageSendResult;
+			if (status && status !== "OK") {
+				throw new Error("sendFailed:" + status);
+			}
+			const answer = await aiAnswerAfter(chat, since);
+			try {
+				await markSeen(chatId);
+			} catch (e) {}
+			return answer;
+		} finally {
+			// A little later: the finished answer's own event may still be on its way.
+			setTimeout(() => {
+				if (describingIn === chatId) {
+					describingIn = null;
+				}
+			}, 3000);
+		}
+	}
+
+	// The first finished answer from Meta AI in its chat since a time, or aiTimeout.
+	function aiAnswerAfter(chat, since) {
+		return new Promise((resolve, reject) => {
+			const started = Date.now();
+			const timer = setInterval(() => {
+				const answer = chat.msgs
+					.getModelsArray()
+					.filter((m) => !m.id.fromMe && (m.t || 0) >= since && isAiAnswer(m) && !isAiWriting(m))
+					.pop();
+				const text = answer ? messageInfo(answer).text : "";
+				if (text && text.trim()) {
+					clearInterval(timer);
+					resolve(text);
+				} else if (Date.now() - started > DESCRIBE_WAIT_MS) {
+					clearInterval(timer);
+					reject(new Error("aiTimeout"));
+				}
+			}, 700);
+		});
 	}
 
 	// Downloads a message's file for the add-on to save, which then reads it in base64 pieces.
@@ -3441,26 +3798,59 @@
 				return;
 			}
 			const chat = m.id.remote && C.Chat.get(m.id.remote);
-			if (!chat || !isListedChat(chat)) {
+			if (!chat || !isListedChat(chat) || isAiPlaceholder(m)) {
 				return;
 			}
-			emit({
-				type: "message",
-				message: messageInfo(m),
-				chat: { id: chat.id._serialized, title: chatTitle(chat), isGroup: isGroupChat(chat), muted: isMutedChat(chat) },
-			});
+			if (isAiAnswer(m) && !isAiWriting(m)) {
+				aiAnswersSaid.add(msgId(m));
+			}
+			emitMessage(m, chat);
 		});
 	}
+
+	function emitMessage(m, chat) {
+		const info = messageInfo(m);
+		if (describingIn && describingIn === (chat.id._serialized || chat.id.toString())) {
+			// Meta AI describing a photo for Alt+P: the description is read out by itself.
+			info.describing = true;
+		}
+		emit({
+			type: "message",
+			message: info,
+			chat: { id: chat.id._serialized, title: chatTitle(chat), isGroup: isGroupChat(chat), muted: isMutedChat(chat) },
+		});
+	}
+
+	// Meta AI's answers already said once finished, so later changes to them are not said again.
+	const aiAnswersSaid = new Set();
 
 	function hookEdits(C) {
 		// A message edited after it was sent, by its sender: on this computer, the phone, or someone else's.
 		const edited = (m) => {
-			if (m.latestEditMsgKey && m.id && m.id.remote) {
+			if (!m.id || !m.id.remote) {
+				return;
+			}
+			if (isAiAnswer(m)) {
+				// Meta AI writing its answer: the line follows it, and the answer is said once, finished.
+				emit({ type: "edited", chatId: m.id.remote._serialized, message: messageInfo(m) });
+				const id = msgId(m);
+				if (!isAiWriting(m) && m.isNewMsg && !aiAnswersSaid.has(id)) {
+					aiAnswersSaid.add(id);
+					const chat = C.Chat.get(m.id.remote);
+					if (chat) {
+						emitMessage(m, chat);
+					}
+				}
+				return;
+			}
+			if (m.latestEditMsgKey) {
 				emit({ type: "edited", chatId: m.id.remote._serialized, message: messageInfo(m) });
 			}
 		};
 		on(C.Msg, "change:latestEditMsgKey", edited);
 		on(C.Msg, "change:body", edited);
+		on(C.Msg, "change:botEditType", edited);
+		on(C.Msg, "change:richResponse", edited);
 		// Deleted for everyone, by the user or by its sender: the message stays, as "This message was
 		// deleted", so its line must change at once rather than when the chat is opened again.
 		// The revoked model is added as a plain message first, then its type changes.
@@ -3625,6 +4015,12 @@
 		forward: forward,
 		messageReceipts: messageReceipts,
 		chatWithNumber: chatWithNumber,
+		linkInfo: linkInfo,
+		describePhoto: describePhoto,
+		replies: replies,
+		sendReply: sendReply,
+		joinGroupLink: joinGroupLink,
+		markAllRead: markAllRead,
 		searchMessages: searchMessages,
 		allMessages: allMessages,
 		reactions: reactions,
