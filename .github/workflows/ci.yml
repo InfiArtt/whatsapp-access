@@ -31,10 +31,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # One command per step: in a multi-line PowerShell step only the last command's exit code counts,
+      # so a failing "ruff check" followed by a passing "ruff format --check" used to pass.
       - name: Lint
-        run: |
-          ruff check .
-          ruff format --check .
+        run: ruff check .
+
+      - name: Check the formatting
+        run: ruff format --check .
 
       - name: Run the tests
         run: pytest

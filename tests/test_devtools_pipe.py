@@ -81,7 +81,9 @@ def test_a_connection_over_a_pipe():
 
 
 def _listeningPorts(pid: int) -> list[str]:
-    output = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True).stdout
+    output = subprocess.run(
+        ["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True, check=True
+    ).stdout
     return [line for line in output.splitlines() if "LISTENING" in line and line.split()[-1] == str(pid)]
 
 
