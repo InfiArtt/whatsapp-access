@@ -3,6 +3,12 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [Unreleased]
+
+- Linking a new computer works with WhatsApp's new login page. WhatsApp is moving logging in to a page
+  of its own (web.whatsapp.com/login/), which some people already get; there the add-on said "Still
+  connecting" forever instead of offering to link with a phone number.
+
 ## [0.6.1]
 
 - When the hidden browser cannot open WhatsApp Web, for example because there is no connection or a

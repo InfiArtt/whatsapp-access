@@ -42,6 +42,13 @@
 
 	// Where WhatsApp Web is: still loading, waiting to be linked to a phone, or linked with chats loaded.
 	function authState() {
+		// WhatsApp is moving logging in to a page of its own, web.whatsapp.com/login/, which shows the QR code
+		// and "Link with phone number" with only the code for that loaded: no WAWebSocketModel (it is null
+		// there) and no chats. Being there means WhatsApp waits to be linked. Once linked it opens the app.
+		if (/^\/login(\/|$)/.test(location.pathname)) {
+			// Only once its linking code has loaded, so "Link with phone number" can start at once.
+			return { socket: "LOGIN_PAGE", needsLink: !!linkingApi(), ready: false };
+		}
 		let socket = "LOADING";
 		try {
 			socket = req("WAWebSocketModel").Socket.state || "LOADING";
@@ -54,14 +61,42 @@
 
 	// Asks WhatsApp for the 8-character code to type on the phone, instead of scanning the QR code.
 	// The phone shows a notification asking for it.
+	function linkingApi() {
+		try {
+			return req("WAWebAltDeviceLinkingApi") || null;
+		} catch (e) {
+			return null;
+		}
+	}
+
 	async function requestLinkCode(phone) {
 		const digits = String(phone || "").replace(/[^0-9]/g, "");
 		if (digits.length < 6) {
 			throw new Error("badNumber");
 		}
-		const linking = req("WAWebAltDeviceLinkingApi");
+		// The login page loads its linking code a moment after it shows the QR code.
+		let linking = linkingApi();
+		for (let i = 0; !linking && i < 40; i++) {
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			linking = linkingApi();
+		}
+		if (!linking) {
+			throw new Error("notReady");
+		}
 		linking.setPairingType("ALT_DEVICE_LINKING");
-		await linking.initializeAltDeviceLinking();
+		// Just after the login page appears, its linking code is there but not set up yet, and refuses;
+		// it is ready a few seconds later.
+		for (let attempt = 0; ; attempt++) {
+			try {
+				await linking.initializeAltDeviceLinking();
+				break;
+			} catch (e) {
+				if (attempt >= 20) {
+					throw e;
+				}
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+			}
+		}
 		return String(await linking.startAltLinkingFlow(digits, true));
 	}
 
