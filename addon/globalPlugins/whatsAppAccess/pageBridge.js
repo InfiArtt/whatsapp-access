@@ -331,8 +331,12 @@
 		if (m.isViewOnce) {
 			info.viewOnce = true;
 		}
-		if (m.latestEditMsgKey) {
+		if (m.latestEditMsgKey && !isAiAnswer(m)) {
 			info.edited = true;
+		}
+		if (isAiWriting(m)) {
+			// Said once it is finished, not while Meta AI writes it.
+			info.aiWriting = true;
 		}
 		if (m.replyCount > 0) {
 			// Replies to a community announcement, which WhatsApp calls comments.
@@ -404,12 +408,15 @@
 			archived: !!chat.archive,
 			muted: isMutedChat(chat),
 			favorite: !!chat.isFavorite,
+			// Meta AI: no presence to watch, and its answers are said once written.
+			isAi: isAiChat(chat),
 			last: last,
 			disappearing: 0,
 			ongoingCall: false,
 		};
 		if (isGroupChat(chat)) {
 			// A community's announcement group: its announcements take replies (Alt+R).
+			// (Meta AI is not a group; isAi is set for every chat below.)
 			info.announcementGroup = isAnnouncementGroup(chat);
 			// Whether the user may send messages here: not after leaving the group, and only as an admin
 			// where its settings let only admins send, as in announcement groups.
@@ -458,7 +465,47 @@
 	const HIDDEN_TYPES = new Set(["e2e_notification", "notification_template", "gp2", "protocol", "ciphertext"]);
 
 	function visibleMessages(chat) {
-		return chat.msgs.getModelsArray().filter((m) => !HIDDEN_TYPES.has(m.type) && !m.isNotification);
+		return chat.msgs.getModelsArray().filter((m) => !HIDDEN_TYPES.has(m.type) && !m.isNotification && !isAiPlaceholder(m));
+	}
+
+	// Meta AI ---------------------------------------------------------------------------------------------
+	// Meta AI writes its answers bit by bit: WhatsApp adds the answer at once and edits it as it is
+	// written, botEditType "last" marking the finished one. Those edits are not edits by a person.
+
+	function isAiChat(chat) {
+		try {
+			return !!req("WAWebBotUtils").isAnyMetaAiBot(chat.id);
+		} catch (e) {
+			return false;
+		}
+	}
+
+	function isAiAnswer(m) {
+		return !!(m && (m.botResponseId || m.botEditType || m.type === "rich_response"));
+	}
+
+	// An answer still being written. Older answers have no botEditType, or "last".
+	function isAiWriting(m) {
+		return isAiAnswer(m) && !!m.botEditType && m.botEditType !== "last";
+	}
+
+	// The empty message Meta AI shows while it starts to answer, which says nothing.
+	function isAiPlaceholder(m) {
+		if (!m || (m.id && m.id.fromMe) || MEDIA_TYPES.has(m.type)) {
+			return false;
+		}
+		try {
+			const chat = m.id.remote && collections().Chat.get(m.id.remote);
+			if (!chat || !isAiChat(chat)) {
+				return false;
+			}
+			if (chat.botInitialTypingIndicatorMsgId && String(chat.botInitialTypingIndicatorMsgId) === msgId(m)) {
+				return true;
+			}
+		} catch (e) {
+			return false;
+		}
+		return !isAiAnswer(m) && !String(m.body || m.caption || "").trim();
 	}
 
 	async function loadEarlierOnce(chat) {
@@ -3675,26 +3722,54 @@
 				return;
 			}
 			const chat = m.id.remote && C.Chat.get(m.id.remote);
-			if (!chat || !isListedChat(chat)) {
+			if (!chat || !isListedChat(chat) || isAiPlaceholder(m)) {
 				return;
 			}
-			emit({
-				type: "message",
-				message: messageInfo(m),
-				chat: { id: chat.id._serialized, title: chatTitle(chat), isGroup: isGroupChat(chat), muted: isMutedChat(chat) },
-			});
+			if (isAiAnswer(m) && !isAiWriting(m)) {
+				aiAnswersSaid.add(msgId(m));
+			}
+			emitMessage(m, chat);
 		});
 	}
+
+	function emitMessage(m, chat) {
+		emit({
+			type: "message",
+			message: messageInfo(m),
+			chat: { id: chat.id._serialized, title: chatTitle(chat), isGroup: isGroupChat(chat), muted: isMutedChat(chat) },
+		});
+	}
+
+	// Meta AI's answers already said once finished, so later changes to them are not said again.
+	const aiAnswersSaid = new Set();
 
 	function hookEdits(C) {
 		// A message edited after it was sent, by its sender: on this computer, the phone, or someone else's.
 		const edited = (m) => {
-			if (m.latestEditMsgKey && m.id && m.id.remote) {
+			if (!m.id || !m.id.remote) {
+				return;
+			}
+			if (isAiAnswer(m)) {
+				// Meta AI writing its answer: the line follows it, and the answer is said once, finished.
+				emit({ type: "edited", chatId: m.id.remote._serialized, message: messageInfo(m) });
+				const id = msgId(m);
+				if (!isAiWriting(m) && m.isNewMsg && !aiAnswersSaid.has(id)) {
+					aiAnswersSaid.add(id);
+					const chat = C.Chat.get(m.id.remote);
+					if (chat) {
+						emitMessage(m, chat);
+					}
+				}
+				return;
+			}
+			if (m.latestEditMsgKey) {
 				emit({ type: "edited", chatId: m.id.remote._serialized, message: messageInfo(m) });
 			}
 		};
 		on(C.Msg, "change:latestEditMsgKey", edited);
 		on(C.Msg, "change:body", edited);
+		on(C.Msg, "change:botEditType", edited);
+		on(C.Msg, "change:richResponse", edited);
 		// Deleted for everyone, by the user or by its sender: the message stays, as "This message was
 		// deleted", so its line must change at once rather than when the chat is opened again.
 		// The revoked model is added as a plain message first, then its type changes.

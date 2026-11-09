@@ -1508,7 +1508,8 @@ class ChatWindow(wx.Dialog):
 
 		self._run(load, lambda messages: self._gotMessages(chatId, messages, opening=True), loadFailed)
 		self._updateButtons()
-		if isChannel:
+		# Meta AI has no online or last seen, which would read as "no info".
+		if isChannel or chat.get("isAi"):
 			return
 		self._run(
 			lambda: self.session.watchPresence(chatId), lambda presence: self.onPresence(chatId, presence)

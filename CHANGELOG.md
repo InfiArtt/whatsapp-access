@@ -5,6 +5,9 @@ notes the add-on shows before it installs an update.
 
 ## [Unreleased]
 
+- Chats with Meta AI: its answer is read out once it has finished writing it, whole, instead of
+  "Thinking" and then nothing. Its answers are no longer called "edited", the empty message it shows
+  while it starts is left out, and its chat no longer says "no info" for its online status.
 - In a group where only admins send messages, a community's announcements, a group you left, or a
   channel you do not run, the message box is replaced by what WhatsApp says there, such as "Only
   admins can send messages". Before, the box was there and what you typed could not be sent. In
