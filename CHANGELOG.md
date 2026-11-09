@@ -72,6 +72,8 @@ Steadier:
 - In calls, NVDA now says when the microphone, raising your hand or "who is speaking" did not work,
   instead of saying nothing.
 - Moving quickly through statuses no longer stops the next voice or video status as it starts.
+- A message deleted for everyone, by you or by its sender, now shows as deleted at once, instead of only
+  after the chat is opened again.
 
 ## [0.4.1]
 
