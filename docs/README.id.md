@@ -126,7 +126,6 @@ pesan baru dan panggilan.
 - info kontak atau grup, cari di chat (Ctrl+F), pilih pesan;
 - pesan yang disematkan, media, tautan, dan dokumen, dan di grup sebutan yang belum dibaca
   (Ctrl+Shift+M);
-- **Kirim**: polling, kartu kontak, salah satu stiker Anda, atau acara di grup;
 - di grup, memulai panggilan suara grup atau bergabung ke panggilan yang sedang berlangsung;
 - notifikasi untuk chat ini, arsipkan, bisukan, sematkan, tandai sudah atau belum dibaca, favorit
   (kalau akun Anda punya), dan pesan sementara (mati, 24 jam, 7 hari, 90 hari);
@@ -146,9 +145,11 @@ pesan baru dan panggilan.
   dipilih tebal, miring, atau dicoret, seperti di WhatsApp; ditekan lagi, formatnya dilepas. Pesan
   dibacakan tanpa tanda formatnya; Alt+C menampilkannya seperti yang ditulis.
 - Untuk membalas satu pesan, pilih pesannya lalu tekan **Alt+R**; Escape membatalkan balasan.
-- Untuk mengirim file, tekan **Alt+A** untuk memilihnya, atau salin di File Explorer lalu tekan
-  **Ctrl+V** di kotak pesan. Foto dan video dikirim sebagai foto dan video, audio sebagai audio,
-  selain itu sebagai dokumen. Yang Anda ketik menjadi keterangannya.
+- **Lampirkan** (Alt+A) membuka menu lampiran seperti di WhatsApp: **Dokumen**, **Foto dan video**,
+  **Audio**, **Kontak**, **Polling**, di grup **Acara**, dan **Stiker**. File yang dipilih lewat
+  Dokumen dikirim sebagai dokumen, termasuk foto; lewat yang lain dikirim sebagai foto, video, atau
+  audio. Anda juga bisa menyalin file di File Explorer lalu menekan **Ctrl+V** di kotak pesan. Yang
+  Anda ketik menjadi keterangannya.
 - Selama Anda menulis, lawan bicara melihat "mengetik…", seperti di WhatsApp.
 - **Menerjemahkan**, hanya saat Anda minta: **Ctrl+T** di sebuah pesan membacakannya dalam bahasa Anda
   (tekan dua kali untuk menampilkan terjemahannya dan membacanya baris demi baris). **Ctrl+T** di kotak

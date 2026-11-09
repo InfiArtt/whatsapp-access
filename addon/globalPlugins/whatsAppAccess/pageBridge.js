@@ -1506,7 +1506,15 @@
 
 	async function sendContacts(chatId, contactIds) {
 		await req("WAWebAttachVcardsFlowLoadable").requireBundle();
-		await settled(req("WAWebSendContactsAction")({ chat: getChat(chatId), contacts: contactsOf(contactIds) }));
+		const contacts = contactsOf(contactIds);
+		// As WhatsApp's own attach menu sends them: each card with its phone number and username.
+		await settled(
+			req("WAWebSendContactsAction")({
+				chat: getChat(chatId),
+				contacts: contacts,
+				options: contacts.map(() => ({ includePhoneNumber: true, includeUsername: true })),
+			})
+		);
 		return true;
 	}
 

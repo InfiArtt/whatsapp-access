@@ -930,8 +930,10 @@ class ChatWindow(wx.Dialog):
 		)
 		# Translators: A button that opens a file picker to send photos, videos, audio or documents.
 		self.attachButton = wx.Button(panel, label=_("&Attach"))
-		self.attachButton.Bind(wx.EVT_BUTTON, lambda evt: self._chooseFiles())
+		self.attachButton.Bind(wx.EVT_BUTTON, lambda evt: self._attachMenu())
 		self._attachments: list[str] = []
+		# Attached with Document: sent as files even when they are photos or videos, as in WhatsApp.
+		self._asDocuments: set[str] = set()
 		# Translators: A button that sends what the user wrote.
 		self.sendButton = wx.Button(panel, label=_("&Send"))
 		self.sendButton.Bind(wx.EVT_BUTTON, lambda evt: self._sendText())
@@ -1266,6 +1268,7 @@ class ChatWindow(wx.Dialog):
 		self._participants = []
 		self._mentions = {}
 		self._attachments = []
+		self._asDocuments = set()
 		draft = self._drafts.get(chat["id"], "")
 		if draft:
 			self.composeBox.ChangeValue(draft)
@@ -1962,11 +1965,51 @@ class ChatWindow(wx.Dialog):
 
 	# Attaching files ------------------------------------------------------------------------------------
 
-	def _chooseFiles(self) -> None:
+	def _attachMenu(self) -> None:
+		"""The Attach button: everything that can be sent besides text and voice notes, as WhatsApp's
+		attach menu lists it. Events are for groups, as in WhatsApp."""
+		if not self.chat or self.chat.get("isChannel"):
+			self._chooseFiles("all")
+			return
+		menu = wx.Menu()
+		items = [
+			# Translators: An item in the Attach menu: any file, sent as a document even if it is a photo.
+			(_("&Document…"), lambda: self._chooseFiles("document")),
+			# Translators: An item in the Attach menu: photos and videos, sent to be seen in the chat.
+			(_("&Photos and videos…"), lambda: self._chooseFiles("media")),
+			# Translators: An item in the Attach menu: sound files, sent to be played in the chat.
+			(_("&Audio…"), lambda: self._chooseFiles("audio")),
+			# Translators: An item in the Attach menu: sends a contact card.
+			(_("&Contact…"), self._sendContact),
+			# Translators: An item in the Attach menu: makes a poll.
+			(_("P&oll…"), self._createPoll),
+		]
+		if self.chat.get("isGroup"):
+			# Translators: An item in the Attach menu of a group: makes an event.
+			items.append((_("&Event…"), self._createEvent))
+		# Translators: An item in the Attach menu: sends one of the user's stickers.
+		items.append((_("&Sticker…"), self._sendSticker))
+		for label, handler in items:
+			item = menu.Append(wx.ID_ANY, label)
+			menu.Bind(wx.EVT_MENU, lambda evt, handler=handler: handler(), item)
+		self.attachButton.PopupMenu(menu)
+		menu.Destroy()
+
+	def _chooseFiles(self, kind: str) -> None:
+		"""kind: "document", "media", "audio", or "all" for a channel, where only files can be sent."""
+		wildcards = {
+			# Translators: The kind of files the file picker shows when attaching photos and videos.
+			"media": _("Photos and videos")
+			+ "|"
+			+ ";".join(f"*{e}" for e in sorted(messageText.PHOTO_EXTENSIONS | messageText.VIDEO_EXTENSIONS)),
+			# Translators: The kind of files the file picker shows when attaching audio.
+			"audio": _("Audio") + "|" + ";".join(f"*{e}" for e in sorted(messageText.AUDIO_EXTENSIONS)),
+		}
 		dialog = wx.FileDialog(
 			self,
 			# Translators: The title of the file picker for sending files.
 			_("Attach files"),
+			wildcard=wildcards.get(kind, "*.*|*.*"),
 			style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_FILE_MUST_EXIST,
 		)
 		try:
@@ -1975,7 +2018,14 @@ class ChatWindow(wx.Dialog):
 			paths = dialog.GetPaths()
 		finally:
 			dialog.Destroy()
+		if kind == "document":
+			self._asDocuments.update(paths)
+		else:
+			self._asDocuments.difference_update(paths)
 		self._attach(paths)
+
+	def _attachedKind(self, path: str) -> str:
+		return "document" if path in self._asDocuments else messageText.fileKind(path)
 
 	def _pasteFiles(self) -> bool:
 		"""Ctrl+V in the message box: files copied in File Explorer are attached. Returns whether it did."""
@@ -2001,7 +2051,7 @@ class ChatWindow(wx.Dialog):
 		self._updateButtons()
 		self.composeBox.SetFocus()
 		parts = [
-			f"{os.path.basename(p)}, {messageText.fileKindName(messageText.fileKind(p))}"
+			f"{os.path.basename(p)}, {messageText.fileKindName(self._attachedKind(p))}"
 			for p in self._attachments
 		]
 		ui.message(
@@ -2015,6 +2065,7 @@ class ChatWindow(wx.Dialog):
 
 	def _clearAttachments(self) -> None:
 		self._attachments = []
+		self._asDocuments = set()
 		self._updateButtons()
 		sounds.play(sounds.DISCARD)
 		# Translators: Read out when the user removes the attached files before sending.
@@ -2035,7 +2086,7 @@ class ChatWindow(wx.Dialog):
 
 		def send() -> int:
 			for index, path in enumerate(paths):
-				kind = messageText.fileKind(path)
+				kind = self._attachedKind(path)
 				mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
 				# WhatsApp puts the caption on the first file and the reply on it too.
 				first = index == 0
@@ -2051,6 +2102,7 @@ class ChatWindow(wx.Dialog):
 			if not sentPaths or not self.chat or self.chat["id"] != chatId:
 				return
 			self._attachments = [p for p in self._attachments if p not in sentPaths]
+			self._asDocuments.difference_update(sentPaths)
 			if self.composeBox.GetValue() == rawCaption:
 				self.composeBox.Clear()
 			if self._replyTo is not None and self._replyTo.get("id") == quotedId:
@@ -3032,18 +3084,6 @@ class ChatWindow(wx.Dialog):
 		if isGroup:
 			# Translators: An item in a group's More options menu: messages that mention the user, not read yet.
 			add(menu, _("&Unread mentions\tCtrl+Shift+M"), self._showMentions)
-		sendMenu = wx.Menu()
-		# Translators: An item in the Send menu: makes a poll.
-		add(sendMenu, _("&Poll\u2026"), self._createPoll)
-		# Translators: An item in the Send menu: sends a contact card.
-		add(sendMenu, _("&Contact\u2026"), self._sendContact)
-		# Translators: An item in the Send menu: sends one of the user's stickers.
-		add(sendMenu, _("&Sticker\u2026"), self._sendSticker)
-		if isGroup:
-			# Translators: An item in the Send menu: makes an event in a group.
-			add(sendMenu, _("&Event\u2026"), self._createEvent)
-		# Translators: An item in a chat's More options menu: sends a poll, contact, sticker or event.
-		menu.AppendSubMenu(sendMenu, _("S&end"))
 		if isGroup and ongoingCall:
 			# Translators: An item in a group's More options menu: joins the call going on in the group.
 			add(
@@ -3308,9 +3348,9 @@ class ChatWindow(wx.Dialog):
 			question, options, single = dialog.values()
 		finally:
 			dialog.Destroy()
-		if not question or len(options) < 2:
-			# Translators: Reported when a poll has no question or fewer than two options.
-			ui.message(_("A poll needs a question and at least two options"))
+		problem = messageText.pollProblem(question, options)
+		if problem:
+			ui.message(problem)
 			return
 		chatId = self.chat["id"]
 

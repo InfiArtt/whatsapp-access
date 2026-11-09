@@ -7,6 +7,10 @@ notes the add-on shows before it installs an update.
 
 Safer files and a safer place for your WhatsApp login.
 
+- Everything that can be sent is in the Attach button's menu, as in WhatsApp: Document, Photos and
+  videos, Audio, Contact, Poll, Event in groups, and Sticker. More options no longer has a Send menu.
+  A photo chosen with Document goes as a document.
+
 - Required updates. When WhatsApp Web changes so that older versions stop working, a release can be
   marked required: the add-on looks for one at every start, closes WhatsApp until it is installed,
   and offers it again on NVDA+Shift+W. A release is marked by a line of its section that begins with

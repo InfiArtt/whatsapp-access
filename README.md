@@ -120,7 +120,6 @@ background for new messages and calls.
 
 - contact or group info, search in chat (Ctrl+F), select messages;
 - pinned messages, media, links and documents, and in groups unread mentions (Ctrl+Shift+M);
-- **Send**: a poll, a contact card, one of your stickers, or in a group an event;
 - in a group, start a group voice call or join the one going on;
 - notifications for this chat, archive, mute, pin, mark as read or unread, favorites (when your
   account has them), and disappearing messages (off, 24 hours, 7 days, 90 days);
@@ -138,9 +137,10 @@ background for new messages and calls.
   bold, italic or struck through, as in WhatsApp; pressed again, they take it off. Messages are read
   without the formatting marks; Alt+C shows them as written.
 - To answer one message, select it and press **Alt+R**; Escape cancels the reply.
-- To send files, press **Alt+A** to choose them, or copy them in File Explorer and press **Ctrl+V** in
-  the message box. Photos and videos go as photos and videos, audio as audio, anything else as a
-  document. What you type becomes the caption.
+- **Attach** (Alt+A) opens WhatsApp's attach menu: **Document**, **Photos and videos**, **Audio**,
+  **Contact**, **Poll**, in a group **Event**, and **Sticker**. Files chosen with Document go as
+  documents, even photos; with the others they go as photos, videos or audio. You can also copy files
+  in File Explorer and press **Ctrl+V** in the message box. What you type becomes the caption.
 - While you write, the other person sees "typing…", as in WhatsApp.
 - **Translating**, only when you ask: **Ctrl+T** on a message reads it in your language (press it twice
   to show the translation to read line by line). **Ctrl+T** in the message box puts what you wrote

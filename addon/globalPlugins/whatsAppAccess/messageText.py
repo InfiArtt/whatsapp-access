@@ -194,6 +194,38 @@ def windowTitleName(title: str) -> str:
 	return title
 
 
+# WhatsApp's own limits for a poll, as its poll window enforces them.
+POLL_MAX_OPTIONS = 12
+POLL_QUESTION_CHARS = 255
+POLL_OPTION_CHARS = 100
+
+
+def pollProblem(question: str, options: list[str]) -> str:
+	"""Why WhatsApp would not take this poll, in words to say; "" when it would."""
+	if not question or len(options) < 2:
+		# Translators: Reported when a poll has no question or fewer than two options.
+		return _("A poll needs a question and at least two options")
+	if len(options) > POLL_MAX_OPTIONS:
+		# Translators: Reported when a poll has more options than WhatsApp allows.
+		return _("A poll can have at most {count} options").format(count=POLL_MAX_OPTIONS)
+	if len(question) > POLL_QUESTION_CHARS:
+		# Translators: Reported when a poll's question is longer than WhatsApp allows.
+		return _("The question can be at most {count} characters").format(count=POLL_QUESTION_CHARS)
+	for option in options:
+		if len(option) > POLL_OPTION_CHARS:
+			# Translators: Reported when one of a poll's options is longer than WhatsApp allows.
+			return _("Each option can be at most {count} characters: {option}").format(
+				count=POLL_OPTION_CHARS, option=option[:30]
+			)
+	seen: set[str] = set()
+	for option in options:
+		if option.casefold() in seen:
+			# Translators: Reported when two of a poll's options are the same, which WhatsApp does not allow.
+			return _("Two options are the same: {option}").format(option=option)
+		seen.add(option.casefold())
+	return ""
+
+
 def acksText(acks: list[int]) -> str:
 	"""What to say when several messages change state together: the furthest state, once.
 

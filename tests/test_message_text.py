@@ -367,3 +367,13 @@ def test_formatting_ends_at_the_line():
 def test_a_formatted_message_is_read_without_marks():
     message = {"type": "chat", "text": "*Rapat* jam 9", "t": TODAY_0815, "sender": "Budi"}
     assert messageText.messageLine(message, isGroup=False, now=NOW) == "Budi: Rapat jam 9, 08:15"
+
+
+def test_polls_whatsapp_would_refuse_are_caught_first():
+    assert messageText.pollProblem("Makan?", ["Nasi", "Mie"]) == ""
+    assert "two options" in messageText.pollProblem("Makan?", ["Nasi"])
+    assert "at most 12" in messageText.pollProblem("Makan?", [str(n) for n in range(13)])
+    assert messageText.pollProblem("Makan?", [str(n) for n in range(12)]) == ""
+    assert "the same" in messageText.pollProblem("Makan?", ["Nasi", "nasi"])
+    assert "255 characters" in messageText.pollProblem("x" * 256, ["a", "b"])
+    assert "100 characters" in messageText.pollProblem("Makan?", ["a", "b" * 101])
