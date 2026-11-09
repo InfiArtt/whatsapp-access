@@ -447,6 +447,23 @@
 			.slice(0, limit || 20);
 	}
 
+	// "@Name" becomes "@number" only where the whole name was written: the longest names go first and a
+	// letter or digit may not follow, so with "An" and "Andi" in a group, "@Andi" stays Andi's.
+	function replaceMentions(text, mentions) {
+		const used = new Set();
+		const sorted = mentions.slice().sort((a, b) => b.name.length - a.name.length);
+		const pattern = sorted.map((m) => m.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+		if (!pattern) {
+			return { text: text, used: used };
+		}
+		const numbers = new Map(sorted.map((m) => [m.name, m.number]));
+		const result = text.replace(new RegExp("@(" + pattern + ")(?![\\p{L}\\p{N}_])", "gu"), (whole, name) => {
+			used.add(name);
+			return "@" + numbers.get(name);
+		});
+		return { text: result, used: used };
+	}
+
 	async function sendText(chatId, text, quotedId, mentions) {
 		if (typeof text !== "string" || !text.trim()) {
 			throw new Error("emptyMessage");
@@ -455,16 +472,19 @@
 		const options = quotedId ? { quotedMsg: getMsg(quotedId) } : {};
 		if (mentions && mentions.length && chat.groupMetadata) {
 			// The add-on shows "@Name"; WhatsApp sends "@" and the person's number, with their ids.
-			const wids = [];
-			for (const mention of mentions) {
-				const participant = chat.groupMetadata.participants
-					.getModelsArray()
-					.find((p) => p.id.toString() === mention.id);
-				if (participant && text.includes("@" + mention.name)) {
-					text = text.split("@" + mention.name).join("@" + participant.id.user);
-					wids.push(participant.id);
-				}
-			}
+			const participants = chat.groupMetadata.participants.getModelsArray();
+			const found = mentions
+				.map((mention) => ({
+					name: mention.name,
+					participant: participants.find((p) => p.id.toString() === mention.id),
+				}))
+				.filter((mention) => mention.participant);
+			const replaced = replaceMentions(
+				text,
+				found.map((mention) => ({ name: mention.name, number: mention.participant.id.user })),
+			);
+			text = replaced.text;
+			const wids = found.filter((mention) => replaced.used.has(mention.name)).map((m) => m.participant.id);
 			if (wids.length) {
 				options.mentionedJidList = wids;
 			}
