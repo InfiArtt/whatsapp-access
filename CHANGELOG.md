@@ -93,6 +93,43 @@ Steadier:
 - Describing a photo (Alt+P) puts back copied files or pictures on the clipboard afterwards, not only text.
 - Emptying About in the profile now says it was not emptied, instead of "Profile saved".
 
+Safer, from a second check of the code:
+
+- In the mode that uses your own browser, a page at a look-alike address such as
+  web.whatsapp.com.example could have been taken for WhatsApp. Only web.whatsapp.com itself is now.
+- People not in your contacts are named by their number and the name they chose, such as
+  "+62812… ~Budi", as WhatsApp shows them, so a stranger can no longer appear as "Mom" or "Bank BCA".
+- A photo, video or voice message is no longer read whole before its size is checked, so one pointing at
+  a huge file can't make the hidden browser run out of memory.
+- A message is never sent twice when WhatsApp reloads while it sends.
+- Old Word, Excel and PowerPoint files (.doc, .xls, .ppt) and .rtf files are no longer opened with Enter,
+  as they can carry macros; save them with Alt+D. A file that cannot get the mark Windows gives files from
+  the internet is not opened either.
+- Saving a file over one that is there no longer destroys it when the download fails.
+- A leftover hidden browser is closed only when it really is the add-on's, so your own Brave is never
+  closed by mistake; folders with [ ] or an apostrophe in their name work.
+- Updates are checked and installed one at a time, each in a folder of its own that is removed after.
+- Photos, videos and documents opened with Enter no longer pile up in TEMP: they are cleared when the
+  add-on starts, on unlink and on uninstall.
+- A voice note stops by itself after 30 minutes, and NVDA says so; it can still be sent.
+
+Fixed, from the same check:
+
+- Installing an update again before restarting NVDA deleted the kept WhatsApp login. It now keeps it, and
+  WhatsApp waits for NVDA to restart before it opens again.
+- A ring or a sound preview stopped while it was still loading no longer plays in full afterwards.
+- When the connection is lost, WhatsApp is closed fully or NVDA exits during a call, the call ends in the
+  add-on too: the ring stops and NVDA+Alt+A and NVDA+Alt+M no longer act on a call that is gone.
+- Escape no longer throws away a recorded voice note; it says to send it or throw it away first.
+- Stopping a recording twice no longer says something went wrong, Ctrl+D while the microphone opens throws
+  the note away, and listening to your own note no longer starts the next voice message.
+- Up Arrow edit and the delete question act only in the chat they were asked in.
+- A status stops playing however its viewer is closed, and Alt+P there plays, stops or describes.
+- Ctrl+T on two messages at once no longer mixes up their translations.
+- Sound previews stop when the settings or a chat's notification dialog close.
+- Unlink says when the data could not all be removed, or when WhatsApp could not be told.
+- Installing an update no longer leaves NVDA silent for up to 45 seconds.
+
 ## [0.4.1]
 
 Translation, closing WhatsApp fully, and fixes for groups. This includes everything from 0.4.0.
