@@ -53,7 +53,12 @@ def test_the_hidden_browser_says_it_is_chrome_not_headless():
     agent = next(a for a in arguments if a.startswith("--user-agent="))
     assert "Chrome/157.0.0.0" in agent
     assert "Headless" not in agent
-    assert "--renderer-process-limit=1" in arguments
+    # Site isolation stays on.
+    assert not [
+        a
+        for a in arguments
+        if "site-per-process" in a or "site-isolation" in a or "renderer-process-limit" in a
+    ]
     assert arguments[-1] == "about:blank"
     metadata = browserLauncher.chromeUserAgentMetadata((157, 1, 99, 55))
     assert [b["brand"] for b in metadata["brands"]] == ["Chromium", "Google Chrome", "Not=A?Brand"]
