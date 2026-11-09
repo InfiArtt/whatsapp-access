@@ -315,7 +315,9 @@ sebelum dipasang, dan add-on tidak mengirim apa pun tentang Anda.
 Kadang WhatsApp Web berubah sehingga versi add-on yang lama tidak bisa dipakai lagi. Versi barunya
 lalu menjadi **update wajib**: setiap kali NVDA menyala, walaupun pemeriksaan harian dimatikan,
 add-on mencarinya, dan kalau ada, WhatsApp ditutup (kecuali saat panggilan, yang tetap berjalan) dan
-tetap tertutup sampai update dipasang. NVDA+Shift+W menawarkan update itu lagi.
+tetap tertutup sampai update dipasang. NVDA+Shift+W menawarkan update itu lagi. Pemeriksaan ini
+hanya meminta daftar rilis dari GitHub; seperti saat membuka halaman web mana pun, GitHub melihat
+alamat internet komputer Anda.
 
 ## Memakai browser Anda sendiri
 

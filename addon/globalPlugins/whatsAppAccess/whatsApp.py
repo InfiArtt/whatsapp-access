@@ -162,6 +162,8 @@ class WhatsAppSession:
 		"""What the bridge could not hook because WhatsApp changed it, such as "reactions: ..."."""
 		self.quietWhatsAppNotifications = False
 		self.showNumbers = False
+		self.notContactWords = "not a contact"
+		"""Said after the name of someone outside the contacts; the plugin sets it in the user's language."""
 		self.linked = False
 		self.callAudio: tuple[str, str] = ("", "whatsapp")
 		self.speaker = ""
@@ -363,7 +365,7 @@ class WhatsAppSession:
 		"""Name people outside the contacts with their phone number before "~" and their own name, or not."""
 		self.showNumbers = show
 		if self.connected:
-			self._bridge("setShowNumbers", show)
+			self._bridge("setShowNumbers", show, self.notContactWords)
 
 	def _beat(self) -> None:
 		while self.connected and self.quietWhatsAppNotifications:

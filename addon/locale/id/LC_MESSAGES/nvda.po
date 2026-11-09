@@ -1208,8 +1208,11 @@ msgstr "Bagian:"
 msgid "&Recent calls:"
 msgstr "Panggilan &terbaru:"
 
-msgid "Check for new versions on GitHub once a day"
-msgstr "Periksa versi baru di GitHub sehari sekali"
+msgid "Check for new versions on GitHub once a day (required updates are always looked for)"
+msgstr "Periksa versi baru di GitHub sehari sekali (update wajib selalu diperiksa)"
+
+msgid "not a contact"
+msgstr "bukan kontak"
 
 msgid "Check for updates now"
 msgstr "Periksa pembaruan sekarang"

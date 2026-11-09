@@ -14,7 +14,8 @@ Safer files and a safer place for your WhatsApp login.
 - Required updates. When WhatsApp Web changes so that older versions stop working, a release can be
   marked required: the add-on looks for one at every start, closes WhatsApp until it is installed,
   and offers it again on NVDA+Shift+W. A release is marked by a line of its section that begins with
-  the words "required update" (see updates.py).
+  the words "required update" (see updates.py). This look at GitHub happens even when daily update
+  checks are off, as the settings now say; it asks only for the list of releases.
 
 - An open chat now sits beside the chat list, as in WhatsApp on a computer, instead of taking its
   place. Tab goes from the chat's last button to the chat list. Escape or the new Ctrl+W closes the
@@ -125,10 +126,11 @@ Safer, from a second check of the code:
 
 - In the mode that uses your own browser, a page at a look-alike address such as
   web.whatsapp.com.example could have been taken for WhatsApp. Only web.whatsapp.com itself is now.
-- People not in your contacts are named with "~" before the name they chose, such as "~Budi", as
-  WhatsApp shows them, so a stranger can no longer appear as "Mom" or "Bank BCA". To hear their phone
-  number too, such as "+62812… ~Budi", check "Show the phone number of people who are not in your
-  contacts" in the settings.
+- People not in your contacts are named with "~" before the name they chose and "not a contact" after
+  it, such as "~Budi (not a contact)", so a stranger can no longer appear as "Mom" or "Bank BCA". The
+  words are there because NVDA reads "~" only at its higher punctuation levels. To hear their phone
+  number too, such as "+62812… ~Budi (not a contact)", check "Show the phone number of people who are
+  not in your contacts" in the settings.
 - A photo, video or voice message is no longer read whole before its size is checked, so one pointing at
   a huge file can't make the hidden browser run out of memory.
 - A message is never sent twice when WhatsApp reloads while it sends.

@@ -163,8 +163,10 @@
 	// "Bank" is not taken for a saved contact. The phone number comes before "~" when the user wants it, as
 	// in WhatsApp; someone with no name of their own is always their number.
 	// (Contacts no longer have formattedName; WhatsApp works it out in WAWebFrontendContactGetters.)
-	// pushname is the name a message came with, for when the contact has none.
-	function personName(contact, pushname) {
+	// pushname is the name a message came with, for when the contact has none. Unless plain is set, a
+	// name people gave themselves ends in words saying they are not a contact: NVDA reads "~" only at its
+	// higher punctuation levels, and "~Mom" would otherwise sound like a contact saved as "Mom".
+	function personName(contact, pushname, plain) {
 		if (!contact) {
 			return null;
 		}
@@ -198,17 +200,23 @@
 		}
 		const number = phone && phone.user ? "+" + phone.user : "";
 		if (own) {
-			// The "~" alone says this is not a saved contact; the number before it is the user's choice.
-			return showNumbers && number ? number + " ~" + own : "~" + own;
+			// The number before "~" is the user's choice.
+			const name = showNumbers && number ? number + " ~" + own : "~" + own;
+			return plain || !notContact ? name : name + " (" + notContact + ")";
 		}
 		return number || null;
 	}
 
 	// Whether people outside the contacts are named with their phone number before "~" and their name.
 	let showNumbers = false;
+	// The words after a name people gave themselves, in the user's language, such as "not a contact".
+	let notContact = "";
 
-	function setShowNumbers(on) {
+	function setShowNumbers(on, notContactWords) {
 		showNumbers = !!on;
+		if (typeof notContactWords === "string") {
+			notContact = notContactWords.trim();
+		}
 		return showNumbers;
 	}
 
@@ -501,6 +509,8 @@
 					id: p.id.toString(),
 					// Not in the contacts: their phone number and "~" their own name, as WhatsApp shows it, not the hidden id.
 					name: contactName(p.id),
+					// What an @mention writes in the message box: the name without "not a contact".
+					mention: personName(contactOf(p.id), "", true) || String(p.id.user || p.id),
 					pushname: (contact && contact.pushname) || "",
 					isAdmin: !!(p.isAdmin || p.isSuperAdmin),
 					isMe: myIds.has(p.id.toString()) || !!(contact && contact.isMe),

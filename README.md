@@ -297,7 +297,8 @@ nothing about you.
 Sometimes WhatsApp Web changes so that older versions of the add-on stop working. The new version
 is then a **required update**: at every start, even with daily checks turned off, the add-on looks
 for one, and when there is one, WhatsApp closes (except during a call, which goes on) and stays
-closed until it is installed. NVDA+Shift+W offers the update again.
+closed until it is installed. NVDA+Shift+W offers the update again. This look asks GitHub only for
+the list of releases; as with any web page, GitHub sees your computer's internet address.
 
 ## Using your own browser
 

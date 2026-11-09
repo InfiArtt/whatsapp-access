@@ -2277,8 +2277,8 @@ class ChatWindow(wx.Dialog):
 		before, after = text[:position], text[position:]
 		match = _MENTION_PATTERN.search(before)
 		start = match.end() - len(match.group(1)) - 1 if match else position
-		inserted = f"@{person['name']} "
-		self._mentions[person["name"]] = person["id"]
+		inserted = f"@{_mentionText(person)} "
+		self._mentions[_mentionText(person)] = person["id"]
 		self._closeMentions()
 		self.composeBox.ChangeValue(before[:start] + inserted + after)
 		self.composeBox.SetInsertionPoint(start + len(inserted))
@@ -4565,8 +4565,15 @@ def _nameMatches(person: dict, typed: str) -> bool:
 	"""Whether any word of the person's contact name or WhatsApp name starts with what was typed."""
 	if not typed:
 		return True
-	words = f"{person.get('name', '')} {person.get('pushname', '')}".lower().split()
-	return any(word.startswith(typed) for word in words) or person.get("name", "").lower().startswith(typed)
+	# The name as a mention writes it, without the words saying someone is not a contact.
+	name = _mentionText(person)
+	words = f"{name} {person.get('pushname', '')}".lower().split()
+	return any(word.startswith(typed) for word in words) or name.lower().startswith(typed)
+
+
+def _mentionText(person: dict) -> str:
+	"""The name an @mention of this person writes in the message box."""
+	return person.get("mention") or person.get("name", "")
 
 
 class ContactInfoDialog(wx.Dialog):

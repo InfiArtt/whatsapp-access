@@ -98,6 +98,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		)
 		self._dataMoved.start()
 		self.session = WhatsAppSession(onEvent=self._onEvent, onDisconnect=self._onDisconnect)
+		# Translators: Said after the name of someone who is not in the user's contacts, such as
+		# "~Budi (not a contact)", so that a stranger calling themselves "Mom" is not taken for a contact.
+		self.session.notContactWords = _("not a contact")
 		self.window: ChatWindow | None = None
 		self._connecting = False
 		self._connectingSince = 0.0
@@ -1255,8 +1258,14 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			)
 
 		self.checkUpdatesBox = helper.addItem(
-			# Translators: A checkbox in this add-on's settings.
-			wx.CheckBox(self, label=_("Check for new versions on GitHub once a day"))
+			wx.CheckBox(
+				self,
+				label=_(
+					# Translators: A checkbox in this add-on's settings. Required updates, needed when WhatsApp
+					# Web changed, are looked for at every start whether it is checked or not.
+					"Check for new versions on GitHub once a day (required updates are always looked for)"
+				),
+			)
 		)
 		self.checkUpdatesBox.SetValue(settings["checkUpdates"])
 		# Translators: A button in this add-on's settings that looks for a new version now.
