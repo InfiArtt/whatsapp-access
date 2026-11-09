@@ -2743,11 +2743,18 @@ class ChatWindow(wx.Dialog):
 			self.composeBox.SetFocus()
 
 	def onEdited(self, info: dict) -> None:
-		"""A message was edited, here or on the phone or by its sender: show its new text."""
+		"""A message was edited or deleted for everyone, here, on the phone or by its sender: show it now.
+
+		A message deleted for everyone comes back under a new id, with replacesId naming the one it
+		replaced, so its line is found by either.
+		"""
+		ids = {info.get("id"), info.get("replacesId")} - {None, ""}
 		for message in self._messages:
-			if message.get("id") == info.get("id"):
+			if message.get("id") in ids:
+				oldId = message.get("id")
 				message.update(info)
-				self._refreshMessageLine(message)
+				message.pop("replacesId", None)
+				self._refreshMessageLine(message, oldId)
 				return
 
 	def _delete(self, message: dict, forEveryone: bool) -> None:
@@ -2776,9 +2783,9 @@ class ChatWindow(wx.Dialog):
 
 		self._run(lambda: self.session.deleteMessage(message["id"], forEveryone), done)
 
-	def _refreshMessageLine(self, message: dict) -> None:
+	def _refreshMessageLine(self, message: dict, oldId: str | None = None) -> None:
 		for index, m in enumerate(self._messages):
-			if m["id"] == message["id"]:
+			if m is message or m["id"] in (message["id"], oldId):
 				line = messageText.messageLine(m, bool(self.chat and self.chat.get("isGroup")))
 				if self.messageList.GetString(index) != line:
 					self.messageList.SetString(index, line)
@@ -4803,6 +4810,8 @@ class StatusViewer(wx.Dialog):
 		self.describe = describe
 		self.saveFile = save
 		self._playingId: str | None = None
+		self._liked: set[str] = set()
+		"""Statuses liked in this viewer: each like is a message, so a second press sends nothing."""
 		# Stopping and playing go to the browser one after another, in the order asked: from two threads,
 		# the stop for the status left could arrive after the play for the next one, and cut it off.
 		self._audio = ThreadPoolExecutor(max_workers=1, thread_name_prefix="whatsAppAccess.statusAudio")
@@ -4945,16 +4954,28 @@ class StatusViewer(wx.Dialog):
 
 	def like(self) -> None:
 		item = self.current
+		name = self.people[self.person].get("name", "")
+		if item["id"] in self._liked:
+			# Each like is a message in the poster's chat, so pressing again must not send another.
+			# Translators: Said when the user likes a status they already liked.
+			ui.message(_("Already liked"))
+			return
+		self._liked.add(item["id"])
 
 		def work() -> None:
 			try:
 				self.session.likeStatus(item["id"])
 			except WhatsAppError as e:
+				self._liked.discard(item["id"])
 				wx.CallAfter(ui.message, errorText(e))
 				return
 			sounds.play(sounds.SENT)
-			# Translators: Reported after the user liked a status.
-			wx.CallAfter(ui.message, _("Liked"))
+			wx.CallAfter(
+				ui.message,
+				# Translators: Reported after the user liked a status. WhatsApp Web cannot react to a status,
+				# so the heart goes to the poster's chat as a reply to the status. {name} is the poster.
+				_("Liked: a heart was sent to {name} as a reply to the status").format(name=name),
+			)
 
 		threading.Thread(target=work, name="whatsAppAccess.like", daemon=True).start()
 
