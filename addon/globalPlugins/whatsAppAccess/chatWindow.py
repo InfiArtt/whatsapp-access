@@ -2768,6 +2768,9 @@ class ChatWindow(wx.Dialog):
 		def done(result: Any) -> None:
 			if not forEveryone:
 				self._removeMessage(message)
+			elif isinstance(result, dict):
+				# The message stays, as "This message was deleted": show that at once.
+				self.onEdited(result)
 			# Translators: Reported after a message was deleted.
 			ui.message(_("Deleted"))
 
