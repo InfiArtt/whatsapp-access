@@ -200,6 +200,8 @@ class WhatsAppSession:
 		"""What the bridge could not hook because WhatsApp changed it, such as "reactions: ..."."""
 		self.quietWhatsAppNotifications = False
 		self.showNumbers = False
+		self._hiddenBrowser = False
+		"""Connected to the add-on's own hidden browser, whose other tabs are closed."""
 		self.notContactWords = "not a contact"
 		"""Said after the name of someone outside the contacts; the plugin sets it in the user's language."""
 		self.linked = False
@@ -234,6 +236,7 @@ class WhatsAppSession:
 			if self.connected:
 				return "ready" if self.linked else "needsLink"
 			self._closing = False
+			self._hiddenBrowser = False
 			try:
 				connection = self._openConnection(
 					target, onEvent=self._handleEvent, onClose=self._handleClose
@@ -278,6 +281,12 @@ class WhatsAppSession:
 						"Browser.grantPermissions",
 						{"origin": hidden.url.rstrip("/"), "permissions": ["audioCapture", "notifications"]},
 					)
+					# WhatsApp's tab must be the one in front: Chromium does not load media in a tab behind
+					# another, so voice messages never started. Blank tabs gathered in the profile (it reopens
+					# them on start) and from pages WhatsApp opened; nobody can see them in a hidden browser.
+					self._hiddenBrowser = True
+					self._closeOtherTabs(connection)
+					connection.call("Target.setDiscoverTargets", {"discover": True})
 					# Emulation, not Network: the Network domain, once enabled, would keep response bodies and send
 					# every WebSocket frame over the pipe for as long as WhatsApp runs.
 					self._call(
@@ -478,7 +487,40 @@ class WhatsAppSession:
 
 	# Events ---------------------------------------------------------------------------------------------
 
+	def _closeOtherTabs(self, connection: Any) -> None:
+		"""In the hidden browser, close every tab but WhatsApp's and bring WhatsApp's to the front."""
+		for target in connection.call("Target.getTargets")["targetInfos"]:
+			if target.get("type") == "page" and target.get("targetId") != self._targetId:
+				try:
+					connection.call("Target.closeTarget", {"targetId": target["targetId"]})
+				except cdp.CdpError:
+					pass
+		self._call("Page.bringToFront")
+
+	def _closeNewTab(self, targetId: str) -> None:
+		def close() -> None:
+			connection = self._connection
+			if connection is None:
+				return
+			try:
+				connection.call("Target.closeTarget", {"targetId": targetId})
+				self._call("Page.bringToFront")
+			except (cdp.CdpError, WhatsAppError, OSError):
+				pass
+
+		# Not on the thread that delivers events, which would wait for its own answer.
+		threading.Thread(target=close, name="whatsAppAccess.closeTab", daemon=True).start()
+
 	def _handleEvent(self, method: str, params: dict, sessionId: str | None) -> None:
+		if (
+			method == "Target.targetCreated"
+			and self._hiddenBrowser
+			and params.get("targetInfo", {}).get("type") == "page"
+			and params["targetInfo"].get("targetId") != self._targetId
+		):
+			# A tab WhatsApp opened in the hidden browser would put WhatsApp's behind it.
+			self._closeNewTab(params["targetInfo"]["targetId"])
+			return
 		if sessionId != self._sessionId:
 			if method == "Target.detachedFromTarget" and params.get("sessionId") == self._sessionId:
 				self._lost()

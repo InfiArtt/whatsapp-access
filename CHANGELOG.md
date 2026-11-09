@@ -5,6 +5,9 @@ notes the add-on shows before it installs an update.
 
 ## [Unreleased]
 
+- Voice messages could stop playing altogether, silently: blank tabs had gathered in the hidden
+  browser, and Chromium does not load sound in a tab behind another. WhatsApp's tab is now the only one
+  and stays in front; tabs opened later are closed.
 - Enter on a voice message that was playing did nothing in 0.6.2 but write an error to NVDA's log:
   pausing it called the voice note recorder's pause by mistake. It pauses and goes on again now.
 - The position slider is read as the time, such as "12 sec of 45 sec", not as a percentage.
