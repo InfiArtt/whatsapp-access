@@ -90,6 +90,21 @@ def _codeFromPageError(description: str) -> WhatsAppError:
 	return WhatsAppError("failed", description[:500])
 
 
+def _bridgeWasMissing(error: WhatsAppError, function: str) -> bool:
+	"""Whether a bridge call failed only because window.__waAccess was not there, so its function never ran.
+
+	The page's own error for reading a function of undefined, thrown by the call's own expression: no
+	stack frame but the expression itself, so not from inside the bridge.
+	"""
+	if error.code != "failed":
+		return False
+	lines = error.detail.splitlines()
+	if not lines or lines[0] != f"TypeError: Cannot read properties of undefined (reading '{function}')":
+		return False
+	frames = [line.strip() for line in lines[1:] if line.strip()]
+	return len(frames) <= 1 and all(frame.startswith("at <anonymous>:1:") for frame in frames)
+
+
 @dataclass(frozen=True)
 class HiddenOptions:
 	"""How to set up the add-on's own hidden browser when connecting to it."""
@@ -481,9 +496,10 @@ class WhatsAppSession:
 		try:
 			return self._evaluate(expression, timeout)
 		except WhatsAppError as e:
-			# The page was reloaded and the bridge is not back yet. Only then is the call tried again: the
-			# function never ran, so nothing can be sent twice.
-			if e.code == "failed" and self._evaluate(_BRIDGE_MISSING):
+			# The page was reloaded and the bridge was not back yet when the call started. Only then is the
+			# call tried again: the function never ran, so nothing can be sent twice. A page that reloaded
+			# while the function ran ("Execution context was destroyed") may have sent already.
+			if _bridgeWasMissing(e, function) and self._evaluate(_BRIDGE_MISSING):
 				self.installBridge()
 				return self._evaluate(expression, timeout)
 			raise

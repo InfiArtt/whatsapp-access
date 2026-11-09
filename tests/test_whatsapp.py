@@ -512,3 +512,70 @@ def test_a_look_alike_origin_cannot_become_the_source_of_events():
     assert received.wait(5)
     assert [e["message"]["text"] for e in events if e.get("type") == "message"] == ["real"]
     session.close()
+
+
+def reloading_page(firstSend):
+    """A page whose first sendText fails as firstSend says, after which the bridge is gone."""
+    sends = []
+
+    def handler(message):
+        method = message["method"]
+        if method == "Target.getTargets":
+            return {"targetInfos": WHATSAPP_TABS}
+        if method == "Target.attachToTarget":
+            return {"sessionId": "S1"}
+        if method != "Runtime.evaluate":
+            return {}
+        expression = message["params"]["expression"]
+        value = None
+        if expression.startswith("window.__waAccess.sendText("):
+            sends.append(expression)
+            if len(sends) == 1:
+                if isinstance(firstSend, KeyError):
+                    raise firstSend
+                return {
+                    "result": {"type": "object"},
+                    "exceptionDetails": {"exception": {"description": firstSend}},
+                }
+            value = True
+        elif expression.startswith('typeof window.__waAccess === "undefined"'):
+            value = len(sends) == 1
+        elif expression.startswith((CURRENT_BRIDGE, "window.__waAccess.install()")):
+            value = True
+        elif expression.startswith("window.__waAccess.authState()"):
+            value = LINKED["window.__waAccess.authState()"]
+        return {"result": {"type": "object", "value": value}}
+
+    return FakeBrowser(handler), sends
+
+
+def test_a_call_made_while_the_bridge_was_missing_is_tried_again():
+    browser, sends = reloading_page(
+        "TypeError: Cannot read properties of undefined (reading 'sendText')\n    at <anonymous>:1:19"
+    )
+    session = session_for(browser)
+    session.sendText("1@c.us", "halo")
+    assert len(sends) == 2
+    session.close()
+
+
+@pytest.mark.parametrize(
+    "firstSend",
+    [
+        # WhatsApp reloaded while the message was being sent: it may have gone already.
+        KeyError("Execution context was destroyed."),
+        # The same error from inside the bridge, not from a missing bridge.
+        (
+            "TypeError: Cannot read properties of undefined (reading 'sendText')\n"
+            "    at Object.sendText (<anonymous>:812:30)\n    at <anonymous>:1:19"
+        ),
+        "TypeError: Cannot read properties of undefined (reading 'id')\n    at <anonymous>:1:19",
+    ],
+)
+def test_a_call_that_may_have_run_is_never_tried_again(firstSend):
+    browser, sends = reloading_page(firstSend)
+    session = session_for(browser)
+    with pytest.raises(whatsApp.WhatsAppError):
+        session.sendText("1@c.us", "halo")
+    assert len(sends) == 1
+    session.close()
