@@ -17,6 +17,7 @@ Safer files and a safer place for your WhatsApp login.
   message straight away. Messages typed quickly one after another go out in order, each on its own;
   before, the next one was added to the one still being sent, and "test", "test", "test" became one
   message saying "testtesttest". A message that cannot be sent comes back to the box.
+- A deleted message is read as "This message was deleted" once, not twice in a row.
 - When someone opens your chat and reads several of your messages at once, "read" is said once, not
   once for each message. The same goes for "delivered".
 

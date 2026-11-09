@@ -80,6 +80,8 @@ def content(message: dict) -> str:
 	elif kind == "revoked":
 		# Translators: In place of a message its sender deleted for everyone.
 		label = _("This message was deleted")
+		# WhatsApp may still give the words it shows in its place, which would only say this again.
+		text = caption = ""
 	elif kind == "call_log":
 		# Translators: A voice or video call shown in a chat.
 		label = _("Call")

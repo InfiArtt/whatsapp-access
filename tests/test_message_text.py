@@ -97,6 +97,13 @@ def test_the_open_chat_says_the_message_even_when_content_is_off():
     )
 
 
+def test_a_deleted_message_is_said_deleted_once():
+    deleted = {"type": "revoked", "text": "This message was deleted", "sender": "~Ali"}
+    assert messageText.content(deleted) == "This message was deleted"
+    chat = {"title": "VoiceOver Accessibility", "isGroup": True, "last": deleted}
+    assert messageText.chatLine(chat).count("This message was deleted") == 1
+
+
 def test_messages_read_together_are_said_once():
     assert messageText.acksText([3, 3, 3, 3, 3]) == "read"
     assert messageText.acksText([2, 3]) == "read"
