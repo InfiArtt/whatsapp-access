@@ -11,7 +11,7 @@ mengirim apa pun sendiri.
 
 ## Yang Anda perlukan
 
-- Windows 10 atau 11, dan NVDA 2025.1 atau lebih baru, baik NVDA 32-bit tahun 2025 maupun yang 64-bit.
+- Windows 10 atau 11, dan NVDA 2025.1 atau lebih baru. Keduanya bisa: NVDA 2025 masih 32-bit, dan NVDA 64-bit mulai versi 2026.1.
 - Salah satu browser ini terpasang, versi 120 atau lebih baru: Brave, Google Chrome, Chromium,
   Vivaldi, Opera, atau Microsoft Edge. Anda tidak perlu memakainya sendiri; add-on hanya meminjamnya.
 - WhatsApp di ponsel Anda, untuk menautkan komputer ini sekali, seperti WhatsApp Web.
