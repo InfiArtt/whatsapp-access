@@ -568,6 +568,14 @@ class WhatsAppSession:
 		"""Joins a group from its invite code. Returns chat, or requested when admins approve members."""
 		return self._bridge("joinGroupLink", code, timeout=60)
 
+	def replies(self, messageId: str) -> list[dict]:
+		"""The replies to a community announcement, oldest first: id, fromMe, sender, text, revoked, t."""
+		return self._bridge("replies", messageId, timeout=60)
+
+	def sendReply(self, messageId: str, text: str) -> None:
+		"""Replies to a community announcement, as WhatsApp's replies view does."""
+		self._bridge("sendReply", messageId, text, timeout=60)
+
 	def markAllRead(self) -> int:
 		"""Marks every unread chat read, archived ones too, and sends read receipts. Returns how many."""
 		return self._bridge("markAllRead", timeout=180)

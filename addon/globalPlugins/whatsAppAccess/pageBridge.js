@@ -334,6 +334,10 @@
 		if (m.latestEditMsgKey) {
 			info.edited = true;
 		}
+		if (m.replyCount > 0) {
+			// Replies to a community announcement, which WhatsApp calls comments.
+			info.replies = Number(m.replyCount) || 0;
+		}
 		try {
 			const pin = req("WAWebPinInChatCollection").PinInChatCollection.getByParentMsgKey(m.id);
 			info.pinned = !!(pin && req("WAWebPinInChatCollection").isPinValid(pin));
@@ -405,6 +409,8 @@
 			ongoingCall: false,
 		};
 		if (isGroupChat(chat)) {
+			// A community's announcement group: its announcements take replies (Alt+R).
+			info.announcementGroup = isAnnouncementGroup(chat);
 			try {
 				info.ongoingCall = !!req("WAWebVoipOngoingCallCollection").WAWebVoipOngoingCallCollection.getByChat(chat);
 			} catch (e) {}
@@ -913,6 +919,64 @@
 			return;
 		}
 		await markSeen(chat.id._serialized || chat.id.toString());
+	}
+
+	// Replies to community announcements ------------------------------------------------------------------
+	// WhatsApp calls them comments: members reply to an announcement, and everyone sees the replies under
+	// it, while the announcement group stays closed to messages.
+
+	// Whether a chat is a community's announcement group, where announcements take replies.
+	function isAnnouncementGroup(chat) {
+		const gm = chat && chat.groupMetadata;
+		return !!(gm && (gm.defaultSubgroup || groupKind(gm) === "LINKED_ANNOUNCEMENT_GROUP"));
+	}
+
+	// The replies to an announcement, oldest first, loaded from WhatsApp's store as its replies view does.
+	async function replies(messageId) {
+		const parent = getMsg(messageId);
+		if (!parent) {
+			throw new Error("messageNotFound");
+		}
+		await req("WAWebAddonHydrationUtils").hydrateAddons({
+			ids: [parent.id],
+			hydrationType: req("WAWebMsgType").MSG_TYPE.COMMENT,
+		});
+		const key = parent.id.toString();
+		const myIds = myIdSet();
+		return req("WAWebCommentCollection")
+			.CommentCollection.getModelsArray()
+			.filter((c) => c.parentMsgKey && c.parentMsgKey.toString() === key)
+			.sort((a, b) => (a.t || 0) - (b.t || 0))
+			.map((c) => {
+				const fromMe = !!(c.id && c.id.fromMe) || (c.author && myIds.has(c.author.toString()));
+				const revoked = c.type === "revoked" || !!c.revokeTimestamp;
+				return {
+					id: c.id.toString(),
+					fromMe: fromMe,
+					sender: fromMe ? null : c.author ? contactName(c.author) : "",
+					text: revoked ? "" : String(c.body || ""),
+					revoked: revoked,
+					t: c.t || 0,
+				};
+			});
+	}
+
+	// Replies to an announcement, as its replies view does.
+	async function sendReply(messageId, text) {
+		const parent = getMsg(messageId);
+		if (!parent) {
+			throw new Error("messageNotFound");
+		}
+		const words = String(text || "").trim();
+		if (!words) {
+			throw new Error("emptyMessage");
+		}
+		const result = await req("WAWebSendCommentMessageAction").sendCommentMessage(parent, words);
+		const OK = req("WAWebSendMsgResultAction").SendMsgResult.OK;
+		if (result && result.messageSendResult !== OK) {
+			throw new Error("sendFailed:" + result.messageSendResult);
+		}
+		return true;
 	}
 
 	// Messages in a chat whose text contains the query, loading older ones as WhatsApp's search would.
@@ -3786,6 +3850,8 @@
 		messageReceipts: messageReceipts,
 		chatWithNumber: chatWithNumber,
 		linkInfo: linkInfo,
+		replies: replies,
+		sendReply: sendReply,
 		joinGroupLink: joinGroupLink,
 		markAllRead: markAllRead,
 		searchMessages: searchMessages,

@@ -417,3 +417,9 @@ def test_whatsapp_links_open_in_the_addon(link):
 )
 def test_other_links_open_in_the_browser(link):
     assert not messageText.isWhatsAppLink(link)
+
+
+def test_community_announcements_say_how_many_replies():
+    message = {"type": "chat", "text": "Rapat besok", "sender": "Admin", "t": TODAY_0815, "replies": 13}
+    assert messageText.messageLine(message, isGroup=True, now=NOW) == "Admin: Rapat besok, 13 replies, 08:15"
+    assert messageText.repliesText(1) == "1 reply"

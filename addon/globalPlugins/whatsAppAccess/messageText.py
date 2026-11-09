@@ -267,6 +267,9 @@ def messageLine(message: dict, isGroup: bool, now: float | None = None) -> str:
 	if message.get("starred"):
 		# Translators: Said after a message the user starred.
 		parts.append(_("starred"))
+	replies = message.get("replies") or 0
+	if replies:
+		parts.append(repliesText(replies))
 	reactions = reactionsText(message.get("reactions"))
 	if reactions:
 		parts.append(reactions)
@@ -300,6 +303,15 @@ def disappearingText(seconds: int) -> str:
 		return _("disappearing messages, {count} days").format(count=days)
 	# Translators: Said for a chat whose new messages disappear after some hours, such as 24.
 	return _("disappearing messages, {count} hours").format(count=max(1, round(seconds / 3600)))
+
+
+def repliesText(count: int) -> str:
+	"""How many replies a community announcement has."""
+	if count == 1:
+		# Translators: Said after a community announcement with one reply.
+		return _("1 reply")
+	# Translators: Said after a community announcement with several replies, such as "13 replies".
+	return _("{count} replies").format(count=count)
 
 
 def isUnread(chat: dict) -> bool:

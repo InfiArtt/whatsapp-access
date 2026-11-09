@@ -245,7 +245,8 @@ window: the call moves over at once. Voice notes and statuses play on the same s
   Alt+Y reacts, and only a channel's admins can post. **Find channels** searches WhatsApp's
   directory; a channel's menu unfollows it.
 - **Communities** (Ctrl+7) lists your communities. Enter shows a community's groups, announcements
-  first. Enter opens a group you are in, or asks to join one you are not in.
+  first. Enter opens a group you are in, or asks to join one you are not in. In the announcements,
+  each announcement says how many replies it has; Alt+R lists them and lets you reply.
 
 ## Your WhatsApp settings
 

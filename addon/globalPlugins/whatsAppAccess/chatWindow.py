@@ -2536,6 +2536,22 @@ class ChatWindow(wx.Dialog):
 
 	# Replying to one message ----------------------------------------------------------------------------
 
+	def _showReplies(self, message: dict) -> None:
+		"""A community announcement's replies, with a box to reply, as WhatsApp shows them."""
+		dialog = RepliesDialog(self, message)
+		try:
+			dialog.ShowModal()
+			count = len(dialog.replies) if dialog.loaded else None
+		finally:
+			dialog.Destroy()
+		# The count after the announcement follows what the replies window found, own replies included.
+		if count is not None and count != (message.get("replies") or 0) and message in self._messages:
+			message["replies"] = count
+			index = self._messages.index(message)
+			self.messageList.SetString(
+				index, messageText.messageLine(message, self.chat.get("isGroup", False))
+			)
+
 	def _startReply(self, message: dict | None = None) -> None:
 		message = message or self._selectedMessage()
 		if not self.chat:
@@ -2543,6 +2559,10 @@ class ChatWindow(wx.Dialog):
 		if message is None:
 			# Translators: Said when the user presses Alt+R but no message is selected in the chat.
 			ui.message(_("Select the message to reply to in the messages list first"))
+			return
+		if self.chat.get("announcementGroup"):
+			# In a community's announcements, replies go under the announcement, as in WhatsApp.
+			self._showReplies(message)
 			return
 		self._cancelEdit(announce=False)
 		self._replyTo = message
@@ -2883,8 +2903,12 @@ class ChatWindow(wx.Dialog):
 		if message.get("type") == "poll_creation":
 			# Translators: An item in a poll's menu, like WhatsApp's: shows the options and votes, to vote.
 			add(menu, _("&View poll and vote"), lambda: self._showPoll(message))
-		# Translators: An item in a message's menu, like WhatsApp's.
-		add(menu, _("&Reply\tAlt+R"), lambda: self._startReply(message))
+		if self.chat and self.chat.get("announcementGroup"):
+			# Translators: An item in the menu of a community announcement: its replies, and a box to reply.
+			add(menu, _("&Replies\tAlt+R"), lambda: self._showReplies(message))
+		else:
+			# Translators: An item in a message's menu, like WhatsApp's.
+			add(menu, _("&Reply\tAlt+R"), lambda: self._startReply(message))
 		if actions.get("react"):
 			reactMenu = self._buildReactMenu(message, actions.get("reactions") or [])
 			# Translators: An item in a message's menu, like WhatsApp's: opens a list of emoji.
@@ -5087,6 +5111,94 @@ def _findDescriber() -> Any | None:
 		if hasattr(plugin, "describe_clipboard"):
 			return plugin
 	return None
+
+
+class RepliesDialog(wx.Dialog):
+	"""The replies to a community announcement, oldest first, and a box to reply to it."""
+
+	def __init__(self, window: "ChatWindow", message: dict) -> None:
+		super().__init__(
+			window,
+			# Translators: The title of the window with the replies to a community announcement.
+			title=_("Replies"),
+			style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+		)
+		self.window = window
+		self.message = message
+		self.replies: list[dict] = []
+		self.loaded = False
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		announcement = messageText.messageLine(message, True)
+		sizer.Add(wx.StaticText(self, label=announcement[:300]), 0, wx.ALL, 10)
+		# Translators: The label of the list of replies to a community announcement.
+		sizer.Add(wx.StaticText(self, label=_("&Replies:")), 0, wx.LEFT | wx.RIGHT, 10)
+		# Translators: Shown in the list of replies while they load.
+		self.list = wx.ListBox(self, choices=[_("Loading\u2026")], size=(600, 300))
+		sizer.Add(self.list, 1, wx.EXPAND | wx.ALL, 10)
+		# Translators: The label of the box for replying to a community announcement.
+		sizer.Add(wx.StaticText(self, label=_("&Your reply:")), 0, wx.LEFT | wx.RIGHT, 10)
+		self.box = wx.TextCtrl(self, style=wx.TE_PROCESS_ENTER)
+		self.box.Bind(wx.EVT_TEXT_ENTER, lambda evt: self._send())
+		sizer.Add(self.box, 0, wx.EXPAND | wx.ALL, 10)
+		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: The button that sends a reply to a community announcement.
+		send = wx.Button(self, label=_("&Send"))
+		send.Bind(wx.EVT_BUTTON, lambda evt: self._send())
+		buttons.Add(send, 0, wx.RIGHT, 6)
+		# Translators: The button that closes the replies window.
+		buttons.Add(wx.Button(self, wx.ID_CANCEL, label=_("Close")))
+		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM, 10)
+		self.SetSizerAndFit(sizer)
+		self.CentreOnParent()
+		self.list.SetFocus()
+		self._load()
+
+	def _load(self, focusLast: bool = False) -> None:
+		self.window._run(
+			lambda: self.window.session.replies(self.message["id"]), lambda r: self._show(r, focusLast)
+		)
+
+	def _show(self, replies: list[dict], focusLast: bool) -> None:
+		if not self:
+			return
+		self.replies = replies
+		self.loaded = True
+		lines = [
+			messageText.messageLine(
+				{
+					"type": "revoked" if r.get("revoked") else "chat",
+					"fromMe": r.get("fromMe"),
+					"sender": r.get("sender"),
+					"text": r.get("text") or "",
+					"t": r.get("t", 0),
+					"ack": None,
+				},
+				True,
+			)
+			for r in replies
+		]
+		# Translators: Shown in the list of replies when an announcement has none yet.
+		self.list.Set(lines or [_("No replies yet")])
+		self.list.SetSelection(len(lines) - 1 if focusLast and lines else 0)
+		if focusLast and lines:
+			ui.message(lines[-1])
+
+	def _send(self) -> None:
+		text = self.box.GetValue().strip()
+		if not text:
+			self.box.SetFocus()
+			return
+
+		def sent(result: object) -> None:
+			if not self:
+				return
+			self.box.ChangeValue("")
+			sounds.play(sounds.SENT)
+			# Translators: Reported after replying to a community announcement.
+			ui.message(_("Reply sent"))
+			self._load(focusLast=True)
+
+		self.window._run(lambda: self.window.session.sendReply(self.message["id"], text), sent)
 
 
 class ListDialog(wx.Dialog):

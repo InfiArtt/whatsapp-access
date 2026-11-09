@@ -5,6 +5,9 @@ notes the add-on shows before it installs an update.
 
 ## [Unreleased]
 
+- Replies to community announcements. An announcement says how many replies it has, such as
+  "13 replies"; Alt+R on it, or Replies in its menu, lists them with who wrote them and lets you reply,
+  as WhatsApp shows them under the announcement.
 - Join a group from its invite link, follow a channel from its link, and open a wa.me link as a chat,
   with its message ready in the box. Alt+L on a message opens WhatsApp links this way instead of in
   the browser, and the new Options button under the chat list has Open a WhatsApp link, with a link

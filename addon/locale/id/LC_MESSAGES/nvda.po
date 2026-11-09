@@ -2884,3 +2884,30 @@ msgstr "Tidak bisa bergabung ke grup. Coba lagi, atau bergabung dari WhatsApp di
 
 msgid "This channel could not be found."
 msgstr "Channel ini tidak ditemukan."
+
+msgid "&Replies	Alt+R"
+msgstr "&Balasan	Alt+R"
+
+msgid "&Your reply:"
+msgstr "Balasan &Anda:"
+
+msgid "Replies"
+msgstr "Balasan"
+
+msgid "Reply sent"
+msgstr "Balasan terkirim"
+
+msgid "Loading…"
+msgstr "Memuat…"
+
+msgid "&Replies:"
+msgstr "&Balasan:"
+
+msgid "{count} replies"
+msgstr "{count} balasan"
+
+msgid "No replies yet"
+msgstr "Belum ada balasan"
+
+msgid "1 reply"
+msgstr "1 balasan"

@@ -262,6 +262,8 @@ langsung pindah. Voice note dan status diputar di speaker yang sama.
   mencari di direktori WhatsApp; menu saluran bisa berhenti mengikutinya.
 - **Komunitas** (Ctrl+7) menampilkan komunitas Anda. Enter menampilkan grup-grupnya, pengumuman
   lebih dulu. Enter membuka grup yang Anda ikuti, atau meminta bergabung ke grup yang belum.
+  Di grup pengumuman, setiap pengumuman menyebut jumlah balasannya; Alt+R menampilkan balasan itu
+  dan Anda bisa ikut membalas.
 
 ## Pengaturan WhatsApp Anda
 
