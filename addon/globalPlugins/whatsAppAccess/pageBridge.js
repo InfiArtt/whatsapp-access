@@ -2578,9 +2578,10 @@
 	// How loud the other person is in a call, from 0 to 1. WhatsApp plays call audio either through an
 	// AudioContext or a media element showing a stream; both are caught as they are made, so a change
 	// applies at once, during the call too.
-	let callVolume = 1;
-	const callGains = new Set();
-	const callMedia = new Set();
+	// The prototypes are patched once per page, so their state belongs to the page, not to this copy of
+	// the bridge: a newer copy installed into the same page must reach the gains the first one made.
+	const callLoudness =
+		window.__waAccessCallAudio || (window.__waAccessCallAudio = { volume: 1, gains: new Set(), media: new Set() });
 
 	function installCallVolume() {
 		if (window.__waAccessCallVolume) {
@@ -2594,10 +2595,10 @@
 				if (!context.__waAccessGain) {
 					const gain = context.createGain();
 					gain.__waAccessGain = true;
-					gain.gain.value = callVolume;
+					gain.gain.value = callLoudness.volume;
 					connect.call(gain, target);
 					context.__waAccessGain = gain;
-					callGains.add(gain);
+					callLoudness.gains.add(gain);
 				}
 				connect.call(this, context.__waAccessGain, ...rest);
 				return target;
@@ -2614,10 +2615,10 @@
 			set(value) {
 				source.set.call(this, value);
 				if (value instanceof MediaStream) {
-					callMedia.add(this);
-					this.volume = callVolume;
+					callLoudness.media.add(this);
+					this.volume = callLoudness.volume;
 				} else {
-					callMedia.delete(this);
+					callLoudness.media.delete(this);
 				}
 			},
 		});
@@ -2625,14 +2626,14 @@
 
 	function setCallVolume(volume) {
 		installCallVolume();
-		callVolume = Math.min(1, Math.max(0, Number(volume)));
-		for (const gain of callGains) {
-			gain.gain.value = callVolume;
+		callLoudness.volume = Math.min(1, Math.max(0, Number(volume)));
+		for (const gain of callLoudness.gains) {
+			gain.gain.value = callLoudness.volume;
 		}
-		for (const media of callMedia) {
-			media.volume = callVolume;
+		for (const media of callLoudness.media) {
+			media.volume = callLoudness.volume;
 		}
-		return callVolume;
+		return callLoudness.volume;
 	}
 
 	async function callAudioConstraints(audio) {
@@ -3079,8 +3080,39 @@
 		handlers.push([collection, event, handler]);
 	}
 
+	// What hook() could not set up because WhatsApp changed it, for the add-on to report once.
+	let missingFeatures = [];
+
+	function optional(feature, attach) {
+		try {
+			attach();
+		} catch (e) {
+			missingFeatures.push(feature + ": " + String((e && e.message) || e).slice(0, 120));
+		}
+	}
+
+	// New messages are the add-on's reason to be, so without them nothing is hooked and install() fails.
+	// Everything else is optional: one WhatsApp module renamed in an update turns off only its feature,
+	// instead of leaving half the handlers registered and the rest registered again on the next try.
 	function hook() {
 		const C = collections();
+		missingFeatures = [];
+		try {
+			hookMessages(C);
+		} catch (e) {
+			unhook();
+			throw e;
+		}
+		optional("edits", () => hookEdits(C));
+		optional("receipts", () => hookReceipts(C));
+		optional("reactions", () => hookReactions(C));
+		optional("microphone", hookMicrophone);
+		optional("calls", hookCalls);
+		optional("connection", hookConnection);
+		optional("chatList", () => hookChatList(C));
+	}
+
+	function hookMessages(C) {
 		on(C.Msg, "add", (m) => {
 			if (!m.isNewMsg || HIDDEN_TYPES.has(m.type) || m.isNotification) {
 				return;
@@ -3095,6 +3127,9 @@
 				chat: { id: chat.id._serialized, title: chatTitle(chat), isGroup: isGroupChat(chat), muted: isMutedChat(chat) },
 			});
 		});
+	}
+
+	function hookEdits(C) {
 		// A message edited after it was sent, by its sender: on this computer, the phone, or someone else's.
 		const edited = (m) => {
 			if (m.latestEditMsgKey && m.id && m.id.remote) {
@@ -3103,11 +3138,17 @@
 		};
 		on(C.Msg, "change:latestEditMsgKey", edited);
 		on(C.Msg, "change:body", edited);
+	}
+
+	function hookReceipts(C) {
 		on(C.Msg, "change:ack", (m) => {
 			if (m.id.fromMe) {
 				emit({ type: "ack", messageId: msgId(m), chatId: m.id.remote._serialized, ack: m.ack });
 			}
 		});
+	}
+
+	function hookReactions(C) {
 		const reactionsChanged = (model) => {
 			try {
 				const messageId = String(model.id);
@@ -3116,11 +3157,14 @@
 				// A reaction WhatsApp keeps in another shape is left out.
 			}
 		};
-		if (C.Reactions) {
-			on(C.Reactions, "add", reactionsChanged);
-			on(C.Reactions, "change", reactionsChanged);
+		if (!C.Reactions) {
+			throw new Error("WAWebCollections.Reactions is missing");
 		}
-		hookMicrophone();
+		on(C.Reactions, "add", reactionsChanged);
+		on(C.Reactions, "change", reactionsChanged);
+	}
+
+	function hookCalls() {
 		// Calls: report every change of the call's state, from ringing to ended.
 		let lastCall = "null";
 		callTimer = setInterval(() => {
@@ -3136,9 +3180,16 @@
 				emit({ type: "call", call: now });
 			}
 		}, 300);
+	}
+
+	function hookConnection() {
 		const connectionChanged = () => emit({ type: "connection", state: connectionState() });
-		on(req("WAWebStreamModel").Stream, "change:info", connectionChanged);
-		on(req("WAWebStreamModel").Stream, "change:mode", connectionChanged);
+		const stream = req("WAWebStreamModel").Stream;
+		on(stream, "change:info", connectionChanged);
+		on(stream, "change:mode", connectionChanged);
+	}
+
+	function hookChatList(C) {
 		on(C.Chat, "change:unreadCount", chatsChanged);
 		on(C.Chat, "change:t", chatsChanged);
 		on(C.Chat, "add", chatsChanged);
@@ -3172,6 +3223,7 @@
 		version: VERSION,
 		ready: ready,
 		isHooked: () => hooked,
+		missingFeatures: () => missingFeatures.slice(),
 		install: () => {
 			if (!hooked && ready()) {
 				hook();
