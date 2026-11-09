@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import tempfile
 import threading
 import time
 import uuid
@@ -45,7 +46,7 @@ class WhatsAppError(Exception):
 
 	Codes: noBrowser, refused, approvalTimedOut, noWhatsAppTab, notReady, disconnected, chatNotFound, emptyMessage, sendFailed,
 	microphone, notRecording, noRecording, emptyRecording, mediaGone, noDownload, downloadTooLarge, saveFailed,
-	failed.
+	notMarked, failed.
 	"""
 
 	def __init__(self, code: str, detail: str = "") -> None:
@@ -831,7 +832,7 @@ class WhatsAppSession:
 			raise
 		return uploadId
 
-	def download(self, messageId: str, folder: str = "", path: str = "") -> str:
+	def download(self, messageId: str, folder: str = "", path: str = "", requireMark: bool = False) -> str:
 		"""Save a message's photo, video, audio or document.
 
 		The file gets the mark Windows gives files from the internet, so SmartScreen and Office's Protected
@@ -840,7 +841,10 @@ class WhatsAppSession:
 		:param messageId: The message with the file.
 		:param folder: Save there, under a safe form of the sender's name for the file. A file that is
 			already there is never replaced.
-		:param path: Or save at this full path, which the user chose.
+		:param path: Or save at this full path, which the user chose. The download goes to a new file next
+			to it first, and replaces a file already at path only once it is complete.
+		:param requireMark: For a file that is about to be opened: when the mark cannot be written, as on
+			drives without NTFS, the file is removed and WhatsAppError("notMarked") raised.
 		:return: Where the file was saved.
 		"""
 		try:
@@ -852,24 +856,35 @@ class WhatsAppSession:
 			raise
 		if not isinstance(info, dict) or not info.get("id"):
 			raise WhatsAppError("noDownload")
-		# Set once a file exists that is only part of the download, to remove if it fails.
-		partial = False
+		# The file being written, while it is only part of the download: removed if the download fails.
+		partial = ""
 		try:
 			try:
-				if not path:
-					path = _createFreeFile(folder, fileSafety.safeFileName(str(info.get("name") or "")))
-					partial = True
-				with open(path, "wb") as file:
-					partial = True
+				if path:
+					# Created by this call alone, so neither the user's file nor anyone else's is written over.
+					handle, partial = tempfile.mkstemp(
+						prefix=f"{os.path.basename(path)[:100]}.",
+						suffix=".part",
+						dir=os.path.dirname(path) or None,
+					)
+					os.close(handle)
+				else:
+					path = partial = _createFreeFile(
+						folder, fileSafety.safeFileName(str(info.get("name") or ""))
+					)
+				with open(partial, "wb") as file:
 					offset, size = 0, int(info.get("size") or 0)
 					while offset < size:
 						piece = self._bridge("downloadChunk", info["id"], offset, UPLOAD_CHUNK_BYTES)
 						file.write(base64.b64decode(piece or ""))
 						offset += UPLOAD_CHUNK_BYTES
+				if partial != path:
+					os.replace(partial, path)
+				partial = ""
 			except BaseException:
 				if partial:
 					try:
-						os.remove(path)
+						os.remove(partial)
 					except OSError:
 						pass
 				raise
@@ -883,7 +898,13 @@ class WhatsAppSession:
 				self._bridge("downloadEnd", info["id"])
 			except WhatsAppError:
 				pass
-		fileSafety.markFromInternet(path)
+		if not fileSafety.markFromInternet(path) and requireMark:
+			# Without the mark, SmartScreen and Protected View would not check the file when it opens.
+			try:
+				os.remove(path)
+			except OSError:
+				pass
+			raise WhatsAppError("notMarked", path)
 		return path
 
 	def suggestedFileName(self, messageId: str) -> str:

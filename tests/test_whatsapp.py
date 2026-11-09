@@ -431,6 +431,36 @@ def test_a_failed_download_leaves_no_partial_file(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_saving_over_a_file_replaces_it_only_when_complete(tmp_path):
+    target = tmp_path / "laporan.pdf"
+    target.write_bytes(b"mine")
+    session = session_for(downloading("laporan.pdf", b"new content"))
+    assert session.download("M1", path=str(target)) == str(target)
+    assert target.read_bytes() == b"new content"
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_a_failed_save_keeps_the_file_that_was_there(tmp_path):
+    target = tmp_path / "laporan.pdf"
+    target.write_bytes(b"mine")
+    session = session_for(downloading("laporan.pdf", chunk=whatsApp.WhatsAppError("mediaGone")))
+    with pytest.raises(whatsApp.WhatsAppError):
+        session.download("M1", path=str(target))
+    assert target.read_bytes() == b"mine"
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_a_file_to_open_that_cannot_be_marked_is_removed(tmp_path, monkeypatch):
+    monkeypatch.setattr(whatsApp.fileSafety, "markFromInternet", lambda path: False)
+    session = session_for(downloading("foto.jpg"))
+    with pytest.raises(whatsApp.WhatsAppError) as raised:
+        session.download("M1", folder=str(tmp_path), requireMark=True)
+    assert raised.value.code == "notMarked"
+    assert list(tmp_path.iterdir()) == []
+    # Not about to be opened: the file stays, unmarked.
+    assert session.download("M1", folder=str(tmp_path)) == str(tmp_path / "foto.jpg")
+
+
 def test_a_download_the_page_cannot_start_is_reported(tmp_path):
     browser = page({"window.__waAccess.install()": True, **LINKED, "window.__waAccess.downloadStart(": None})
     session = session_for(browser)
