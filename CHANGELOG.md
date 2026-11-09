@@ -53,6 +53,8 @@ Steadier:
 - A connection that fails halfway is closed properly, so trying again works, and the hidden browser is
   no longer started twice.
 - Reloading NVDA's plugins right after NVDA starts no longer leaves an extra hidden browser running.
+- Pressing NVDA+Shift+W just as WhatsApp starts with NVDA no longer starts it a second time, which could
+  wrongly ask to link the phone again. If WhatsApp is still starting, the window opens once it is ready.
 
 ## [0.4.1]
 

@@ -113,6 +113,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		"""Set by terminate. Work still running in other threads then does nothing more, so a plugin
 		reloaded with NVDA+Control+F3 never leaves a second browser or window behind."""
 		self._saidMissingFeatures = False
+		self._showWhenStarted = False
+		"""NVDA+Shift+W was pressed while a start was already on its way: open the window when it is done."""
 		self._autoStartTimer: wx.CallLater | None = None
 		settings = config.conf[CONFIG_SECTION]
 		if settings["setupDone"] and settings["connection"] == "hidden" and settings["startWithNVDA"]:
@@ -239,6 +241,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			return
 		if self._connecting:
 			if time.monotonic() - self._connectingSince < CONNECT_STALE_SECONDS:
+				self._showWhenStarted = True
 				# Translators: Reported when the user asks again while the add-on is still connecting.
 				ui.message(_("Still connecting to WhatsApp Web"))
 				return
@@ -366,6 +369,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._autoStartTimer = None
 		if self._terminated:
 			return
+		if self._connecting and time.monotonic() - self._connectingSince < CONNECT_STALE_SECONDS:
+			# One start at a time. A second one, such as the start with NVDA firing just after NVDA+Shift+W,
+			# would find the first one's connection half made and answer "needsLink", asking the user to
+			# link a phone that is linked already.
+			if thenShow:
+				self._showWhenStarted = True
+			return
 		browser = self._chooseHiddenBrowser()
 		if browser is None:
 			if announce:
@@ -425,6 +435,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def _hiddenStarted(self, state: str, thenShow: bool) -> None:
 		self._connecting = False
+		thenShow = thenShow or self._showWhenStarted
+		self._showWhenStarted = False
 		if self._terminated:
 			return
 		self._sayMissingFeatures()
@@ -557,6 +569,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def _connectFailed(self, error: Exception, browserName: str, announce: bool = True) -> None:
 		self._connecting = False
+		# The user asked for the window while it was starting, so they want to hear why it failed.
+		announce = announce or self._showWhenStarted
+		self._showWhenStarted = False
 		if announce:
 			ui.message(errorText(error, browserName))
 
