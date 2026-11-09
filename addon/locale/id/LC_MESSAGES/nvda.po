@@ -2803,3 +2803,6 @@ msgstr "Setiap pilihan paling panjang {count} karakter: {option}"
 
 msgid "Two options are the same: {option}"
 msgstr "Ada dua pilihan yang sama: {option}"
+#. Translators: The label of the box in the call window that says who is calling and how it goes.
+msgid "Call:"
+msgstr "Panggilan:"

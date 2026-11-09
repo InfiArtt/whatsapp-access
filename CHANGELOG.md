@@ -3,6 +3,13 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [Unreleased]
+
+- Questions before deleting, leaving, reporting or unlinking use NVDA's own message dialog: the safe
+  answer is the one focused first and the one Escape gives.
+- The list in list dialogs, and the box in the call window, now have names NVDA reads.
+- The README says plainly that NVDA 2025 is 32-bit and NVDA is 64-bit from 2026.1 on.
+
 ## [0.5.0]
 
 Safer files and a safer place for your WhatsApp login.

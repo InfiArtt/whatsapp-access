@@ -120,6 +120,7 @@ def eventText(event: dict) -> str:
 	"""An event's details and who answered, one item per line, to read in a text box."""
 	lines = [event.get("name", "")]
 	if event.get("canceled"):
+		# Translators: Added to an event that was canceled, in its details.
 		lines.append(_("canceled"))
 	# Translators: When an event starts, in its details.
 	lines.append(_("Starts: {when}").format(when=timeText(event.get("start", 0))))

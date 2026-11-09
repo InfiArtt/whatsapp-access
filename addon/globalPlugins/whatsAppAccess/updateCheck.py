@@ -119,9 +119,10 @@ def check(manual: bool, onlyIfRequired: bool = False) -> None:
 				wx.CallAfter(_offer, release)
 				offered = True
 			elif manual:
-				# Translators: Said when the user checked for a new version and has the newest one.
 				wx.CallAfter(
-					ui.message, _("You have the newest version, {version}").format(version=currentVersion())
+					ui.message,
+					# Translators: Said when the user checked for a new version and has the newest one.
+					_("You have the newest version, {version}").format(version=currentVersion()),
 				)
 		finally:
 			# Once offered, the offer says when it is over.
