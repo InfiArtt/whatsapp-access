@@ -7,8 +7,10 @@ import pytest
 from fakeBrowser import FakeBrowser
 from whatsAppAccess import cdp, whatsApp
 
+# The page already has this version's bridge.
+CURRENT_BRIDGE = "!!(window.__waAccess && window.__waAccess.sourceHash === "
 LINKED = {
-    "!!(window.__waAccess && window.__waAccess.authState)": True,
+    CURRENT_BRIDGE: True,
     "window.__waAccess.authState()": {"socket": "CONNECTED", "needsLink": False, "ready": True},
 }
 CHATS = [{"id": "1@c.us", "title": "Budi", "isGroup": False, "unread": 2}]
@@ -68,7 +70,7 @@ def test_connect_attaches_to_the_whatsapp_tab_and_installs_the_bridge():
         "Runtime.enable",
     ]
     expressions = [m["params"]["expression"] for m in browser.received if m["method"] == "Runtime.evaluate"]
-    assert expressions[0] == "!!(window.__waAccess && window.__waAccess.authState)"
+    assert expressions[0].startswith(CURRENT_BRIDGE)
     session.close()
 
 
@@ -82,6 +84,114 @@ def test_the_bridge_is_installed_when_the_page_has_none():
     session = session_for(browser)
     expressions = [m["params"]["expression"] for m in browser.received if m["method"] == "Runtime.evaluate"]
     assert any("window.__waAccess = {" in e for e in expressions)
+    session.close()
+
+
+def test_a_bridge_from_another_version_is_replaced():
+    browser = page(
+        {
+            CURRENT_BRIDGE: False,
+            "window.__waAccess.authState()": {"socket": "CONNECTED", "needsLink": False, "ready": True},
+            "window.__waAccess.install()": True,
+        }
+    )
+    session = session_for(browser)
+    expressions = [m["params"]["expression"] for m in browser.received if m["method"] == "Runtime.evaluate"]
+    source = next(i for i, e in enumerate(expressions) if "window.__waAccess = {" in e)
+    # The new copy unhooks the old one itself, then is marked as this version's.
+    assert "old.unhook()" in expressions[source]
+    assert expressions[source + 1].startswith("window.__waAccess.sourceHash = ")
+    session.close()
+
+
+def test_a_failed_install_leaves_nothing_connected():
+    lost = threading.Event()
+    browser = page(
+        {
+            **LINKED,
+            "window.__waAccess.install()": Exception("Error: Requiring unknown module 'WAWebMsgModel'"),
+        }
+    )
+    target = cdp.DebuggableBrowser(
+        cdp.Browser("Brave", None, "brave.exe", ""), browser.port, "/devtools/browser/x"
+    )
+    session = whatsApp.WhatsAppSession(findBrowsers=lambda: [target], onDisconnect=lost.set)
+    with pytest.raises(whatsApp.WhatsAppError):
+        session.connect(target)
+    assert not session.connected
+    # Not a lost connection: the caller reports the failure, and may simply try again.
+    assert not lost.wait(0.5)
+
+
+def test_features_whatsapp_took_away_are_kept_for_the_add_on_to_report():
+    browser = page(
+        {
+            "window.__waAccess.install()": True,
+            **LINKED,
+            "window.__waAccess.missingFeatures()": ["reactions: WAWebCollections.Reactions is missing"],
+        }
+    )
+    session = session_for(browser)
+    assert session.missingFeatures == ["reactions: WAWebCollections.Reactions is missing"]
+    session.close()
+
+
+def test_a_call_is_tried_again_only_when_the_page_lost_the_bridge():
+    sends = []
+
+    def handler(message):
+        method = message["method"]
+        if method == "Target.getTargets":
+            return {"targetInfos": WHATSAPP_TABS}
+        if method == "Target.attachToTarget":
+            return {"sessionId": "S1"}
+        if method != "Runtime.evaluate":
+            return {}
+        expression = message["params"]["expression"]
+        value = None
+        if expression.startswith("window.__waAccess.sendText("):
+            sends.append(expression)
+            if len(sends) == 1:
+                # The page reloaded: there is no bridge, so the function never ran.
+                description = "TypeError: Cannot read properties of undefined (reading 'sendText')"
+                return {
+                    "result": {"type": "object"},
+                    "exceptionDetails": {"exception": {"description": description}},
+                }
+            value = True
+        elif expression.startswith('typeof window.__waAccess === "undefined"'):
+            value = len(sends) == 1
+        elif expression.startswith(CURRENT_BRIDGE) or expression.startswith("window.__waAccess.install()"):
+            value = True
+        elif expression.startswith("window.__waAccess.authState()"):
+            value = LINKED["window.__waAccess.authState()"]
+        return {"result": {"type": "object", "value": value}}
+
+    session = session_for(FakeBrowser(handler))
+    session.sendText("1@c.us", "halo")
+    assert len(sends) == 2
+    session.close()
+
+
+def test_a_failed_send_is_not_sent_again_while_the_bridge_is_there():
+    browser = page(
+        {
+            "window.__waAccess.install()": True,
+            **LINKED,
+            "window.__waAccess.sendText(": Exception("TypeError: x is not a function"),
+            'typeof window.__waAccess === "undefined"': False,
+        }
+    )
+    session = session_for(browser)
+    with pytest.raises(whatsApp.WhatsAppError):
+        session.sendText("1@c.us", "halo")
+    sends = [
+        m
+        for m in browser.received
+        if m["method"] == "Runtime.evaluate"
+        and m["params"]["expression"].startswith("window.__waAccess.sendText(")
+    ]
+    assert len(sends) == 1
     session.close()
 
 

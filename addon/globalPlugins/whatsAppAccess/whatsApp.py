@@ -9,7 +9,9 @@ It imports nothing from NVDA, so it can be tested on its own.
 """
 
 import base64
+import hashlib
 import json
+import logging
 import os
 import threading
 import time
@@ -33,6 +35,9 @@ HEARTBEAT_SECONDS = 20.0
 MEMORY_CHECK_SECONDS = 300.0
 MEMORY_TRIM_BYTES = 500 * 1024 * 1024
 BRIDGE_PATH = os.path.join(os.path.dirname(__file__), "pageBridge.js")
+_BRIDGE_MISSING = 'typeof window.__waAccess === "undefined"'
+
+_log = logging.getLogger(__name__)
 
 
 class WhatsAppError(Exception):
@@ -129,6 +134,10 @@ class WhatsAppSession:
 		self.browserName = ""
 		self._closing = False
 		self._bridgeSource: str | None = None
+		self._bridgeHash = ""
+		"""A hash of pageBridge.js, kept in the page, so a copy from an older version of the add-on is replaced."""
+		self.missingFeatures: list[str] = []
+		"""What the bridge could not hook because WhatsApp changed it, such as "reactions: ..."."""
 		self.quietWhatsAppNotifications = False
 		self.linked = False
 		self.callAudio: tuple[str, str] = ("", "whatsapp")
@@ -218,7 +227,13 @@ class WhatsAppSession:
 				target=self._guardMemory, name="whatsAppAccess.memory", daemon=True
 			)
 			self._memoryGuard.start()
-		return self.installBridge()
+		try:
+			return self.installBridge()
+		except BaseException:
+			# Otherwise the session would count as connected with no bridge: the next connect would answer
+			# "needsLink" at once, and a retry that stops the browser would be reported as a lost connection.
+			self.close()
+			raise
 
 	def installBridge(self) -> str:
 		"""Install pageBridge.js and wait until WhatsApp has loaded its chats.
@@ -228,12 +243,19 @@ class WhatsAppSession:
 		if self._bridgeSource is None:
 			with open(BRIDGE_PATH, encoding="utf-8") as file:
 				self._bridgeSource = file.read()
+			self._bridgeHash = hashlib.sha256(self._bridgeSource.encode("utf-8")).hexdigest()[:16]
+		hashLiteral = json.dumps(self._bridgeHash)
 		deadline = time.monotonic() + READY_TIMEOUT_SECONDS
 		while True:
-			# The page may still be loading, or loading again: install the bridge until it is there.
+			# The page may still be loading, or loading again: install the bridge until it is there. A bridge
+			# from another version of the add-on, left in a page that stayed open, is replaced: the new
+			# copy unhooks the old one first.
 			try:
-				if not self._evaluate("!!(window.__waAccess && window.__waAccess.authState)"):
+				if not self._evaluate(
+					f"!!(window.__waAccess && window.__waAccess.sourceHash === {hashLiteral})"
+				):
 					self._evaluate(self._bridgeSource)
+					self._evaluate(f"window.__waAccess.sourceHash = {hashLiteral}")
 				state = self._evaluate("window.__waAccess.authState()") or {}
 			except WhatsAppError as e:
 				if e.code == "disconnected":
@@ -244,6 +266,11 @@ class WhatsAppSession:
 				return "needsLink"
 			if state.get("ready") and self._evaluate("window.__waAccess.install()"):
 				self.linked = True
+				self.missingFeatures = list(self._evaluate("window.__waAccess.missingFeatures()") or [])
+				if self.missingFeatures:
+					_log.warning(
+						f"WhatsApp Access: WhatsApp changed; turned off: {'; '.join(self.missingFeatures)}"
+					)
 				self.setQuietNotifications(self.quietWhatsAppNotifications)
 				self._bridge(
 					"setCallAudio",
@@ -431,8 +458,9 @@ class WhatsAppSession:
 		try:
 			return self._evaluate(expression, timeout)
 		except WhatsAppError as e:
-			if e.code == "failed" and "__waAccess" in e.detail:
-				# The page was reloaded and the bridge is not back yet.
+			# The page was reloaded and the bridge is not back yet. Only then is the call tried again: the
+			# function never ran, so nothing can be sent twice.
+			if e.code == "failed" and self._evaluate(_BRIDGE_MISSING):
 				self.installBridge()
 				return self._evaluate(expression, timeout)
 			raise
