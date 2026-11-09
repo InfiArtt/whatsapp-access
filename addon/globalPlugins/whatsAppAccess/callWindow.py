@@ -432,6 +432,22 @@ class CallAnnouncer:
 			except Exception:  # noqa: BLE001 - the WhatsApp window may be closing
 				log.debugWarning("WhatsApp Access: call change", exc_info=True)
 
+	def connectionGone(self, announce: bool = True) -> None:
+		"""WhatsApp stopped: the connection was lost, it was closed, or NVDA is exiting. No call can go on
+		without it, and WhatsApp will not say so, so the call is forgotten here: the ring stops, the call
+		window closes, and NVDA+Alt+A or NVDA+Alt+M no longer act on a call that is gone."""
+		sounds.stopRing()
+		if self.call is None:
+			return
+		if announce:
+			self.onCall(None)
+			return
+		self.call = None
+		self.muted = False
+		if self.window:
+			self.window.Close()
+		self._changed()
+
 	def onCall(self, call: dict | None) -> None:
 		before = self.call or {}
 		ringing = bool(

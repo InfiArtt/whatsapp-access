@@ -128,7 +128,7 @@ def _ring(path: str, stop: threading.Event) -> None:
 		# Read each time, so F7 and F8 change the ring while it rings.
 		volume = int(config.conf[CONFIG_SECTION][NOTIFICATION]) / 100
 		if volume > 0:
-			_play(path, volume, keep=True)
+			_play(path, volume, stop=stop)
 		stop.wait(RING_GAP_SECONDS)
 
 
@@ -160,10 +160,14 @@ def preview(name: str) -> None:
 		return
 	volume = int(settings[NOTIFICATION]) / 100
 	if volume > 0:
+		# Its own stop signal, which stopRing sets too, so a preview still loading never plays after it.
+		stop = threading.Event()
+		global _ringStop
+		_ringStop = stop
 		threading.Thread(
 			target=_play,
 			args=(path, volume),
-			kwargs={"keep": True},
+			kwargs={"stop": stop},
 			name="whatsAppAccess.preview",
 			daemon=True,
 		).start()
@@ -187,8 +191,14 @@ def stopRing() -> None:
 			log.debugWarning("WhatsApp Access: stopping the ring", exc_info=True)
 
 
-def _play(path: str, volume: float, keep: bool = False) -> None:
-	"""Play a WAV file to its end. With keep, it is the ring, which stopRing can cut short."""
+def _play(path: str, volume: float, stop: threading.Event | None = None) -> None:
+	"""Play a WAV file to its end. With stop, it is the ring or a preview, which stopRing can cut short.
+
+	Reading and scaling a long file takes a while; stopRing may come meanwhile, before there is a player
+	to stop. So stop is checked under the same lock just before the player is registered, and then the
+	sound is not played at all.
+	"""
+	keep = stop is not None
 	global _ringPlayer
 	try:
 		with wave.open(path, "rb") as file:
@@ -204,6 +214,8 @@ def _play(path: str, volume: float, keep: bool = False) -> None:
 		)
 		if keep:
 			with _ringLock:
+				if stop.is_set():
+					return
 				_ringPlayer = player
 		try:
 			player.feed(frames)

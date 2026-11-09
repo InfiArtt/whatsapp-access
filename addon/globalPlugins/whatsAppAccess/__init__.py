@@ -205,6 +205,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				timer.Stop()
 		self._autoStartTimer = self._updateTimer = self._lostTimer = None
 		sounds.stopRing()
+		self.calls.connectionGone(announce=False)
 		if WhatsAppSettingsPanel in NVDASettingsDialog.categoryClasses:
 			NVDASettingsDialog.categoryClasses.remove(WhatsAppSettingsPanel)
 		if self.window:
@@ -499,6 +500,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def disconnectForChange(self) -> None:
 		"""The connection settings changed: drop the current connection; the next one uses the new way."""
 		self._stopping = True
+		self.calls.connectionGone()
 		if self.window:
 			self.window.Close()
 		self.session.close()
@@ -624,6 +626,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		wx.CallAfter(self._disconnected)
 
 	def _disconnected(self) -> None:
+		# A call cannot outlive the connection; WhatsApp will not say it ended.
+		self.calls.connectionGone()
 		if self.window:
 			self.window.Close()
 		if self._stopping:
@@ -1248,7 +1252,12 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		if answer == wx.YES and self.plugin is not None:
 			self.plugin.unlink()
 
+	def onDiscard(self) -> None:
+		# A sound heard with Play or while choosing stops with the settings.
+		sounds.stopRing()
+
 	def onSave(self) -> None:
+		sounds.stopRing()
 		settings = config.conf[CONFIG_SECTION]
 		connection = "hidden" if self.connectionChoice.GetSelection() == 0 else "ownBrowser"
 		changed = connection != settings["connection"] or (
