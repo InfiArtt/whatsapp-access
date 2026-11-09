@@ -887,11 +887,7 @@ class ChatWindow(wx.Dialog):
 		# Translators: A button beside the contact's name in a chat: opens the chat's menu, as WhatsApp's.
 		self.moreButton = wx.Button(panel, label=_("More options"))
 		self.moreButton.Bind(wx.EVT_BUTTON, lambda evt: self._conversationMenu())
-		header.Add(self.moreButton, 0, wx.RIGHT, 6)
-		# Translators: A button beside the contact's name in a chat: closes the chat; the chat list stays.
-		closeChatButton = wx.Button(panel, label=_("Close chat (Ctrl+W)"))
-		closeChatButton.Bind(wx.EVT_BUTTON, lambda evt: self.showChats())
-		header.Add(closeChatButton, 0)
+		header.Add(self.moreButton, 0)
 		sizer.Add(header, 0, wx.EXPAND | wx.BOTTOM, 6)
 		self._presence: dict | None = None
 		self._presenceText = ""

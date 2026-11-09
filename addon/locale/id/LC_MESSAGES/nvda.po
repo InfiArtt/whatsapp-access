@@ -121,9 +121,6 @@ msgstr "&Kirim"
 
 
 
-msgid "Close chat (Ctrl+W)"
-msgstr "Tutup chat (Ctrl+W)"
-
 msgid "{chat} - WhatsApp"
 msgstr "{chat} - WhatsApp"
 
