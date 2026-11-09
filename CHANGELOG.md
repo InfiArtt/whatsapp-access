@@ -3,7 +3,7 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
-## [Unreleased]
+## [0.6.2]
 
 - Enter on the voice message playing pauses it, and Enter again goes on from there, as WhatsApp's
   play button does; Escape stops. Before, Enter stopped it.
