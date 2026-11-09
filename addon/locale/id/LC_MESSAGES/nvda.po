@@ -2665,3 +2665,8 @@ msgstr "File ini sudah tidak bisa diunduh. Buka di WhatsApp di ponselmu."
 #. Translators: Reported when a downloaded file could not be written to disk. {reason} is Windows' reason.
 msgid "The file could not be saved ({reason})."
 msgstr "File tidak bisa disimpan ({reason})."
+
+#. Translators: Reported when sending several files stopped partway. The files that were
+#. sent are taken off the list, so Enter sends only the rest.
+msgid "{sent} of {count} sent; Enter sends the rest"
+msgstr "{sent} dari {count} terkirim; Enter mengirim sisanya"
