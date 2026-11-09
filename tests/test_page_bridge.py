@@ -77,9 +77,23 @@ const [mode] = JSON.parse(process.argv[2]);
     const file = new Uint8Array([...enc, ...mac]);
     if (mode === "damaged") file[3] ^= 1;
     let fetched = null;
+    let sent = 0;
     globalThis.fetch = async (url) => {
         fetched = url;
-        return { ok: true, status: 200, arrayBuffer: async () => file.buffer };
+        if (mode === "saysHuge") {
+            return new Response(file, { headers: { "content-length": String(10 ** 9) } });
+        }
+        if (mode === "endless") {
+            // No length given, and more bytes than any limit: reading must stop by itself.
+            const chunk = new Uint8Array(64 * 1024);
+            return new Response(new ReadableStream({
+                pull(controller) {
+                    sent += chunk.length;
+                    controller.enqueue(chunk);
+                },
+            }));
+        }
+        return new Response(file);
     };
     const downloadMedia = new Function(source.slice(start, end) + "; return downloadMedia;")();
     const m = {
@@ -89,10 +103,11 @@ const [mode] = JSON.parse(process.argv[2]);
         directPath: mode === "elsewhere" ? "//evil.example/x" : "/v/t62.7117-24/abc?ccb=11",
     };
     try {
-        const blob = await downloadMedia(m);
+        const blob = await downloadMedia(m, mode === "small" ? 4 : 1024 * 1024);
         process.stdout.write(JSON.stringify({ ok: true, text: await blob.text(), fetched }));
     } catch (e) {
-        process.stdout.write(JSON.stringify({ ok: false, error: e.message, fetched }));
+        const readTooMuch = sent > 2 * 1024 * 1024;
+        process.stdout.write(JSON.stringify({ ok: false, error: e.message, fetched, readTooMuch }));
     }
 })();
 """
@@ -123,6 +138,7 @@ def test_damaged_media_is_refused():
         "ok": False,
         "error": "mediaGone:damaged",
         "fetched": "https://mmg.whatsapp.net/v/t62.7117-24/abc?ccb=11",
+        "readTooMuch": False,
     }
 
 
@@ -130,3 +146,12 @@ def test_media_from_another_host_is_not_fetched():
     result = media("elsewhere")
     assert result["ok"] is False
     assert result["fetched"] is None
+
+
+@pytest.mark.parametrize("mode", ["saysHuge", "endless", "small"])
+def test_media_larger_than_the_limit_is_not_read(mode):
+    # Whatever size the message claims, the download stops at the limit.
+    result = media(mode)
+    assert result["ok"] is False
+    assert result["error"] == "mediaGone:tooLarge"
+    assert result["readTooMuch"] is False

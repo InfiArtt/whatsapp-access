@@ -2310,7 +2310,43 @@
 
 	const MEDIA_HOST = "https://mmg.whatsapp.net";
 
-	async function downloadMedia(m) {
+	// Reads a response's body, giving up once it is longer than limit bytes. The size a message gives is
+	// whatever its sender wrote, so it is not trusted: the bytes are counted as they arrive, and a file
+	// too large never fills the page's memory.
+	async function readLimited(response, limit) {
+		const length = Number(response.headers && response.headers.get("content-length"));
+		if (length > limit) {
+			throw new Error("mediaGone:tooLarge");
+		}
+		if (!response.body) {
+			return new Uint8Array(0);
+		}
+		const reader = response.body.getReader();
+		const parts = [];
+		let total = 0;
+		for (;;) {
+			const { value, done } = await reader.read();
+			if (done) {
+				break;
+			}
+			total += value.length;
+			if (total > limit) {
+				reader.cancel().catch(() => {});
+				throw new Error("mediaGone:tooLarge");
+			}
+			parts.push(value);
+		}
+		const bytes = new Uint8Array(total);
+		let at = 0;
+		for (const part of parts) {
+			bytes.set(part, at);
+			at += part.length;
+		}
+		return bytes;
+	}
+
+	// maxBytes is the most the file may have once decrypted.
+	async function downloadMedia(m, maxBytes) {
 		const info = MEDIA_KEY_INFO[m.type];
 		if (!info || !m.directPath || !m.mediaKey) {
 			throw new Error("noMedia");
@@ -2325,7 +2361,8 @@
 		if (!response.ok) {
 			throw new Error("mediaGone:" + response.status);
 		}
-		const encrypted = new Uint8Array(await response.arrayBuffer());
+		// Encryption adds up to 16 bytes of padding, and the MAC 10 more.
+		const encrypted = await readLimited(response, maxBytes + 26);
 		if (encrypted.length < 26) {
 			throw new Error("mediaGone:short");
 		}
@@ -2404,7 +2441,15 @@
 		if (m.size && m.size > MAX_FILE_BYTES) {
 			throw new Error("fileTooLarge:" + MAX_FILE_BYTES / 1024 / 1024);
 		}
-		const blob = await downloadMedia(m);
+		let blob;
+		try {
+			blob = await downloadMedia(m, MAX_FILE_BYTES);
+		} catch (e) {
+			if (e.message === "mediaGone:tooLarge") {
+				throw new Error("fileTooLarge:" + MAX_FILE_BYTES / 1024 / 1024);
+			}
+			throw e;
+		}
 		if (blob.size > MAX_FILE_BYTES) {
 			throw new Error("fileTooLarge:" + MAX_FILE_BYTES / 1024 / 1024);
 		}
@@ -2434,10 +2479,14 @@
 		return true;
 	}
 
+	// A voice note or audio file longer than this is not a real one: 64 MB is hours of speech.
+	const MAX_AUDIO_PLAY_BYTES = 64 * 1024 * 1024;
+
 	async function playMessage(messageId) {
 		// getMsg also finds statuses, which are not in the chats' messages.
 		const m = getMsg(messageId);
-		return play(await downloadMedia(m), messageId);
+		const limit = m.type === "ptt" || m.type === "audio" ? MAX_AUDIO_PLAY_BYTES : MAX_FILE_BYTES;
+		return play(await downloadMedia(m, limit), messageId);
 	}
 
 	async function playRecording() {
