@@ -777,6 +777,21 @@
 		return true;
 	}
 
+	// After deleting for everyone, WhatsApp shows the message as "This message was deleted". It may put a
+	// new model in place of the old one rather than change it, so no change event can be relied on: wait
+	// for the message under this id to be revoked, and hand its new line back to the add-on.
+	async function revokedInfo(messageId) {
+		const deadline = Date.now() + 5000;
+		while (Date.now() < deadline) {
+			const now = collections().Msg.get(messageId);
+			if (now && now.type === "revoked") {
+				return messageInfo(now);
+			}
+			await new Promise((resolve) => setTimeout(resolve, 200));
+		}
+		return null;
+	}
+
 	async function deleteMessage(messageId, forEveryone) {
 		const m = getMsg(messageId);
 		const chat = getChat(m.id.remote._serialized);
@@ -786,6 +801,7 @@
 				throw new Error("cannotRevoke");
 			}
 			await settled(Cmd.sendRevokeMsgs(chat, { list: [m], type: "message" }, { clearMedia: true }));
+			return (await revokedInfo(messageId)) || true;
 		} else {
 			await settled(Cmd.sendDeleteMsgs(chat, { list: [m], type: "message" }, true));
 		}
@@ -3168,6 +3184,11 @@
 
 	function hookMessages(C) {
 		on(C.Msg, "add", (m) => {
+			if (m.type === "revoked" && !m.isNewMsg && m.id && m.id.remote) {
+				// Someone deleted a message for everyone, and WhatsApp put a revoked model in its place.
+				emit({ type: "edited", chatId: m.id.remote._serialized, message: messageInfo(m) });
+				return;
+			}
 			if (!m.isNewMsg || HIDDEN_TYPES.has(m.type) || m.isNotification) {
 				return;
 			}

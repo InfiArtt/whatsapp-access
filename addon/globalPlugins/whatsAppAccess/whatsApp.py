@@ -548,8 +548,14 @@ class WhatsAppSession:
 	def editText(self, messageId: str, text: str) -> None:
 		self._bridge("editText", messageId, text, timeout=60)
 
-	def deleteMessage(self, messageId: str, forEveryone: bool) -> None:
-		self._bridge("deleteMessage", messageId, forEveryone)
+	def deleteMessage(self, messageId: str, forEveryone: bool) -> dict | None:
+		"""Delete a message for the user, or for everyone.
+
+		:return: For everyone, the message as WhatsApp shows it now ("This message was deleted"), when it
+			did so within a few seconds; else None.
+		"""
+		result = self._bridge("deleteMessage", messageId, forEveryone)
+		return result if isinstance(result, dict) else None
 
 	def messagesActions(self, messageIds: list[str]) -> dict:
 		"""For several messages: deleteForEveryone (all may be), star (any may be), allStarred."""
