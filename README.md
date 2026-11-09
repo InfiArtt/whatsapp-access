@@ -10,7 +10,7 @@ record or choose, when you choose to send it. It never answers or sends anything
 
 ## What you need
 
-- Windows 10 or 11, and NVDA 2026.3 or later.
+- Windows 10 or 11, and NVDA 2025.1 or later, the 32-bit NVDA of 2025 as well as the 64-bit one.
 - One of these browsers installed, version 120 or newer: Brave, Google Chrome, Chromium, Vivaldi,
   Opera or Microsoft Edge. You don't have to use it yourself; the add-on only borrows it.
 - WhatsApp on your phone, to link this computer once, as for WhatsApp Web.

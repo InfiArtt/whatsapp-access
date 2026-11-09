@@ -2,8 +2,8 @@
 # Copyright (C) 2026 InfiArtt
 # This file is covered by the GNU General Public License.
 
-"""Registers the add-on's configuration section, using the API added in NVDA 2026.3, and keeps the
-WhatsApp login through updates; see dataFolder."""
+"""Registers the add-on's configuration section, using the API added in NVDA 2026.3 where there is one,
+and keeps the WhatsApp login through updates; see dataFolder."""
 
 import importlib.util
 import os
@@ -86,10 +86,14 @@ def _forceClose() -> None:
 
 
 def onInstall() -> None:
-	from config.configSections import registerSection
-
-	configSpec = _load("configSpec")
-	registerSection(configSpec.CONFIG_SECTION, configSpec.CONFIG_SPEC)
+	try:
+		from config.configSections import registerSection
+	except ImportError:
+		# NVDA before 2026.3 has no such API; the add-on adds its section to the configuration as it starts.
+		pass
+	else:
+		configSpec = _load("configSpec")
+		registerSection(configSpec.CONFIG_SECTION, configSpec.CONFIG_SPEC)
 	# The version being replaced may remove the data when NVDA restarts; move it aside until then.
 	try:
 		_load("dataFolder").keepThroughUpdate(_configPath(), _stopRunning, _forceClose)
@@ -118,8 +122,12 @@ def onUninstall() -> None:
 		return
 	try:
 		from config.configSections import unregisterSection
-
-		unregisterSection(_load("configSpec").CONFIG_SECTION)
+	except ImportError:
+		# NVDA before 2026.3: nothing was registered.
+		unregisterSection = None
+	try:
+		if unregisterSection is not None:
+			unregisterSection(_load("configSpec").CONFIG_SECTION)
 	except Exception:  # noqa: BLE001 - see comment above
 		from logHandler import log
 

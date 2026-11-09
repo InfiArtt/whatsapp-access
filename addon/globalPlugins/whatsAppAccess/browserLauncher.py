@@ -115,9 +115,12 @@ def _registryPath(executable: str) -> str | None:
 	import winreg
 
 	key = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{executable}"
-	for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+	# NVDA before 2026.1 is a 32-bit program: Windows would show it only the 32-bit programs' part of
+	# HKEY_LOCAL_MACHINE, where 64-bit browsers are not listed. The 64-bit view comes first.
+	views = (winreg.KEY_WOW64_64KEY, 0)
+	for root, view in [(winreg.HKEY_CURRENT_USER, 0)] + [(winreg.HKEY_LOCAL_MACHINE, v) for v in views]:
 		try:
-			with winreg.OpenKey(root, key) as handle:
+			with winreg.OpenKey(root, key, 0, winreg.KEY_READ | view) as handle:
 				value, _ = winreg.QueryValueEx(handle, "")
 				if value and os.path.isfile(value):
 					return value
@@ -134,6 +137,9 @@ def findBrowsers(
 	"""The Chromium-based browsers installed, in order of preference, each with its version."""
 	if roots is None:
 		roots = [
+			# In a 32-bit program, such as NVDA before 2026.1, ProgramFiles is the "(x86)" folder;
+			# ProgramW6432 is always the real Program Files, where 64-bit browsers are.
+			os.environ.get("ProgramW6432", ""),
 			os.environ.get("ProgramFiles", r"C:\Program Files"),
 			os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
 			os.environ.get("LOCALAPPDATA", ""),

@@ -34,6 +34,19 @@ def test_a_browser_only_in_the_registry_is_found(tmp_path):
     assert [b.key for b in found] == ["vivaldi"]
 
 
+def test_a_32_bit_nvda_finds_browsers_in_the_real_program_files(tmp_path, monkeypatch):
+    # In a 32-bit program, ProgramFiles is the "(x86)" folder; 64-bit Brave is only in ProgramW6432.
+    real, x86 = tmp_path / "Program Files", tmp_path / "Program Files (x86)"
+    install(real, r"BraveSoftware\Brave-Browser\Application", "brave.exe", "157.1.99.55")
+    x86.mkdir()
+    monkeypatch.setenv("ProgramW6432", str(real))
+    monkeypatch.setenv("ProgramFiles", str(x86))
+    monkeypatch.setenv("ProgramFiles(x86)", str(x86))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
+    found = browserLauncher.findBrowsers(registry=lambda exe: None, fileVersion=lambda p: ())
+    assert [b.key for b in found] == ["brave"]
+
+
 def browser(key, major):
     return browserLauncher.InstalledBrowser(key, key.title(), f"C:/{key}.exe", (major, 0, 0, 0))
 

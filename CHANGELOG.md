@@ -7,6 +7,10 @@ notes the add-on shows before it installs an update.
 
 Safer files and a safer place for your WhatsApp login.
 
+- WhatsApp Access now works with NVDA 2025.1 and later, including the 32-bit NVDA of 2025, not only
+  NVDA 2026.3. On a 32-bit NVDA, 64-bit browsers such as Brave are now found in Program Files and
+  in the registry.
+
 - In the chat you have open, a new message is read as "name: message" even when you chose to hear
   only who messages are from. That choice now applies only to messages from other chats.
 - The message box empties as soon as you press Enter, as in WhatsApp, so you can type the next

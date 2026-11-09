@@ -80,6 +80,23 @@ def test_an_old_version_that_removes_the_data_finds_nothing(tmp_path, monkeypatc
     assert (config / "whatsAppAccess.updating" / "browser" / "login").exists()
 
 
+def test_nvda_before_2026_3_installs_and_removes_without_the_section_api(tmp_path, monkeypatch):
+    config, addons = tmp_path / "config", tmp_path / "addons"
+    login = linked(config)
+    old = install_copy(addons, "whatsAppAccess")
+    new = install_copy(addons, "whatsAppAccess.pendingInstall")
+    nvda(monkeypatch, config)
+    # NVDA 2025 has no config.configSections; "config" is not a package there for this import.
+    monkeypatch.delitem(sys.modules, "config.configSections")
+    new.onInstall()
+    old.onUninstall()
+    assert (config / "whatsAppAccess.updating" / "browser" / "login").exists()
+    shutil.rmtree(addons / "whatsAppAccess.pendingInstall")
+    old.onUninstall()
+    assert not login.exists()
+    assert not (config / "whatsAppAccess.updating").exists()
+
+
 def test_the_running_add_on_is_stopped_before_its_data_moves(tmp_path, monkeypatch):
     config = tmp_path / "config"
     linked(config)
