@@ -9,6 +9,7 @@ This module uses only Python's standard library, so it can be tested without NVD
 
 import hashlib
 import json
+import os
 import re
 import urllib.request
 from dataclasses import dataclass
@@ -31,7 +32,7 @@ class Release:
 	notes: str
 	url: str
 	fileName: str
-	sha256: str | None
+	sha256: str
 
 
 def versionTuple(version: str) -> tuple[int, ...]:
@@ -49,7 +50,11 @@ def isNewer(latest: str, current: str) -> bool:
 
 
 def parseRelease(data: dict) -> Release:
-	"""The newest published release, from GitHub's answer; it must carry a .nvda-addon file."""
+	"""The newest published release, from GitHub's answer.
+
+	It must carry a .nvda-addon file from this repository with GitHub's SHA-256 of it. Without the checksum
+	nothing is installed: the file can't be checked, and NVDA would run whatever arrived.
+	"""
 	if data.get("draft") or data.get("prerelease"):
 		raise UpdateError("noRelease")
 	version = str(data.get("tag_name") or "")
@@ -59,11 +64,14 @@ def parseRelease(data: dict) -> Release:
 		url = str(asset.get("browser_download_url") or "")
 		if name.endswith(".nvda-addon") and url.startswith(DOWNLOAD_PREFIX):
 			digest = str(asset.get("digest") or "")
-			sha256 = digest.split(":", 1)[1].lower() if digest.startswith("sha256:") else None
+			sha256 = digest.split(":", 1)[1].lower() if digest.startswith("sha256:") else ""
+			if not sha256:
+				raise UpdateError("noChecksum")
 			notes = str(data.get("body") or "").strip()
 			if len(notes) > MAX_NOTES:
 				notes = notes[:MAX_NOTES].rstrip() + "…"
-			return Release(version.lstrip("v"), notes, url, name, sha256)
+			# Only the name: it becomes a file in the temporary folder.
+			return Release(version.lstrip("v"), notes, url, os.path.basename(name.replace("\\", "/")), sha256)
 	raise UpdateError("noAddonFile")
 
 
@@ -93,6 +101,10 @@ def download(release: Release, path: str, timeout: float = 60) -> str:
 				file.write(chunk)
 	except OSError as e:
 		raise UpdateError(f"network: {e}") from e
-	if release.sha256 and digest.hexdigest() != release.sha256:
+	if digest.hexdigest() != release.sha256:
+		try:
+			os.remove(path)
+		except OSError:
+			pass
 		raise UpdateError("badChecksum")
 	return path

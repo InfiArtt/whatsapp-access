@@ -64,6 +64,13 @@ def test_files_from_elsewhere_and_prereleases_are_refused():
         updates.parseRelease(release_data(prerelease=True))
 
 
+def test_a_release_without_a_checksum_is_not_installed():
+    data = release_data()
+    del data["assets"][1]["digest"]
+    with pytest.raises(updates.UpdateError, match="noChecksum"):
+        updates.parseRelease(data)
+
+
 def test_download_checks_the_checksum(tmp_path, monkeypatch):
     content = b"add-on bytes"
 
@@ -89,3 +96,5 @@ def test_download_checks_the_checksum(tmp_path, monkeypatch):
     good.sha256 = "0" * 64
     with pytest.raises(updates.UpdateError, match="badChecksum"):
         updates.download(good, str(path))
+    # A damaged download is not left behind.
+    assert not path.exists()

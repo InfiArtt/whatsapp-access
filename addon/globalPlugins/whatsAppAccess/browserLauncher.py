@@ -217,12 +217,11 @@ def launchArguments(browser: InstalledBrowser, profileDir: str, pipeHandles: tup
 		"--disable-renderer-backgrounding",
 		"--disable-backgrounding-occluded-windows",
 		"--autoplay-policy=no-user-gesture-required",
-		# Less memory. The browser only ever shows WhatsApp Web, so one renderer process is enough, and
-		# drawing needs no GPU process. Browser services nobody uses here are left off.
-		"--renderer-process-limit=1",
-		"--disable-site-isolation-trials",
+		# Less memory: drawing needs no GPU process, and browser services nobody uses here are left off.
+		# Site isolation stays on: WhatsApp shows media and link previews from anyone, and a separate,
+		# sandboxed renderer per site keeps a flaw in one from reaching the WhatsApp page.
 		(
-			"--disable-features=IsolateOrigins,site-per-process,Translate,OptimizationHints,MediaRouter,"
+			"--disable-features=Translate,OptimizationHints,MediaRouter,"
 			"BackForwardCache,AutofillServerCommunication,CalculateNativeWinOcclusion"
 		),
 		"--in-process-gpu",
