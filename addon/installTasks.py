@@ -110,9 +110,10 @@ def onUninstall() -> None:
 		from logHandler import log
 
 		log.exception("Could not unregister the whatsAppAccess configuration section")
-	# Removed for good: the hidden browser's profile holds the WhatsApp login and chats; it goes too.
+	# Removed for good: the hidden browser's profile holds the WhatsApp login and chats; it goes too,
+	# from NVDA's configuration folder and, for an installed NVDA, from LocalAppData.
 	try:
-		dataFolder.removeAll(_configPath())
+		dataFolder.removeAll(_configPath(), (dataFolder.addonDataPath(),))
 	except Exception:  # noqa: BLE001 - see comment above
 		from logHandler import log
 

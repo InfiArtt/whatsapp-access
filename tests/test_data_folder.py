@@ -53,3 +53,66 @@ def test_removing_the_add_on_removes_its_data(tmp_path):
     dataFolder.removeAll(str(tmp_path))
     assert not (tmp_path / "whatsAppAccess").exists()
     assert not (tmp_path / "whatsAppAccess.updating").exists()
+
+
+def test_the_data_moves_out_of_the_configuration_folder(tmp_path):
+    data = make_data(tmp_path / "config")
+    local = tmp_path / "local" / dataFolder.LOCAL_DATA_NAME
+    assert dataFolder.moveData(str(data), str(local))
+    assert not data.exists()
+    assert (local / "browser" / "login").read_text() == "linked"
+    assert (local / "mySounds" / "sent.wav").exists()
+
+
+def test_data_already_moved_wins_and_the_old_copy_goes(tmp_path):
+    data = make_data(tmp_path / "config")
+    local = tmp_path / "local"
+    (local / "browser").mkdir(parents=True)
+    (local / "browser" / "login").write_text("newer")
+    (local / "mySounds").mkdir()
+    assert not dataFolder.moveData(str(data), str(local))
+    assert not data.exists()
+    assert (local / "browser" / "login").read_text() == "newer"
+
+
+def test_a_new_folder_with_only_sounds_still_gets_the_login(tmp_path):
+    data = make_data(tmp_path / "config")
+    local = tmp_path / "local"
+    (local / "mySounds").mkdir(parents=True)
+    assert dataFolder.moveData(str(data), str(local))
+    assert not data.exists()
+    assert (local / "browser" / "login").read_text() == "linked"
+
+
+def test_nothing_to_move(tmp_path):
+    assert not dataFolder.moveData(str(tmp_path / "none"), str(tmp_path / "local"))
+    data = make_data(tmp_path / "config")
+    assert not dataFolder.moveData(str(data), str(data))
+    assert data.exists()
+
+
+def test_a_move_across_drives_copies_then_removes(tmp_path, monkeypatch):
+    data = make_data(tmp_path / "config")
+    local = tmp_path / "local"
+    replace = dataFolder.os.replace
+
+    def acrossDrives(source, target):
+        if str(source) == str(data):
+            raise OSError(17, "The system cannot move the file to a different disk drive")
+        replace(source, target)
+
+    monkeypatch.setattr(dataFolder.os, "replace", acrossDrives)
+    assert dataFolder.moveData(str(data), str(local))
+    assert not data.exists()
+    assert (local / "browser" / "login").read_text() == "linked"
+    assert not (tmp_path / "local.moving").exists()
+
+
+def test_removing_the_add_on_removes_every_copy(tmp_path):
+    config = tmp_path / "config"
+    make_data(config)
+    local = tmp_path / "local"
+    (local / "browser").mkdir(parents=True)
+    dataFolder.removeAll(str(config), (str(local), ""))
+    assert not (config / "whatsAppAccess").exists()
+    assert not local.exists()

@@ -25,13 +25,13 @@ def install_copy(addons: Path, name: str) -> types.ModuleType:
     return module
 
 
-def nvda(monkeypatch, config: Path, plugins=()):
+def nvda(monkeypatch, config: Path, plugins=(), installed=False):
     calls = []
     stubs = {
         "globalVars": {"appArgs": types.SimpleNamespace(configPath=str(config))},
         "globalPluginHandler": {"runningPlugins": set(plugins)},
         "logHandler": {"log": types.SimpleNamespace(exception=print, debugWarning=print)},
-        "config": {},
+        "config": {"isInstalledCopy": lambda: installed},
         "config.configSections": {
             "registerSection": lambda *a: calls.append("register"),
             "unregisterSection": lambda *a: calls.append("unregister"),
@@ -116,3 +116,15 @@ def test_a_cancelled_update_gives_the_data_back(tmp_path, monkeypatch):
     # The user removes the update before restarting NVDA: NVDA runs the new version's uninstall task.
     new.onUninstall()
     assert login.read_text() == "linked"
+
+
+def test_removing_the_add_on_from_an_installed_nvda_removes_the_login_in_localappdata(tmp_path, monkeypatch):
+    config, localAppData = tmp_path / "config", tmp_path / "local"
+    login = localAppData / "NVDA WhatsApp Access" / "browser" / "login"
+    login.parent.mkdir(parents=True)
+    login.write_text("linked")
+    monkeypatch.setenv("LOCALAPPDATA", str(localAppData))
+    installed = install_copy(tmp_path / "addons", "whatsAppAccess")
+    nvda(monkeypatch, config, installed=True)
+    installed.onUninstall()
+    assert not login.exists()
