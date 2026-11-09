@@ -397,6 +397,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._connecting = True
 		self._connectingSince = time.monotonic()
 		self.session.quietWhatsAppNotifications = config.conf[CONFIG_SECTION]["replaceNotifications"]
+		self.session.showNumbers = config.conf[CONFIG_SECTION]["showNumbers"]
 		self._applyCallAudio(connect=False)
 		if announce:
 			# Translators: Reported while the add-on starts its hidden browser with WhatsApp.
@@ -566,6 +567,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._connecting = True
 		self._connectingSince = time.monotonic()
 		self.session.quietWhatsAppNotifications = config.conf[CONFIG_SECTION]["replaceNotifications"]
+		self.session.showNumbers = config.conf[CONFIG_SECTION]["showNumbers"]
 		self._applyCallAudio(connect=False)
 		ui.message(
 			# Translators: Reported when the add-on starts connecting. The browser then asks the user.
@@ -1132,6 +1134,12 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			wx.CheckBox(self, label=_("Read out what new messages say, not only who they are &from"))
 		)
 		self.contentBox.SetValue(settings["readContent"])
+		self.numbersBox = helper.addItem(
+			# Translators: A checkbox in this add-on's settings. People who are not in the contacts are named with "~"
+			# and the name they chose; checked, their phone number comes first, such as "+62812… ~Budi".
+			wx.CheckBox(self, label=_("Show the phone number of people who are not in your &contacts"))
+		)
+		self.numbersBox.SetValue(settings["showNumbers"])
 		self.hintsBox = helper.addItem(
 			# Translators: A checkbox in this add-on's settings: say which keys to press after messages.
 			wx.CheckBox(self, label=_("Use &hints, such as which keys send or throw away a voice note"))
@@ -1328,6 +1336,8 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		settings["playbackSpeed"] = ("1", "1.5", "2")[self.speedChoice.GetSelection()]
 		replace = self.replaceBox.GetValue()
 		settings["replaceNotifications"] = replace
+		showNumbers = self.numbersBox.GetValue()
+		settings["showNumbers"] = showNumbers
 		plugin = self.plugin
 		if plugin is not None:
 			session = plugin.session
@@ -1335,6 +1345,7 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			def apply() -> None:
 				try:
 					session.setQuietNotifications(replace)
+					session.setShowNumbers(showNumbers)
 				except WhatsAppError as e:
 					log.debugWarning(f"WhatsApp Access: could not change WhatsApp's notifications: {e}")
 

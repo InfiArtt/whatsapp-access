@@ -102,8 +102,10 @@ Safer, from a second check of the code:
 
 - In the mode that uses your own browser, a page at a look-alike address such as
   web.whatsapp.com.example could have been taken for WhatsApp. Only web.whatsapp.com itself is now.
-- People not in your contacts are named by their number and the name they chose, such as
-  "+62812… ~Budi", as WhatsApp shows them, so a stranger can no longer appear as "Mom" or "Bank BCA".
+- People not in your contacts are named with "~" before the name they chose, such as "~Budi", as
+  WhatsApp shows them, so a stranger can no longer appear as "Mom" or "Bank BCA". To hear their phone
+  number too, such as "+62812… ~Budi", check "Show the phone number of people who are not in your
+  contacts" in the settings.
 - A photo, video or voice message is no longer read whole before its size is checked, so one pointing at
   a huge file can't make the hidden browser run out of memory.
 - A message is never sent twice when WhatsApp reloads while it sends.

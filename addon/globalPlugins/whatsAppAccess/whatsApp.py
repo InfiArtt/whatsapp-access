@@ -161,6 +161,7 @@ class WhatsAppSession:
 		self.missingFeatures: list[str] = []
 		"""What the bridge could not hook because WhatsApp changed it, such as "reactions: ..."."""
 		self.quietWhatsAppNotifications = False
+		self.showNumbers = False
 		self.linked = False
 		self.callAudio: tuple[str, str] = ("", "whatsapp")
 		self.speaker = ""
@@ -299,6 +300,7 @@ class WhatsAppSession:
 						f"WhatsApp Access: WhatsApp changed; turned off: {'; '.join(self.missingFeatures)}"
 					)
 				self.setQuietNotifications(self.quietWhatsAppNotifications)
+				self.setShowNumbers(self.showNumbers)
 				self._bridge(
 					"setCallAudio",
 					{
@@ -356,6 +358,12 @@ class WhatsAppSession:
 				target=self._beat, name="whatsAppAccess.heartbeat", daemon=True
 			)
 			self._heartbeat.start()
+
+	def setShowNumbers(self, show: bool) -> None:
+		"""Name people outside the contacts with their phone number before "~" and their own name, or not."""
+		self.showNumbers = show
+		if self.connected:
+			self._bridge("setShowNumbers", show)
 
 	def _beat(self) -> None:
 		while self.connected and self.quietWhatsAppNotifications:

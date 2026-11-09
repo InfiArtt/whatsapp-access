@@ -172,7 +172,7 @@ const wid = (text) => {
     const [user, server] = text.split("@");
     return { user, server, toString: () => text };
 };
-const [contacts, phones, ask] = JSON.parse(process.argv[2]);
+const [contacts, phones, ask, showNumbers] = JSON.parse(process.argv[2]);
 const Contact = { get: (id) => {
     const found = contacts[String(id)];
     return found ? Object.assign({ id: wid(String(id)) }, found) : undefined;
@@ -182,7 +182,7 @@ const req = (module) => ({
     WAWebWidFactory: { createWid: wid },
 })[module];
 const collections = () => ({ Contact });
-const code = "const VERIFIED_HIGH = 2;" +
+const code = "const VERIFIED_HIGH = 2; let showNumbers = " + JSON.stringify(showNumbers) + ";" +
     ["phoneWidOf", "contactOf", "personName", "contactName", "withMentionNames", "senderName"].map(take).join("\n") +
     "; return { contactName, withMentionNames, senderName };";
 const f = new Function("req", "collections", code)(req, collections);
@@ -207,9 +207,15 @@ CONTACTS = {
 PHONES = {"900@lid": "6281234567890@c.us", "901@lid": "62812@c.us"}
 
 
-def names(ask: dict) -> dict:
+def names(ask: dict, showNumbers: bool = True) -> dict:
     result = subprocess.run(
-        [NODE, "-e", NAMES_HELPER, str(PACKAGE_DIR / "pageBridge.js"), json.dumps([CONTACTS, PHONES, ask])],
+        [
+            NODE,
+            "-e",
+            NAMES_HELPER,
+            str(PACKAGE_DIR / "pageBridge.js"),
+            json.dumps([CONTACTS, PHONES, ask, showNumbers]),
+        ],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -245,6 +251,24 @@ def test_group_senders_are_named_the_same_way():
             "saved": {"sender": ["111@c.us", "Ibu"]},
         }
     ) == {"stranger": "+777 ~Bank", "saved": "Mom"}
+
+
+@pytest.mark.parametrize(
+    ("wid", "name"),
+    [
+        # By default the "~" alone says someone is not a saved contact; the number stays out.
+        ("222@c.us", "~Mom"),
+        ("900@lid", "~Budi"),
+        ("444@c.us", "~Bank BCA"),
+        # Saved and verified names are the same either way.
+        ("111@c.us", "Mom"),
+        ("333@c.us", "Bank BCA"),
+        # Someone with no name of their own is still their number.
+        ("555@c.us", "+555"),
+    ],
+)
+def test_phone_numbers_of_strangers_are_shown_only_when_asked(wid, name):
+    assert names({"x": {"contactName": wid}}, showNumbers=False) == {"x": name}
 
 
 @pytest.mark.parametrize(

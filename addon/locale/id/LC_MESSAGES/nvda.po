@@ -1037,6 +1037,9 @@ msgstr "Bacakan pesan &baru:"
 msgid "Read out what new messages say, not only who they are &from"
 msgstr "&Lengkap: bacakan isi pesan baru, bukan hanya pengirimnya"
 
+msgid "Show the phone number of people who are not in your &contacts"
+msgstr "Tampilkan nomor &HP orang yang bukan kontak"
+
 msgid "Reply to status"
 msgstr "Balas status"
 

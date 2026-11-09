@@ -159,8 +159,9 @@
 	}
 
 	// A person's name as WhatsApp shows it: the name the user saved, else a business name WhatsApp has
-	// verified, else the phone number. The name people give themselves only follows the number after "~",
-	// as in WhatsApp, so a stranger calling themselves "Mom" or "Bank" is not taken for a saved contact.
+	// verified, else "~" and the name people give themselves, so a stranger calling themselves "Mom" or
+	// "Bank" is not taken for a saved contact. The phone number comes before "~" when the user wants it, as
+	// in WhatsApp; someone with no name of their own is always their number.
 	// (Contacts no longer have formattedName; WhatsApp works it out in WAWebFrontendContactGetters.)
 	// pushname is the name a message came with, for when the contact has none.
 	function personName(contact, pushname) {
@@ -196,10 +197,19 @@
 			own = own || text(c.verifiedName);
 		}
 		const number = phone && phone.user ? "+" + phone.user : "";
-		if (number) {
-			return own ? number + " ~" + own : number;
+		if (own) {
+			// The "~" alone says this is not a saved contact; the number before it is the user's choice.
+			return showNumbers && number ? number + " ~" + own : "~" + own;
 		}
-		return own ? "~" + own : null;
+		return number || null;
+	}
+
+	// Whether people outside the contacts are named with their phone number before "~" and their name.
+	let showNumbers = false;
+
+	function setShowNumbers(on) {
+		showNumbers = !!on;
+		return showNumbers;
 	}
 
 	// Mentions arrive as "@" and a number; show the person's name instead.
@@ -3558,6 +3568,7 @@
 		pauseRecording: pauseRecording,
 		participants: participants,
 		quietNotifications: quietNotifications,
+		setShowNumbers: setShowNumbers,
 		heartbeat: heartbeat,
 		presence: presence,
 		callState: callState,
