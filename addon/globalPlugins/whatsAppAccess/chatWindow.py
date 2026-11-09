@@ -980,8 +980,10 @@ class ChatWindow(wx.Dialog):
 
 	def _failed(self, error: Exception, onError: Callable[[Exception], None] | None) -> None:
 		if not self:
-			# The window was closed meanwhile.
-			ui.message(errorText(error))
+			# The window was closed meanwhile. Closing WhatsApp fully closes the window and the connection
+			# together, so its last calls, such as going offline, find the connection gone: that is no news.
+			if not (isinstance(error, WhatsAppError) and error.code == "disconnected"):
+				ui.message(errorText(error))
 			return
 		if onError is not None:
 			onError(error)
