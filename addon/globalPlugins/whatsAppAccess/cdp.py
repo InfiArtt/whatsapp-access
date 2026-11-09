@@ -298,7 +298,16 @@ class PipeTransport:
 
 	def receive(self) -> str:
 		"""The next message. Raises WebSocketError when the browser has gone."""
-		while b"\0" not in self._buffer:
+		end = self._buffer.find(b"\0")
+		if end >= 0:
+			message, self._buffer = self._buffer[:end], self._buffer[end + 1 :]
+			return message.decode("utf-8", errors="replace")
+		# A large message comes in many pieces: keep them in a list and look for its end only in each new
+		# piece, so reading it takes as long as its size, not its size squared.
+		pieces = [self._buffer]
+		size = len(self._buffer)
+		self._buffer = b""
+		while True:
 			if self._readFd is None:
 				raise WebSocketError("Connection closed")
 			try:
@@ -309,12 +318,16 @@ class PipeTransport:
 			if not chunk:
 				self.closed = True
 				raise WebSocketError("The browser closed the pipe")
-			self._buffer += chunk
-			if len(self._buffer) > MAX_MESSAGE_BYTES:
+			end = chunk.find(b"\0")
+			size += len(chunk) if end < 0 else end
+			if size > MAX_MESSAGE_BYTES:
 				self.closed = True
 				raise WebSocketError("Message too large")
-		message, _, self._buffer = self._buffer.partition(b"\0")
-		return message.decode("utf-8", errors="replace")
+			if end >= 0:
+				pieces.append(chunk[:end])
+				self._buffer = chunk[end + 1 :]
+				return b"".join(pieces).decode("utf-8", errors="replace")
+			pieces.append(chunk)
 
 	def close(self) -> None:
 		"""Close our sending end; the browser then closes its own, which ends receive().
