@@ -177,7 +177,7 @@ jauh lebih jernih daripada perekam WhatsApp sendiri. Semuanya bisa diubah di pen
 
 | Tombol | Fungsinya |
 |---|---|
-| Enter | Memutar pesan suara atau suara video (Enter lagi menghentikan); membuka foto atau dokumen; memilih di polling; detail acara. Pesan suara yang berurutan diputar beruntun, dan kursor ikut pindah. |
+| Enter | Memutar pesan suara atau suara video (Enter lagi menjeda, lalu melanjutkan; Escape menghentikan); membuka foto atau dokumen; memilih di polling; detail acara. Pesan suara yang berurutan diputar beruntun, dan kursor ikut pindah. Di pesan suara, Tab menuju slider posisinya: panah kiri dan kanan mundur dan maju 5 detik, Page Up dan Page Down 30 detik. |
 | Ctrl+S | Pesan suara 1x, 1,5x, atau 2x, seperti di WhatsApp. |
 | Alt+C | Menampilkan teks pesan saja, untuk dibaca per huruf, kata, atau baris. |
 | Ctrl+C | Menyalin teks pesan. |

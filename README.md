@@ -168,7 +168,7 @@ all of this in the add-on's settings.
 
 | Key | What it does |
 |---|---|
-| Enter | Play a voice message or a video's sound (Enter again stops); open a photo or document; vote in a poll; an event's details. Voice messages right after each other play one after another, and the cursor follows. |
+| Enter | Play a voice message or a video's sound (Enter again pauses, and again goes on; Escape stops); open a photo or document; vote in a poll; an event's details. Voice messages right after each other play one after another, and the cursor follows. On a voice message, Tab reaches its position slider: Left and Right go back and on 5 seconds, Page Up and Page Down 30. |
 | Ctrl+S | Voice messages at 1x, 1.5x or 2x, as in WhatsApp. |
 | Alt+C | Show the message's text alone, to read it by character, word or line. |
 | Ctrl+C | Copy the message's text. |

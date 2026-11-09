@@ -130,7 +130,7 @@ def sections() -> list[tuple[str, list[tuple[str, str]]]]:
 			_("Messages"),
 			[
 				# Translators: In the keyboard shortcuts list.
-				("Enter", _("Play or stop a voice message; open a photo, video or document")),
+				("Enter", _("Play or pause a voice message; open a photo, video or document")),
 				# Translators: In the keyboard shortcuts list.
 				("Ctrl+S", _("Voice message speed: 1x, 1.5x, 2x")),
 				# Translators: In the keyboard shortcuts list.

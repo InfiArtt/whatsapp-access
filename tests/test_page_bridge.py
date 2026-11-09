@@ -486,3 +486,43 @@ def test_meta_ai_answers_are_said_once_written():
         [True, False],
         [True, False],
     ]
+
+
+AUTH_HELPER = r"""
+const fs = require("fs");
+const source = fs.readFileSync(process.argv[1], "utf8").replace(/\r\n/g, "\n");
+const take = (name) => {
+    const start = source.indexOf("\tfunction " + name + "(");
+    const end = source.indexOf("\n\t}\n", start) + 4;
+    return source.slice(start, end);
+};
+const [path, modules] = JSON.parse(process.argv[2]);
+const location = { pathname: path };
+const req = (name) => modules[name];
+const ready = () => false;
+const f = new Function("location", "req", "ready", take("linkingApi") + take("authState") + "; return authState;")(location, req, ready);
+process.stdout.write(JSON.stringify(f()));
+"""
+
+
+@pytest.mark.parametrize(
+    ("path", "modules", "needsLink"),
+    [
+        # WhatsApp's new login page: waiting to be linked once its linking code has loaded.
+        ("/login/", {"WAWebAltDeviceLinkingApi": {}}, True),
+        ("/login/", {}, False),
+        # The usual page, before it is linked.
+        ("/", {"WAWebSocketModel": {"Socket": {"state": "UNPAIRED"}}}, True),
+        # Still loading.
+        ("/", {}, False),
+    ],
+)
+def test_waiting_to_be_linked_is_recognised_on_both_login_pages(path, modules, needsLink):
+    result = subprocess.run(
+        [NODE, "-e", AUTH_HELPER, str(PACKAGE_DIR / "pageBridge.js"), json.dumps([path, modules])],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    assert json.loads(result.stdout)["needsLink"] is needsLink
