@@ -51,8 +51,8 @@ CONNECTION_LOST_DELAY_MS = 8000
 
 
 def _profileDir() -> str:
-	"""The hidden browser's own profile, with the WhatsApp login, in NVDA's configuration folder."""
-	return os.path.join(globalVars.appArgs.configPath, "whatsAppAccess", "browser")
+	"""The hidden browser's own profile, with the WhatsApp login. See dataFolder for where it is."""
+	return os.path.join(dataFolder.addonDataPath(), "browser")
 
 
 def _ensureConfigSection() -> None:
@@ -66,6 +66,21 @@ def _ensureConfigSection() -> None:
 			sectionSpec[key] = spec
 
 
+def _disabledOnSecureScreens(
+	pluginClass: type[globalPluginHandler.GlobalPlugin],
+) -> type[globalPluginHandler.GlobalPlugin]:
+	"""On the sign-in screen, UAC prompts and other secure screens, the add-on does nothing at all.
+
+	NVDA runs there as SYSTEM, so a browser started there would run as SYSTEM too, and WhatsApp is not
+	the user's to open on a shared sign-in screen. NVDA's plain GlobalPlugin is used instead, so none of
+	the add-on's commands, settings or timers exist there.
+	"""
+	if globalVars.appArgs.secure:
+		return globalPluginHandler.GlobalPlugin
+	return pluginClass
+
+
+@_disabledOnSecureScreens
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def __init__(self) -> None:
 		super().__init__()
@@ -76,6 +91,12 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				log.info("WhatsApp Access: the WhatsApp data was kept through the update")
 		except OSError:
 			log.exception("WhatsApp Access: putting the WhatsApp data back after the update")
+		# Older versions kept the data in NVDA's configuration folder. Moving it can mean copying about
+		# 1 GB, so it happens in the background; starting WhatsApp waits for it.
+		self._dataMoved = threading.Thread(
+			target=self._moveDataOutOfConfig, name="whatsAppAccess.moveData", daemon=True
+		)
+		self._dataMoved.start()
 		self.session = WhatsAppSession(onEvent=self._onEvent, onDisconnect=self._onDisconnect)
 		self.window: ChatWindow | None = None
 		self._connecting = False
@@ -94,6 +115,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		updateCheck.scheduleAutoCheck()
 		WhatsAppSettingsPanel.plugin = self
 		NVDASettingsDialog.categoryClasses.append(WhatsAppSettingsPanel)
+
+	def _moveDataOutOfConfig(self) -> None:
+		try:
+			if dataFolder.moveData(
+				dataFolder.dataPath(globalVars.appArgs.configPath), dataFolder.addonDataPath()
+			):
+				log.info("WhatsApp Access: moved the WhatsApp data out of NVDA's configuration folder")
+		except OSError:
+			log.exception("WhatsApp Access: moving the WhatsApp data out of NVDA's configuration folder")
 
 	def _callChanged(self) -> None:
 		if self.window:
@@ -347,6 +377,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 		def work() -> None:
 			log.info(f"WhatsApp Access: starting hidden {browser.name} {'.'.join(map(str, browser.version))}")
+			self._dataMoved.join()
 			try:
 				try:
 					target = hidden.start()
@@ -444,6 +475,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		"""Log out of WhatsApp and delete the hidden browser's profile with everything WhatsApp kept."""
 
 		def work() -> None:
+			self._dataMoved.join()
 			if self.session.connected and self.session.linked:
 				try:
 					self.session.logout()

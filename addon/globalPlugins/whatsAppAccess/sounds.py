@@ -15,6 +15,7 @@ import config
 import nvwave
 from logHandler import log
 
+from . import dataFolder
 from .configSpec import CONFIG_SECTION
 
 SOUNDS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "sounds")
@@ -82,13 +83,8 @@ def play(name: str, kind: str | None = None) -> None:
 
 def ownSoundsFolder() -> str:
 	"""The user's own sounds: a WAV file here named as one of the add-on's, such as sent.wav, plays instead."""
-	try:
-		import globalVars
-
-		base = globalVars.appArgs.configPath
-	except Exception:  # noqa: BLE001 - outside NVDA, as in the tests
-		return ""
-	return os.path.join(base, "whatsAppAccess", "mySounds")
+	base = dataFolder.addonDataPath()
+	return os.path.join(base, "mySounds") if base else ""
 
 
 def _path(name: str) -> str:
