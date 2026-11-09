@@ -12,7 +12,8 @@ pytestmark = pytest.mark.skipif(NODE is None, reason="Node.js is not installed")
 
 RUN_HELPER = """
 const fs = require("fs");
-const source = fs.readFileSync(process.argv[1], "utf8");
+// Git on Windows may check the file out with CRLF line ends; the functions are found by their line ends.
+const source = fs.readFileSync(process.argv[1], "utf8").replace(/\\r\\n/g, "\\n");
 const start = source.indexOf("\\tfunction replaceMentions");
 const end = source.indexOf("\\tasync function sendText");
 const replaceMentions = new Function(source.slice(start, end) + "; return replaceMentions;")();
@@ -57,7 +58,8 @@ def test_mentions_use_whole_names_only(written, sent, used):
 
 MEDIA_HELPER = r"""
 const fs = require("fs");
-const source = fs.readFileSync(process.argv[1], "utf8");
+// Git on Windows may check the file out with CRLF line ends; the functions are found by their line ends.
+const source = fs.readFileSync(process.argv[1], "utf8").replace(/\r\n/g, "\n");
 const start = source.indexOf("\t// The HKDF \"info\" WhatsApp uses");
 const end = source.indexOf("\t// Downloads a message's file for the add-on to save");
 const [mode] = JSON.parse(process.argv[2]);
@@ -159,7 +161,8 @@ def test_media_larger_than_the_limit_is_not_read(mode):
 
 NAMES_HELPER = r"""
 const fs = require("fs");
-const source = fs.readFileSync(process.argv[1], "utf8");
+// Git on Windows may check the file out with CRLF line ends; the functions are found by their line ends.
+const source = fs.readFileSync(process.argv[1], "utf8").replace(/\r\n/g, "\n");
 // Each function from "\tfunction name(" to the tab and brace that close it.
 const take = (name) => {
     const start = source.indexOf("\tfunction " + name + "(");
@@ -259,7 +262,8 @@ def test_mentions_replace_whole_numbers_only(text, sent):
 
 RECORDING_HELPER = r"""
 const fs = require("fs");
-const source = fs.readFileSync(process.argv[1], "utf8");
+// Git on Windows may check the file out with CRLF line ends; the functions are found by their line ends.
+const source = fs.readFileSync(process.argv[1], "utf8").replace(/\r\n/g, "\n");
 const start = source.indexOf("\tconst OPUS_RATES");
 const end = source.indexOf("\tasync function sendRecording");
 const log = [];
@@ -367,7 +371,8 @@ def test_cancelled_recording_forgets_its_limit():
 
 CALL_AUDIO_HELPER = r"""
 const fs = require("fs");
-const source = fs.readFileSync(process.argv[1], "utf8");
+// Git on Windows may check the file out with CRLF line ends; the functions are found by their line ends.
+const source = fs.readFileSync(process.argv[1], "utf8").replace(/\r\n/g, "\n");
 const start = source.indexOf("\tfunction forgetClosedCallAudio(");
 const body = source.slice(start, source.indexOf("\n\t}\n", start) + 4);
 class MediaStream {
