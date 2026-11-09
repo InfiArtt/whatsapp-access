@@ -305,6 +305,23 @@ def disappearingText(seconds: int) -> str:
 	return _("disappearing messages, {count} hours").format(count=max(1, round(seconds / 3600)))
 
 
+def cannotSendText(chat: dict) -> str:
+	"""Why the user cannot send messages in a chat, and what they can do there, as WhatsApp's bar says."""
+	if chat.get("isChannel"):
+		# Translators: In place of the message box in a channel the user follows but does not run.
+		return _("Only the channel's admins can post. Alt+Y reacts to a post.")
+	if chat.get("left"):
+		# Translators: In place of the message box in a group the user left or was removed from.
+		return _("You can't send messages to this group because you're no longer a member.")
+	if chat.get("announcementGroup"):
+		# Translators: In place of the message box in a community's announcement group.
+		return _(
+			"Only community admins can send announcements. Alt+R lists an announcement's replies and replies to it."
+		)
+	# Translators: In place of the message box in a group where only admins may send messages.
+	return _("Only admins can send messages. Alt+R replies privately to the sender of a message.")
+
+
 def repliesText(count: int) -> str:
 	"""How many replies a community announcement has."""
 	if count == 1:

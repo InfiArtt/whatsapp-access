@@ -2911,3 +2911,15 @@ msgstr "Belum ada balasan"
 
 msgid "1 reply"
 msgstr "1 balasan"
+
+msgid "You can't send messages to this group because you're no longer a member."
+msgstr "Anda tidak bisa mengirim pesan ke grup ini karena Anda bukan anggota lagi."
+
+msgid "Only the channel's admins can post. Alt+Y reacts to a post."
+msgstr "Hanya admin channel yang bisa memposting. Alt+Y memberi reaksi pada postingan."
+
+msgid "Only community admins can send announcements. Alt+R lists an announcement's replies and replies to it."
+msgstr "Hanya admin komunitas yang bisa mengirim pengumuman. Alt+R menampilkan balasan sebuah pengumuman dan membalasnya."
+
+msgid "Only admins can send messages. Alt+R replies privately to the sender of a message."
+msgstr "Hanya admin yang bisa mengirim pesan. Alt+R membalas pengirim sebuah pesan secara pribadi."

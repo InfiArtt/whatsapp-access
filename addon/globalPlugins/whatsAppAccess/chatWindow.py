@@ -948,6 +948,11 @@ class ChatWindow(wx.Dialog):
 		self._mentionIndex = -1
 		self._mentions: dict[str, str] = {}
 		sizer.Add(self.composeBox, 0, wx.EXPAND | wx.BOTTOM, 6)
+		# In place of the message box where the user cannot send, as WhatsApp's bar there says why. It comes
+		# right after the box's label, so Alt+E reaches it as it would the box.
+		self.cannotSendBox = wx.TextCtrl(panel, style=wx.TE_READONLY | wx.TE_MULTILINE, size=(-1, 54))
+		self.cannotSendBox.Hide()
+		sizer.Add(self.cannotSendBox, 0, wx.EXPAND | wx.BOTTOM, 6)
 		buttons = wx.BoxSizer(wx.HORIZONTAL)
 		# Translators: A button that stops replying to a message; the message is then sent on its own.
 		self.cancelReplyButton = wx.Button(panel, label=_("Cancel reply"))
@@ -1453,9 +1458,10 @@ class ChatWindow(wx.Dialog):
 		# Channels have no calls, and only their admins post in them.
 		isChannel = bool(chat.get("isChannel"))
 		self.callButton.Show(not isChannel)
-		self._canWrite = not isChannel or bool(chat.get("canPost"))
-		self.composeLabel.Show(self._canWrite)
+		self._canWrite = bool(chat.get("canPost")) if isChannel else chat.get("canSend", True) is not False
 		self.composeBox.Show(self._canWrite)
+		self.cannotSendBox.ChangeValue("" if self._canWrite else messageText.cannotSendText(chat))
+		self.cannotSendBox.Show(not self._canWrite)
 		self.messageList.Set([])
 		self._messages = []
 		self._selectedMessageIds = set()
@@ -2563,6 +2569,13 @@ class ChatWindow(wx.Dialog):
 		if self.chat.get("announcementGroup"):
 			# In a community's announcements, replies go under the announcement, as in WhatsApp.
 			self._showReplies(message)
+			return
+		if not self._canWrite and self.chat.get("isGroup"):
+			if self.chat.get("left") or message.get("fromMe"):
+				ui.message(messageText.cannotSendText(self.chat))
+			else:
+				# Only admins send here: a reply goes to its sender privately, as WhatsApp offers.
+				self._replyPrivately(message)
 			return
 		self._cancelEdit(announce=False)
 		self._replyTo = message

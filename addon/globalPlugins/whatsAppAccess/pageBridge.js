@@ -411,6 +411,16 @@
 		if (isGroupChat(chat)) {
 			// A community's announcement group: its announcements take replies (Alt+R).
 			info.announcementGroup = isAnnouncementGroup(chat);
+			// Whether the user may send messages here: not after leaving the group, and only as an admin
+			// where its settings let only admins send, as in announcement groups.
+			info.left = !!chat.isReadOnly;
+			info.canSend = !chat.isReadOnly;
+			try {
+				const gm = chat.groupMetadata;
+				if (gm && gm.announce && !gm.participants.iAmAdmin()) {
+					info.canSend = false;
+				}
+			} catch (e) {}
 			try {
 				info.ongoingCall = !!req("WAWebVoipOngoingCallCollection").WAWebVoipOngoingCallCollection.getByChat(chat);
 			} catch (e) {}

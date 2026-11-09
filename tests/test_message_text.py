@@ -423,3 +423,10 @@ def test_community_announcements_say_how_many_replies():
     message = {"type": "chat", "text": "Rapat besok", "sender": "Admin", "t": TODAY_0815, "replies": 13}
     assert messageText.messageLine(message, isGroup=True, now=NOW) == "Admin: Rapat besok, 13 replies, 08:15"
     assert messageText.repliesText(1) == "1 reply"
+
+
+def test_chats_where_the_user_cannot_send_say_why():
+    assert "Only admins" in messageText.cannotSendText({"isGroup": True, "canSend": False})
+    assert "replies" in messageText.cannotSendText({"isGroup": True, "announcementGroup": True})
+    assert "no longer a member" in messageText.cannotSendText({"isGroup": True, "left": True})
+    assert "channel" in messageText.cannotSendText({"isChannel": True})
