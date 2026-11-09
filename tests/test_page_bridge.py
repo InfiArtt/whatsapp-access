@@ -255,3 +255,146 @@ def test_group_senders_are_named_the_same_way():
 )
 def test_mentions_replace_whole_numbers_only(text, sent):
     assert names({"x": {"mention": [text, ["62812@c.us"]]}}) == {"x": sent}
+
+
+RECORDING_HELPER = r"""
+const fs = require("fs");
+const source = fs.readFileSync(process.argv[1], "utf8");
+const start = source.indexOf("\tconst OPUS_RATES");
+const end = source.indexOf("\tasync function sendRecording");
+const log = [];
+let track = null;
+// A microphone that gives one 20 ms frame, then nothing until it is stopped.
+const navigator = { mediaDevices: { getUserMedia: async () => {
+    let wake = null;
+    track = { label: "Test microphone", stopped: false, stop() {
+        this.stopped = true;
+        if (wake) wake();
+    } };
+    track.ended = new Promise((resolve) => { wake = resolve; });
+    return { getAudioTracks: () => [track], getTracks: () => [track] };
+} } };
+class MediaStreamTrackProcessor {
+    constructor({ track }) {
+        let sent = false;
+        this.readable = { getReader: () => ({ read: async () => {
+            if (!sent) {
+                sent = true;
+                return { done: false, value: {
+                    numberOfChannels: 1, sampleRate: 48000, numberOfFrames: 960,
+                    copyTo() {}, close() {},
+                } };
+            }
+            await track.ended;
+            return { done: true };
+        } }) };
+    }
+}
+class AudioEncoder {
+    constructor({ output }) { this.output = output; this.state = "unconfigured"; }
+    configure() { this.state = "configured"; }
+    encode() {
+        this.output({ byteLength: 3, duration: 20000, copyTo(data) { data.set([1, 2, 3]); } }, null);
+    }
+    async flush() {}
+    close() { this.state = "closed"; }
+}
+const timers = [];
+const setTimeout = (callback, ms) => { timers.push({ callback, ms, cleared: false }); return timers.length - 1; };
+const clearTimeout = (id) => { if (timers[id]) timers[id].cleared = true; };
+const emit = (event) => log.push(event.type);
+const code = "let ownMicrophoneRequest = false;" + source.slice(start, end) +
+    "; return { startRecording, stopRecording, cancelRecording, isRecording: () => !!recording };";
+const r = new Function("navigator", "MediaStreamTrackProcessor", "AudioEncoder", "setTimeout", "clearTimeout", "emit", code)(
+    navigator, MediaStreamTrackProcessor, AudioEncoder, setTimeout, clearTimeout, emit);
+const [mode] = JSON.parse(process.argv[2]);
+
+(async () => {
+    const out = {};
+    await r.startRecording({});
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 10));
+    out.limitMinutes = timers[0].ms / 60000;
+    if (mode === "limit") {
+        timers[0].callback();
+        out.recordingAfterLimit = r.isRecording();
+        out.microphoneOpen = !track.stopped;
+        out.events = log;
+        const result = await r.stopRecording();
+        out.stopped = { duration: result.duration, channels: result.channels };
+        out.again = await r.stopRecording().then(() => "ok", (e) => e.message);
+    } else {
+        await r.cancelRecording();
+        out.microphoneOpen = !track.stopped;
+        out.timerCleared = timers[0].cleared;
+        out.stop = await r.stopRecording().then(() => "ok", (e) => e.message);
+    }
+    process.stdout.write(JSON.stringify(out));
+})();
+"""
+
+
+def recording(mode: str) -> dict:
+    result = subprocess.run(
+        [NODE, "-e", RECORDING_HELPER, str(PACKAGE_DIR / "pageBridge.js"), json.dumps([mode])],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def test_recording_stops_by_itself_at_its_limit():
+    # As if the user had stopped it: the microphone closes, and stopping it later gives the voice note.
+    assert recording("limit") == {
+        "limitMinutes": 30,
+        "recordingAfterLimit": False,
+        "microphoneOpen": False,
+        "events": ["recordingLimit"],
+        "stopped": {"duration": 0.02, "channels": 1},
+        "again": "notRecording",
+    }
+
+
+def test_cancelled_recording_forgets_its_limit():
+    assert recording("cancel") == {
+        "limitMinutes": 30,
+        "microphoneOpen": False,
+        "timerCleared": True,
+        "stop": "notRecording",
+    }
+
+
+CALL_AUDIO_HELPER = r"""
+const fs = require("fs");
+const source = fs.readFileSync(process.argv[1], "utf8");
+const start = source.indexOf("\tfunction forgetClosedCallAudio(");
+const body = source.slice(start, source.indexOf("\n\t}\n", start) + 4);
+class MediaStream {
+    constructor(active) { this.active = active; }
+}
+const callLoudness = {
+    gains: new Set([{ name: "open", context: { state: "running" } }, { name: "ended", context: { state: "closed" } }]),
+    media: new Set([
+        { name: "playing", srcObject: new MediaStream(true) },
+        { name: "finished", srcObject: new MediaStream(false) },
+        { name: "emptied", srcObject: null },
+    ]),
+};
+new Function("callLoudness", "MediaStream", body + "; forgetClosedCallAudio();")(callLoudness, MediaStream);
+process.stdout.write(JSON.stringify({
+    gains: [...callLoudness.gains].map((g) => g.name),
+    media: [...callLoudness.media].map((m) => m.name),
+}));
+"""
+
+
+def test_audio_of_ended_calls_is_forgotten():
+    result = subprocess.run(
+        [NODE, "-e", CALL_AUDIO_HELPER, str(PACKAGE_DIR / "pageBridge.js")],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    assert json.loads(result.stdout) == {"gains": ["open"], "media": ["playing"]}

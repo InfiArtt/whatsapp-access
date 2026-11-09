@@ -1913,6 +1913,11 @@
 	const OPUS_RATES = new Set([8000, 12000, 16000, 24000, 48000]);
 	let recording = null;
 	let recorded = null;
+	// A recording left running stops by itself after this long, as if the user had stopped it, so a
+	// forgotten one does not keep the microphone open and fill the page's memory.
+	const MAX_RECORDING_MS = 30 * 60 * 1000;
+	// What stopRecording gave for a recording that reached its limit, until the add-on asks to stop it.
+	let stoppedAtLimit = null;
 
 	function makeCrcTable() {
 		const table = new Uint32Array(256);
@@ -2115,6 +2120,16 @@
 		})();
 		recording = state;
 		recorded = null;
+		stoppedAtLimit = null;
+		state.limitTimer = setTimeout(() => {
+			if (recording !== state) {
+				return;
+			}
+			stoppedAtLimit = stopRecording();
+			// Its failure is reported when the add-on asks for it.
+			stoppedAtLimit.catch(() => {});
+			emit({ type: "recordingLimit" });
+		}, MAX_RECORDING_MS);
 		return { microphone: state.label };
 	}
 
@@ -2173,9 +2188,15 @@
 	async function stopRecording() {
 		const state = recording;
 		if (!state) {
+			if (stoppedAtLimit) {
+				const result = stoppedAtLimit;
+				stoppedAtLimit = null;
+				return result;
+			}
 			throw new Error("notRecording");
 		}
 		recording = null;
+		clearTimeout(state.limitTimer);
 		await finishRecording(state);
 		if (!state.packets.length) {
 			throw new Error("emptyRecording");
@@ -2209,7 +2230,9 @@
 		const state = recording;
 		recording = null;
 		recorded = null;
+		stoppedAtLimit = null;
 		if (state) {
+			clearTimeout(state.limitTimer);
 			try {
 				await finishRecording(state);
 			} catch (e) {
@@ -2888,8 +2911,24 @@
 		});
 	}
 
+	// Calls that ended leave their audio behind; the page-wide sets would otherwise grow with every call.
+	function forgetClosedCallAudio() {
+		for (const gain of callLoudness.gains) {
+			if (gain.context.state === "closed") {
+				callLoudness.gains.delete(gain);
+			}
+		}
+		for (const media of callLoudness.media) {
+			const stream = media.srcObject;
+			if (!(stream instanceof MediaStream) || !stream.active) {
+				callLoudness.media.delete(media);
+			}
+		}
+	}
+
 	function setCallVolume(volume) {
 		installCallVolume();
+		forgetClosedCallAudio();
 		callLoudness.volume = Math.min(1, Math.max(0, Number(volume)));
 		for (const gain of callLoudness.gains) {
 			gain.gain.value = callLoudness.volume;
@@ -3467,9 +3506,15 @@
 		stopAudio();
 		quietNotifications(false);
 		unhookMicrophone();
+		watchSpeakers(null);
+		forgetClosedCallAudio();
 		if (callTimer) {
 			clearInterval(callTimer);
 			callTimer = null;
+		}
+		if (chatsTimer) {
+			clearTimeout(chatsTimer);
+			chatsTimer = null;
 		}
 		if (watched) {
 			clearInterval(watched.timer);
@@ -3491,9 +3536,12 @@
 			}
 			return hooked;
 		},
+		// Called when a newer copy replaces this one, which the add-on talks to instead.
 		unhook: () => {
 			unhook();
 			hooked = false;
+			// A recording this copy started could never be stopped: close the microphone.
+			cancelRecording().catch(() => {});
 		},
 		authState: authState,
 		requestLinkCode: requestLinkCode,
