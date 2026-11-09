@@ -185,6 +185,15 @@ def errorText(error: Exception, browserName: str = "") -> str:
 		return _(
 			"WhatsApp did not start the call. Try calling once from WhatsApp on your phone or in a browser."
 		)
+	if code == "inviteInvalid":
+		# Translators: Reported when a group's invite link was reset by its admins or never existed.
+		return _("This group link no longer works. Ask for a new one.")
+	if code == "joinFailed":
+		# Translators: Reported when joining a group from its link failed.
+		return _("Could not join the group. Try again, or join from WhatsApp on your phone.")
+	if code == "channelNotFound":
+		# Translators: Reported when a channel link leads nowhere.
+		return _("This channel could not be found.")
 	if code == "notOnWhatsApp":
 		# Translators: Reported when a phone number has no WhatsApp account.
 		return _("This number is not on WhatsApp.")
@@ -380,10 +389,17 @@ class ChatWindow(wx.Dialog):
 		sizer.Add(self.chatList, 1, wx.EXPAND | wx.BOTTOM, 6)
 		# The list first, then the search and filter: Tab from an open chat's last button reaches the chats.
 		self.chatList.MoveBeforeInTabOrder(self.searchBox)
+		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: A button under the chat list with WhatsApp's menu there: opening a WhatsApp link and
+		# marking all chats as read.
+		self.optionsButton = wx.Button(panel, label=_("&Options"))
+		self.optionsButton.Bind(wx.EVT_BUTTON, lambda evt: self._optionsMenu())
+		buttons.Add(self.optionsButton, 0, wx.RIGHT, 6)
 		# Translators: A button that closes the add-on's window. WhatsApp Web stays open.
 		closeButton = wx.Button(panel, wx.ID_CLOSE, label=_("Close"))
 		closeButton.Bind(wx.EVT_BUTTON, lambda evt: self.Close())
-		sizer.Add(closeButton)
+		buttons.Add(closeButton)
+		sizer.Add(buttons)
 		panel.SetSizer(sizer)
 
 	def _buildStatusPanel(self, panel: wx.Panel) -> None:
@@ -1085,7 +1101,7 @@ class ChatWindow(wx.Dialog):
 		if self._focusInConversation():
 			self._goToFirstUnread()
 			return
-		unread = [index for index, c in enumerate(self._shownChats) if c.get("unread")]
+		unread = [index for index, c in enumerate(self._shownChats) if messageText.isUnread(c)]
 		if not unread:
 			# Translators: Reported when no chat in the list has unread messages.
 			ui.message(_("No unread chats"))
@@ -1132,6 +1148,178 @@ class ChatWindow(wx.Dialog):
 			dialog.Destroy()
 		if number:
 			self._run(lambda: self.session.chatWithNumber(number), self.openChat)
+
+	def _optionsMenu(self) -> None:
+		"""The Options button under the chat list, like WhatsApp's menu above its chats."""
+		menu = wx.Menu()
+		for label, action in (
+			# Translators: An item in the Options menu: joins a group or opens a channel or chat from a link.
+			(_("Open a WhatsApp &link\u2026"), self._askForLink),
+			# Translators: An item in the Options menu, like WhatsApp's: marks every chat as read.
+			(_("Mark all as &read"), self._markAllRead),
+		):
+			item = menu.Append(wx.ID_ANY, label)
+			menu.Bind(wx.EVT_MENU, lambda evt, action=action: action(), item)
+		self.optionsButton.PopupMenu(menu)
+		menu.Destroy()
+
+	def _askForLink(self) -> None:
+		"""A WhatsApp link to open, such as a group's invite link; one copied already is filled in."""
+		try:
+			copied = (api.getClipData() or "").strip()
+		except Exception:  # noqa: BLE001 - nothing usable on the clipboard
+			copied = ""
+		dialog = wx.TextEntryDialog(
+			self,
+			# Translators: Asks for a WhatsApp link: a group's invite link, a channel, or a wa.me link.
+			_("WhatsApp link, such as a group's invite link, a channel or a wa.me link:"),
+			# Translators: The title of the dialog that opens a WhatsApp link.
+			_("Open a WhatsApp link"),
+			value=copied if messageText.isWhatsAppLink(copied) else "",
+		)
+		try:
+			if dialog.ShowModal() != wx.ID_OK:
+				return
+			link = dialog.GetValue().strip()
+		finally:
+			dialog.Destroy()
+		if link:
+			self.openWhatsAppLink(link)
+
+	def openWhatsAppLink(self, link: str) -> None:
+		"""Open a WhatsApp link as WhatsApp does: join a group, follow a channel or start a chat."""
+		url = link if "://" in link else "https://" + link
+		# Translators: Reported while the add-on asks WhatsApp what a link leads to.
+		ui.message(_("Opening link"))
+		self._run(lambda: self.session.linkInfo(url), self._gotLinkInfo)
+
+	def _gotLinkInfo(self, info: dict) -> None:
+		kind = info.get("kind")
+		if kind == "group":
+			self._offerGroup(info)
+		elif kind == "channel":
+			self._offerChannel(info)
+		elif kind == "chat":
+			phone, text = info["phone"], info.get("text") or ""
+
+			def opened(chat: dict) -> None:
+				if text and not self._drafts.get(chat["id"]):
+					self._drafts[chat["id"]] = text
+				self.openChat(chat)
+
+			self._run(lambda: self.session.chatWithNumber(phone), opened)
+		elif kind == "call":
+			# Translators: Reported for a WhatsApp call link, which the add-on cannot join yet.
+			ui.message(_("Call links cannot be joined from WhatsApp Access yet. Open it on your phone."))
+		else:
+			# Translators: Reported for a WhatsApp link the add-on does not know how to open.
+			ui.message(_("WhatsApp Access cannot open this kind of link."))
+
+	def _offerGroup(self, info: dict) -> None:
+		if info.get("inGroup") and info.get("chat"):
+			self.openChat(info["chat"])
+			return
+		if info.get("requested"):
+			ui.message(
+				# Translators: Reported for a group link when the user already asked to join and its admins have
+				# not answered yet.
+				_("You already asked to join {name}. Its admins have not answered yet.").format(
+					name=info["name"]
+				)
+			)
+			return
+		lines = []
+		if info.get("community"):
+			# Translators: The community a group belongs to, in the question before joining it.
+			lines.append(_("In the community {name}").format(name=info["community"]))
+		if info.get("size"):
+			# Translators: How many people a group has, in the question before joining it.
+			lines.append(_("{count} members").format(count=info["size"]))
+		if info.get("description"):
+			lines.append(info["description"][:500])
+		if info.get("needsApproval"):
+			# Translators: Asked before asking to join a group whose admins approve new members.
+			question = _("Ask to join {name}? Its admins approve new members.").format(name=info["name"])
+		else:
+			# Translators: Asked before joining a group from its invite link.
+			question = _("Join {name}?").format(name=info["name"])
+		# Translators: The title of the question before joining a group from its link.
+		title = _("Join group")
+		if not askYesNo(self, "\n\n".join([question, *lines]), title, warning=False):
+			return
+
+		def done(result: dict) -> None:
+			if result.get("requested"):
+				# Translators: Reported after asking to join a group whose admins approve new members.
+				ui.message(_("Request sent. You join when an admin approves it."))
+				return
+			# Translators: Reported after joining a group from its link.
+			ui.message(_("Joined {name}").format(name=info["name"]))
+			self.refreshChats()
+			if result.get("chat"):
+				self.openChat(result["chat"])
+
+		self._run(lambda: self.session.joinGroupLink(info["code"]), done)
+
+	def _offerChannel(self, info: dict) -> None:
+		chat = info["chat"]
+		if info.get("following"):
+			self.openChat(chat)
+			return
+		lines = []
+		if info.get("followers"):
+			# Translators: How many people follow a channel, in the question before following it.
+			lines.append(_("{count} followers").format(count=info["followers"]))
+		if info.get("description"):
+			lines.append(info["description"][:500])
+		# Translators: Asked when the user opens a channel's link, with its name.
+		question = _("Follow the channel {name}?").format(name=info["name"])
+		answer = askThreeWay(
+			self,
+			"\n\n".join([question, *lines]),
+			# Translators: The title of the question when opening a channel's link.
+			_("Channel"),
+			# Translators: A button that follows a channel and opens it.
+			_("&Follow"),
+			# Translators: A button that opens a channel without following it.
+			_("&Open without following"),
+			# Translators: A button that closes the question.
+			_("Cancel"),
+		)
+		if answer == wx.ID_CANCEL:
+			return
+		if answer == wx.ID_NO:
+			self.openChat(chat)
+			return
+
+		def followed(result: Any) -> None:
+			# Translators: Reported after following a channel, with its name.
+			ui.message(_("Following {name}").format(name=info["name"]))
+			self.openChat(chat)
+
+		self._run(lambda: self.session.followChannel(chat["id"], True), followed)
+
+	def _markAllRead(self) -> None:
+		if not askYesNo(
+			self,
+			# Translators: Asked before marking every chat as read.
+			_("Mark all chats as read? People who turned on read receipts see that you read their messages."),
+			# Translators: The title of the question before marking every chat as read.
+			_("Mark all as read"),
+			warning=False,
+		):
+			return
+
+		def done(count: int) -> None:
+			if count:
+				# Translators: Reported after marking every chat as read, with how many were unread.
+				ui.message(_("{count} chats marked as read").format(count=count))
+			else:
+				# Translators: Reported when "mark all as read" found no unread chats.
+				ui.message(_("No unread chats"))
+			self.refreshChats()
+
+		self._run(self.session.markAllRead, done)
 
 	def _selectedChat(self) -> dict | None:
 		if self.tabs.GetSelection() == self.TAB_ARCHIVED:
@@ -1506,6 +1694,10 @@ class ChatWindow(wx.Dialog):
 		menu.Destroy()
 
 	def _openLink(self, link: str) -> None:
+		if messageText.isWhatsAppLink(link):
+			# Groups, channels and wa.me chats open here, as in WhatsApp, not in the browser.
+			self.openWhatsAppLink(link)
+			return
 		url = link if "://" in link else "https://" + link
 		# Translators: Reported when a link from a message opens in the browser.
 		ui.message(_("Opening {link}").format(link=link))
@@ -3010,7 +3202,7 @@ class ChatWindow(wx.Dialog):
 		else:
 			# Translators: An item in a chat's menu, like WhatsApp's.
 			add(menu, _("Pin &chat"), lambda: self._chatAction(chat, "pin", _("Pinned")))
-		if chat.get("unread"):
+		if messageText.isUnread(chat):
 			# Translators: An item in a chat's menu, like WhatsApp's.
 			add(menu, _("Mark as &read"), lambda: self._chatAction(chat, "markRead", _("Marked as read")))
 		else:
@@ -4876,7 +5068,7 @@ def filterNames() -> list[str]:
 
 def _passesFilter(chat: dict, chatFilter: str) -> bool:
 	if chatFilter == "unread":
-		return bool(chat.get("unread"))
+		return messageText.isUnread(chat)
 	if chatFilter == "groups":
 		return bool(chat.get("isGroup"))
 	if chatFilter == "favorites":

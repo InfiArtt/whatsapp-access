@@ -302,6 +302,11 @@ def disappearingText(seconds: int) -> str:
 	return _("disappearing messages, {count} hours").format(count=max(1, round(seconds / 3600)))
 
 
+def isUnread(chat: dict) -> bool:
+	"""Whether a chat has unread messages, or was marked unread."""
+	return bool(chat.get("unread") or chat.get("markedUnread"))
+
+
 def chatLine(chat: dict, now: float | None = None) -> str:
 	"""One chat in the list: name, unread count, then the last message."""
 	parts = [chat.get("title", "")]
@@ -309,6 +314,9 @@ def chatLine(chat: dict, now: float | None = None) -> str:
 	if unread:
 		# Translators: How many messages in a chat the user has not read.
 		parts.append(_("{count} unread").format(count=unread))
+	elif chat.get("markedUnread"):
+		# Translators: Said for a chat the user marked as unread, as WhatsApp's menu can.
+		parts.append(_("marked unread"))
 	if chat.get("pinned"):
 		# Translators: Said for a chat the user pinned to the top of the list.
 		parts.append(_("pinned"))
@@ -437,6 +445,19 @@ def isActivity(presence: dict | None) -> bool:
 
 
 _LINK_PATTERN = re.compile(r"(?:https?://|www\.)[^\s<>\"']+", re.IGNORECASE)
+
+
+# Links WhatsApp itself opens: groups, channels, call links and chats with a number.
+_WHATSAPP_LINK = re.compile(
+	r"^(?:https?://)?(?:chat\.whatsapp\.com/|(?:www\.)?whatsapp\.com/channel/|call\.whatsapp\.com/"
+	r"|wa\.me/|api\.whatsapp\.com/send)",
+	re.IGNORECASE,
+)
+
+
+def isWhatsAppLink(link: str) -> bool:
+	"""Whether a link is one the add-on opens itself, as WhatsApp does, rather than in the browser."""
+	return bool(_WHATSAPP_LINK.match((link or "").strip()))
 
 
 def linksIn(text: str) -> list[str]:

@@ -5,6 +5,17 @@ notes the add-on shows before it installs an update.
 
 ## [Unreleased]
 
+- Join a group from its invite link, follow a channel from its link, and open a wa.me link as a chat,
+  with its message ready in the box. Alt+L on a message opens WhatsApp links this way instead of in
+  the browser, and the new Options button under the chat list has Open a WhatsApp link, with a link
+  you copied filled in. Before joining you hear the group's name, community, members and whether its
+  admins approve new members; a link that was reset says so. Call links are not supported yet.
+- Mark all as read, in the Options button, as in WhatsApp's menu. It asks first, since read receipts
+  are sent.
+- Mark as unread marked the chat read instead: WhatsApp changed how it is asked. It works again, and a
+  chat marked unread says "marked unread", counts in the Unread filter and for Alt+U.
+- Copy invite link in a group's settings failed until WhatsApp's own invite window had been opened.
+
 - Questions before deleting, leaving, reporting or unlinking use NVDA's own message dialog: the safe
   answer is the one focused first and the one Escape gives.
 - The list in list dialogs, and the box in the call window, now have names NVDA reads.

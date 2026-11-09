@@ -106,6 +106,9 @@ pesan baru dan panggilan.
   tandai sudah atau belum dibaca. **Delete** menghapus chat setelah bertanya.
 - **Ctrl+N** memulai chat dengan nomor telepon, tanpa menyimpan kontak. **Ctrl+Shift+N** membuat
   grup baru. **Ctrl+Shift+F** mencari pesan di semua chat.
+- Tombol **Opsi** di bawah daftar chat (Alt+O) berisi **Buka link WhatsApp**, untuk link undangan
+  grup, channel, atau link wa.me (link yang sudah Anda salin langsung terisi), dan **Tandai semua
+  sudah dibaca**.
 
 ### Sebuah chat
 
@@ -182,7 +185,7 @@ jauh lebih jernih daripada perekam WhatsApp sendiri. Semuanya bisa diubah di pen
 | Alt+R | Membalasnya. |
 | Alt+F | Meneruskannya ke satu chat atau lebih. |
 | Alt+D | Menyimpan filenya ke folder pilihan Anda. |
-| Alt+L | Membuka tautan di dalamnya. |
+| Alt+L | Membuka tautan di dalamnya. Link WhatsApp dibuka di sini: link undangan grup menanyakan apakah Anda ingin bergabung, link channel apakah Anda ingin mengikutinya, dan link wa.me membuka chat itu. |
 | Alt+I | Untuk pesan Anda: siapa yang menerima, membaca, dan memutarnya, dan kapan. |
 | Alt+P | Mendeskripsikan foto dengan add-on AI Content Describer, bila terpasang. |
 | Delete | Menghapusnya, untuk Anda atau untuk semua orang. |

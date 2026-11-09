@@ -393,6 +393,8 @@
 			title: chatTitle(chat),
 			isGroup: isGroupChat(chat),
 			unread: Math.max(0, chat.unreadCount || 0),
+			// Marked unread by the user, as WhatsApp's menu does, which leaves the count at 0.
+			markedUnread: !!chat.markedUnread,
 			t: chat.t || 0,
 			pinned: !!chat.pin,
 			archived: !!chat.archive,
@@ -755,6 +757,162 @@
 			throw new Error("notOnWhatsApp");
 		}
 		return chatInfo(chat);
+	}
+
+	// WhatsApp links ---------------------------------------------------------------------------------------
+
+	// WhatsApp's group-join code is loaded with its join window; the add-on loads it without the window.
+	async function loadGroupInviteCode() {
+		await req("JSResourceForInteraction")("WAWebGroupInviteLinkModal.react")
+			.__setRef("WAWebGroupInviteLinkModalLoadable.react")
+			.load();
+	}
+
+	// A group's details from its invite code. A link that was reset or never existed gives inviteInvalid.
+	async function queryInvite(code) {
+		await loadGroupInviteCode();
+		try {
+			return await req("WAWebQueryGroupAction").queryGroupInviteInfo(code);
+		} catch (e) {
+			const status = e && e.status;
+			// 400 for a code that never existed, 404, 406 or 410 for one reset or gone.
+			if (status === 400 || status === 404 || status === 406 || status === 410) {
+				throw new Error("inviteInvalid:" + status);
+			}
+			throw new Error("joinFailed:" + (status || (e && e.message) || e));
+		}
+	}
+
+	// What a WhatsApp link leads to, as WhatsApp itself reads links, without acting on it: a group to
+	// join, a channel to follow, a chat with a number, or something the add-on cannot open.
+	async function linkInfo(url) {
+		const parsed = req("WAWebApiParse").parseAPICmd(String(url || "").trim());
+		const data = (parsed && parsed.data) || {};
+		switch (parsed && parsed.resultType) {
+			case "GROUP_INVITE": {
+				const info = await queryInvite(data.code);
+				const gm = info.groupMetadata;
+				let size = 0;
+				try {
+					size = gm.size || (gm.participants ? gm.participants.length : 0) || 0;
+				} catch (e) {}
+				return {
+					kind: "group",
+					code: data.code,
+					chatId: gm.id.toString(),
+					name: String(info.subject || ""),
+					description: String(gm.desc || ""),
+					community: String(info.parentGroupSubject || ""),
+					size: size,
+					inGroup: !!info.inGroup,
+					needsApproval: !!gm.membershipApprovalMode,
+					requested: !!info.membershipApprovalRequest,
+					chat: info.inGroup ? chatInfo(getChat(gm.id.toString())) : null,
+				};
+			}
+			case "NEWSLETTER": {
+				if (data.type !== "view") {
+					return { kind: "unsupported" };
+				}
+				const chat = await req("WAWebLoadNewsletterPreviewChatAction").loadNewsletterPreviewChat(data.identifier);
+				if (!chat) {
+					throw new Error("channelNotFound");
+				}
+				const info = chatInfo(chat);
+				const md = chat.newsletterMetadata || {};
+				return {
+					kind: "channel",
+					chat: info,
+					name: info.title,
+					description: String(md.description || ""),
+					// WhatsApp fills in size when it fetches the channel; a followed one may lack it.
+					followers: Number(md.size || 0) || 0,
+					following: FOLLOWING.has(md.membershipType),
+				};
+			}
+			case "MSG_SEND": {
+				const phone = String((data.phone && (data.phone.user || data.phone)) || "").split("@")[0];
+				if (!phone) {
+					return { kind: "unsupported" };
+				}
+				return { kind: "chat", phone: phone, text: String(data.text || "") };
+			}
+			case "CALL_LINK":
+				return { kind: "call", video: data.callType === "video" };
+			default:
+				return { kind: "unsupported" };
+		}
+	}
+
+	// Joins a group from its invite link, as WhatsApp's join window does. A group whose admins approve
+	// new members gets a request instead. Returns the chat, or requested.
+	async function joinGroupLink(code) {
+		const info = await queryInvite(code);
+		const gm = info.groupMetadata;
+		if (info.inGroup) {
+			return { chat: chatInfo(getChat(gm.id.toString())) };
+		}
+		const ask = !!gm.membershipApprovalMode;
+		try {
+			const chat = await req("WAWebGroupInviteAction").joinGroupViaInvite(code, ask, gm);
+			if (ask) {
+				return { requested: true };
+			}
+			if (chat && chat.contact && info.subject) {
+				chat.contact.set({ name: info.subject });
+			}
+			return { chat: chatInfo(chat || getChat(gm.id.toString())) };
+		} catch (e) {
+			// 304: already asked, or already in; WhatsApp then says the request was sent.
+			if (e && e.status === 304) {
+				return { requested: true };
+			}
+			// The group turned out to need approval, or the answer came in another shape.
+			if (e && e.gid) {
+				if (e.membershipApprovalMode) {
+					return { requested: true };
+				}
+				const found = await req("WAWebFindChatAction").findOrCreateLatestChat(e.gid, "newGroupInviteLink");
+				return { chat: chatInfo((found && found.chat) || found) };
+			}
+			throw new Error("joinFailed:" + ((e && e.status) || (e && e.message) || e));
+		}
+	}
+
+	// Every chat with unread messages, or marked unread, archived ones too, marked read as WhatsApp's
+	// "Mark all as read" does. Returns how many.
+	async function markAllRead() {
+		const unread = collections()
+			.Chat.getModelsArray()
+			.filter((c) => isListedChat(c) && ((c.unreadCount || 0) !== 0 || c.markedUnread));
+		let done = 0;
+		for (const chat of unread) {
+			try {
+				await markRead(chat);
+				done++;
+			} catch (e) {}
+		}
+		return done;
+	}
+
+	// Marks a chat read or unread as WhatsApp's own menu does. It takes options now; an older add-on
+	// passed true, which WhatsApp reads as "not unread" and so marked the chat read instead.
+	function setUnread(chat, unread) {
+		return req("WAWebUpdateUnreadChatAction").markUnread(chat, {
+			allowAction: false,
+			showToast: false,
+			unread: !!unread,
+		});
+	}
+
+	// A chat the user marked unread is cleared as WhatsApp's "Mark as read" does: sendSeen skips it while
+	// the mark is on. Otherwise read receipts are sent now, as markSeen explains.
+	async function markRead(chat) {
+		if (chat.markedUnread) {
+			await setUnread(chat, false);
+			return;
+		}
+		await markSeen(chat.id._serialized || chat.id.toString());
 	}
 
 	// Messages in a chat whose text contains the query, loading older ones as WhatsApp's search would.
@@ -1317,6 +1475,8 @@
 
 	async function inviteLink(chatId, reset) {
 		const gm = getChat(chatId).groupMetadata;
+		// WhatsApp loads its invite code only with its own invite windows; without it, this failed.
+		await loadGroupInviteCode();
 		const invites = req("WAWebGroupInviteAction");
 		try {
 			if (reset) {
@@ -1921,9 +2081,9 @@
 		} else if (action === "pin" || action === "unpin") {
 			await req("WAWebSetPinChatAction").setPin(chat, action === "pin");
 		} else if (action === "markUnread") {
-			await req("WAWebUpdateUnreadChatAction").markUnread(chat, true);
+			await setUnread(chat, true);
 		} else if (action === "markRead") {
-			await markSeen(chatId);
+			await markRead(chat);
 		} else if (action === "mute") {
 			// -1 mutes until the user unmutes; otherwise seconds from now.
 			const expiration = seconds === -1 ? -1 : Math.floor(Date.now() / 1000) + seconds;
@@ -3625,6 +3785,9 @@
 		forward: forward,
 		messageReceipts: messageReceipts,
 		chatWithNumber: chatWithNumber,
+		linkInfo: linkInfo,
+		joinGroupLink: joinGroupLink,
+		markAllRead: markAllRead,
 		searchMessages: searchMessages,
 		allMessages: allMessages,
 		reactions: reactions,

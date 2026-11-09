@@ -101,6 +101,8 @@ background for new messages and calls.
   as read or unread. **Delete** deletes the chat after asking.
 - **Ctrl+N** starts a chat with a phone number, without saving the contact. **Ctrl+Shift+N** makes a
   new group. **Ctrl+Shift+F** searches the messages of every chat.
+- The **Options** button under the chat list (Alt+O) has **Open a WhatsApp link**, for a group's
+  invite link, a channel or a wa.me link (one you copied is filled in), and **Mark all as read**.
 
 ### A chat
 
@@ -174,7 +176,7 @@ all of this in the add-on's settings.
 | Alt+R | Reply to it. |
 | Alt+F | Forward it to one or more chats. |
 | Alt+D | Save its file to a folder you choose. |
-| Alt+L | Open a link in it. |
+| Alt+L | Open a link in it. WhatsApp links open here: a group's invite link asks whether to join, a channel's whether to follow, and a wa.me link opens that chat. |
 | Alt+I | For your own message: who received, read and played it, and when. |
 | Alt+P | Describe a photo with the AI Content Describer add-on, if you have it. |
 | Delete | Delete it, for you or for everyone. |

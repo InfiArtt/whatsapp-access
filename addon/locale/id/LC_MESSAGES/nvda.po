@@ -2806,3 +2806,81 @@ msgstr "Ada dua pilihan yang sama: {option}"
 #. Translators: The label of the box in the call window that says who is calling and how it goes.
 msgid "Call:"
 msgstr "Panggilan:"
+
+msgid "&Options"
+msgstr "&Opsi"
+
+msgid "Open a WhatsApp &link…"
+msgstr "Buka &link WhatsApp…"
+
+msgid "Mark all as &read"
+msgstr "Tandai semua sudah &dibaca"
+
+msgid "WhatsApp link, such as a group's invite link, a channel or a wa.me link:"
+msgstr "Link WhatsApp, misalnya link undangan grup, channel, atau link wa.me:"
+
+msgid "Open a WhatsApp link"
+msgstr "Buka link WhatsApp"
+
+msgid "Opening link"
+msgstr "Membuka link"
+
+msgid "Call links cannot be joined from WhatsApp Access yet. Open it on your phone."
+msgstr "Link panggilan belum bisa dibuka dari WhatsApp Access. Buka di HP Anda."
+
+msgid "WhatsApp Access cannot open this kind of link."
+msgstr "WhatsApp Access tidak bisa membuka link jenis ini."
+
+msgid "You already asked to join {name}. Its admins have not answered yet."
+msgstr "Anda sudah meminta bergabung ke {name}. Admin grupnya belum menjawab."
+
+msgid "In the community {name}"
+msgstr "Di komunitas {name}"
+
+msgid "{count} members"
+msgstr "{count} anggota"
+
+msgid "Ask to join {name}? Its admins approve new members."
+msgstr "Minta bergabung ke {name}? Anggota baru disetujui oleh admin grupnya."
+
+msgid "Join group"
+msgstr "Bergabung ke grup"
+
+msgid "Request sent. You join when an admin approves it."
+msgstr "Permintaan terkirim. Anda bergabung setelah admin menyetujuinya."
+
+msgid "{count} followers"
+msgstr "{count} pengikut"
+
+msgid "Follow the channel {name}?"
+msgstr "Ikuti channel {name}?"
+
+msgid "Channel"
+msgstr "Channel"
+
+msgid "&Follow"
+msgstr "&Ikuti"
+
+msgid "&Open without following"
+msgstr "&Buka tanpa mengikuti"
+
+msgid "Mark all chats as read? People who turned on read receipts see that you read their messages."
+msgstr "Tandai semua chat sudah dibaca? Orang yang menyalakan laporan dibaca akan melihat bahwa Anda sudah membaca pesannya."
+
+msgid "Mark all as read"
+msgstr "Tandai semua sudah dibaca"
+
+msgid "{count} chats marked as read"
+msgstr "{count} chat ditandai sudah dibaca"
+
+msgid "marked unread"
+msgstr "ditandai belum dibaca"
+
+msgid "This group link no longer works. Ask for a new one."
+msgstr "Link grup ini sudah tidak berlaku. Minta link yang baru."
+
+msgid "Could not join the group. Try again, or join from WhatsApp on your phone."
+msgstr "Tidak bisa bergabung ke grup. Coba lagi, atau bergabung dari WhatsApp di HP Anda."
+
+msgid "This channel could not be found."
+msgstr "Channel ini tidak ditemukan."

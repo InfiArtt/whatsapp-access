@@ -1,5 +1,6 @@
 import time
 
+import pytest
 from whatsAppAccess import messageText
 
 NOW = time.mktime((2026, 11, 8, 10, 0, 0, 0, 0, -1))
@@ -377,3 +378,42 @@ def test_polls_whatsapp_would_refuse_are_caught_first():
     assert "the same" in messageText.pollProblem("Makan?", ["Nasi", "nasi"])
     assert "255 characters" in messageText.pollProblem("x" * 256, ["a", "b"])
     assert "100 characters" in messageText.pollProblem("Makan?", ["a", "b" * 101])
+
+
+def test_chats_marked_unread_say_so_and_count_as_unread():
+    chat = {"title": "Budi", "unread": 0, "markedUnread": True, "last": None}
+    assert messageText.chatLine(chat, now=NOW) == "Budi, marked unread"
+    assert messageText.isUnread(chat)
+    assert messageText.isUnread({"unread": 2})
+    assert not messageText.isUnread({"unread": 0, "markedUnread": False})
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://chat.whatsapp.com/AbCdEfGhIjKlMnOpQrStUv",
+        "chat.whatsapp.com/invite/AbCdEfGhIjKlMnOpQrStUv",
+        "https://whatsapp.com/channel/0029VaAbCdEfGhIjKlMnOp12",
+        "https://www.whatsapp.com/channel/0029VaAbCdEfGhIjKlMnOp12",
+        "https://call.whatsapp.com/voice/AbCdEfGhIjKlMnOpQr",
+        "https://wa.me/6281234567890?text=halo",
+        "wa.me/6281234567890",
+        "https://api.whatsapp.com/send?phone=6281234567890",
+    ],
+)
+def test_whatsapp_links_open_in_the_addon(link):
+    assert messageText.isWhatsAppLink(link)
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://example.com/chat.whatsapp.com/AbCd",
+        "https://chat.whatsapp.com.example.com/AbCd",
+        "https://www.whatsapp.com/download",
+        "https://web.whatsapp.com/",
+        "https://infiartt.com",
+    ],
+)
+def test_other_links_open_in_the_browser(link):
+    assert not messageText.isWhatsAppLink(link)
