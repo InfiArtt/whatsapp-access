@@ -1198,6 +1198,9 @@
 
 	async function createGroup(title, contactIds) {
 		await req("WAWebNewGroupFlowLoadable").requireBundle();
+		// The same settings WhatsApp's own "New group" starts with (WAWebNewGroupFlow.react). Here restrict and
+		// announce mean the opposite of a group's metadata: WAWebGroupCreateJob sends hasLocked: !restrict
+		// and hasAnnouncement: !announce, so true lets every member edit the group's info and send messages.
 		const result = await req("WAWebCreateGroupAction").createGroup(
 			{
 				title: String(title),
