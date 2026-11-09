@@ -672,8 +672,9 @@ class WhatsAppSession:
 		"""Favorite, then recent stickers: kind, index, label, pack, animated."""
 		return self._bridge("stickers")
 
-	def sendSticker(self, chatId: str, kind: str, index: int) -> None:
-		self._bridge("sendSticker", chatId, kind, index, timeout=60)
+	def sendSticker(self, chatId: str, kind: str, index: int, key: str = "") -> None:
+		"""Send one of the stickers listed by stickers(). key, from that list, finds it even if it moved."""
+		self._bridge("sendSticker", chatId, kind, index, key, timeout=60)
 
 	def searchAll(self, query: str, page: int = 1) -> dict:
 		"""Messages in every chat containing query, each with chatTitle; done says there are no more."""
