@@ -2810,6 +2810,82 @@
 		return new Blob([plain], { type: (m.mimetype || "audio/ogg").split(";")[0] });
 	}
 
+	// Describing photos with Meta AI ---------------------------------------------------------------------
+	// Alt+P sends the photo to the user's chat with Meta AI with a question, as the user could in WhatsApp,
+	// waits for the finished answer and gives it to the add-on to read out.
+
+	const DESCRIBE_MAX_BYTES = 20 * 1024 * 1024;
+	const DESCRIBE_WAIT_MS = 120 * 1000;
+	// While a description is awaited, Meta AI's answer is not announced as a new message as well.
+	let describingIn = null;
+
+	function aiChat() {
+		const chat = collections()
+			.Chat.getModelsArray()
+			.find((c) => isAiChat(c));
+		if (!chat) {
+			throw new Error("noMetaAi");
+		}
+		return chat;
+	}
+
+	async function describePhoto(messageId, question) {
+		const m = getMsg(messageId);
+		if (!m || (m.type !== "image" && m.type !== "sticker")) {
+			throw new Error("noMedia");
+		}
+		const chat = aiChat();
+		const blob = await downloadMedia(m, DESCRIBE_MAX_BYTES);
+		const type = blob.type || "image/jpeg";
+		const file = new File([blob], "photo" + (EXTENSIONS[type] || ".jpg"), { type: type });
+		const since = Math.floor(Date.now() / 1000) - 2;
+		const chatId = chat.id.toString();
+		describingIn = chatId;
+		try {
+			const data = await req("WAWebMediaOpaqueData").createFromData(file, file.type);
+			const prep = req("WAWebPrepRawMedia").prepRawMedia(data, {});
+			await prep.waitForPrep();
+			const result = await prep.sendToChat({ chat: chat, options: { caption: String(question || "") } });
+			const status = result && result.messageSendResult;
+			if (status && status !== "OK") {
+				throw new Error("sendFailed:" + status);
+			}
+			const answer = await aiAnswerAfter(chat, since);
+			try {
+				await markSeen(chatId);
+			} catch (e) {}
+			return answer;
+		} finally {
+			// A little later: the finished answer's own event may still be on its way.
+			setTimeout(() => {
+				if (describingIn === chatId) {
+					describingIn = null;
+				}
+			}, 3000);
+		}
+	}
+
+	// The first finished answer from Meta AI in its chat since a time, or aiTimeout.
+	function aiAnswerAfter(chat, since) {
+		return new Promise((resolve, reject) => {
+			const started = Date.now();
+			const timer = setInterval(() => {
+				const answer = chat.msgs
+					.getModelsArray()
+					.filter((m) => !m.id.fromMe && (m.t || 0) >= since && isAiAnswer(m) && !isAiWriting(m))
+					.pop();
+				const text = answer ? messageInfo(answer).text : "";
+				if (text && text.trim()) {
+					clearInterval(timer);
+					resolve(text);
+				} else if (Date.now() - started > DESCRIBE_WAIT_MS) {
+					clearInterval(timer);
+					reject(new Error("aiTimeout"));
+				}
+			}, 700);
+		});
+	}
+
 	// Downloads a message's file for the add-on to save, which then reads it in base64 pieces.
 	const downloads = new Map();
 
@@ -3733,9 +3809,14 @@
 	}
 
 	function emitMessage(m, chat) {
+		const info = messageInfo(m);
+		if (describingIn && describingIn === (chat.id._serialized || chat.id.toString())) {
+			// Meta AI describing a photo for Alt+P: the description is read out by itself.
+			info.describing = true;
+		}
 		emit({
 			type: "message",
-			message: messageInfo(m),
+			message: info,
 			chat: { id: chat.id._serialized, title: chatTitle(chat), isGroup: isGroupChat(chat), muted: isMutedChat(chat) },
 		});
 	}
@@ -3935,6 +4016,7 @@
 		messageReceipts: messageReceipts,
 		chatWithNumber: chatWithNumber,
 		linkInfo: linkInfo,
+		describePhoto: describePhoto,
 		replies: replies,
 		sendReply: sendReply,
 		joinGroupLink: joinGroupLink,

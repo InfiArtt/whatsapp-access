@@ -703,7 +703,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			message, chat = event.get("message", {}), event.get("chat", {})
 			inOpenChat = bool(window and window.onMessage(message, chat))
 			# Meta AI's answer is said when it is finished, which comes as this event again.
-			if not message.get("fromMe") and not message.get("aiWriting"):
+			if not message.get("fromMe") and not message.get("aiWriting") and not message.get("describing"):
 				settings = config.conf[CONFIG_SECTION]
 				rule = notifications.loadRules(settings["chatRules"]).get(chat.get("id", ""))
 				decision = notifications.decide(

@@ -185,6 +185,14 @@ def errorText(error: Exception, browserName: str = "") -> str:
 		return _(
 			"WhatsApp did not start the call. Try calling once from WhatsApp on your phone or in a browser."
 		)
+	if code == "noMetaAi":
+		# Translators: Reported when Alt+P cannot describe a photo because the user has no chat with Meta AI.
+		return _(
+			"Photos are described by Meta AI. Start a chat with Meta AI in WhatsApp on your phone first."
+		)
+	if code == "aiTimeout":
+		# Translators: Reported when Meta AI did not describe a photo in time.
+		return _("Meta AI did not answer in time. Its answer may still come in the chat with Meta AI.")
 	if code == "inviteInvalid":
 		# Translators: Reported when a group's invite link was reset by its admins or never existed.
 		return _("This group link no longer works. Ask for a new one.")
@@ -1818,36 +1826,26 @@ class ChatWindow(wx.Dialog):
 		self._run(lambda: self.session.messageReceipts(message["id"]), show)
 
 	def _describePhoto(self) -> None:
-		"""Alt+P: describe the photo with the AI Content Describer add-on, if it is installed."""
+		"""Alt+P: Meta AI describes the photo, and the description is read out."""
 		self._describeFile(self._selectedMessage())
 
 	def _describeFile(self, message: dict | None) -> None:
+		"""Send a photo to the chat with Meta AI with a question, as the user could in WhatsApp, and read
+		out its answer. The photo and the answer stay in the chat with Meta AI."""
 		if message is None or message.get("type") not in ("image", "sticker"):
 			# Translators: Reported when asking for a description of a message that is not a photo.
 			ui.message(_("This message has no photo"))
 			return
-		describer = _findDescriber()
-		if describer is None:
-			# Translators: Reported when the add-on that describes photos is not installed.
-			ui.message(_("Install the AI Content Describer add-on to describe photos"))
-			return
-		folder = dataFolder.tempMediaPath()
-		os.makedirs(folder, exist_ok=True)
+		# Translators: What the add-on asks Meta AI when it sends it a photo to describe (Alt+P), in the
+		# user's language, so the answer comes in it too.
+		question = _(
+			"Describe this image in detail for a blind person: what is in it, where things are, colours, "
+			"and any text in it, word for word."
+		)
 
-		def describe(path: str) -> None:
-			# The describer reads an image's path from the clipboard; the user's clipboard comes back after,
-			# copied files and pictures too, not only text.
-			previous = _saveClipboard()
-			api.copyToClip(path)
-			try:
-				describer.describe_clipboard()
-			finally:
-				if previous is not None:
-					wx.CallLater(4000, _restoreClipboard, previous)
-
-		# Translators: Reported while a photo is downloaded to be described.
-		ui.message(_("Describing photo…"))
-		self._run(lambda: self.session.download(message["id"], folder=folder), describe)
+		# Translators: Reported while Meta AI describes a photo.
+		ui.message(_("Asking Meta AI to describe the photo…"))
+		self._run(lambda: self.session.describePhoto(message["id"], question), ui.message)
 
 	# Reading, copying, reacting and deleting with keys -------------------------------------------------
 
@@ -5114,19 +5112,6 @@ def _passesFilter(chat: dict, chatFilter: str) -> bool:
 	return True
 
 
-def _findDescriber() -> Any | None:
-	"""The AI Content Describer add-on's plugin, which can describe an image path on the clipboard.
-
-	:return: That global plugin, or None when the add-on is not installed or running.
-	"""
-	import globalPluginHandler
-
-	for plugin in globalPluginHandler.runningPlugins:
-		if hasattr(plugin, "describe_clipboard"):
-			return plugin
-	return None
-
-
 class RepliesDialog(wx.Dialog):
 	"""The replies to a community announcement, oldest first, and a box to reply to it."""
 
@@ -5330,33 +5315,6 @@ def tabNames() -> list[str]:
 		# Translators: A section of the add-on's window, like WhatsApp's: profile, privacy and more.
 		_("Settings (Ctrl+8)"),
 	]
-
-
-def _saveClipboard() -> wx.DataObject | None:
-	"""What is on the clipboard now, as files, a picture or text, to put back later; None if nothing."""
-	if not wx.TheClipboard.Open():
-		return None
-	try:
-		for dataFormat, make in (
-			(wx.DF_FILENAME, wx.FileDataObject),
-			(wx.DF_BITMAP, wx.BitmapDataObject),
-			(wx.DF_UNICODETEXT, wx.TextDataObject),
-		):
-			if wx.TheClipboard.IsSupported(wx.DataFormat(dataFormat)):
-				data = make()
-				if wx.TheClipboard.GetData(data):
-					return data
-	finally:
-		wx.TheClipboard.Close()
-	return None
-
-
-def _restoreClipboard(data: wx.DataObject) -> None:
-	if wx.TheClipboard.Open():
-		try:
-			wx.TheClipboard.SetData(data)
-		finally:
-			wx.TheClipboard.Close()
 
 
 def _selectedId(listBox: wx.ListBox, items: list[dict]) -> str | None:

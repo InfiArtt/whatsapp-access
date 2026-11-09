@@ -2923,3 +2923,15 @@ msgstr "Hanya admin komunitas yang bisa mengirim pengumuman. Alt+R menampilkan b
 
 msgid "Only admins can send messages. Alt+R replies privately to the sender of a message."
 msgstr "Hanya admin yang bisa mengirim pesan. Alt+R membalas pengirim sebuah pesan secara pribadi."
+
+msgid "Describe this image in detail for a blind person: what is in it, where things are, colours, and any text in it, word for word."
+msgstr "Deskripsikan gambar ini secara detail untuk orang tunanetra: apa saja isinya, letak benda-benda, warna, dan semua teks di dalamnya, kata demi kata."
+
+msgid "Asking Meta AI to describe the photo…"
+msgstr "Meminta Meta AI mendeskripsikan foto…"
+
+msgid "Photos are described by Meta AI. Start a chat with Meta AI in WhatsApp on your phone first."
+msgstr "Foto dideskripsikan oleh Meta AI. Mulai dulu chat dengan Meta AI di WhatsApp di HP Anda."
+
+msgid "Meta AI did not answer in time. Its answer may still come in the chat with Meta AI."
+msgstr "Meta AI tidak menjawab tepat waktu. Jawabannya mungkin masih akan muncul di chat dengan Meta AI."

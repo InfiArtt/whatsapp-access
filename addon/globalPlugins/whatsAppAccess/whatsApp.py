@@ -86,6 +86,8 @@ def _codeFromPageError(description: str) -> WhatsAppError:
 		"noUpload",
 		"oneOptionOnly",
 		"inviteInvalid",
+		"noMetaAi",
+		"aiTimeout",
 		"joinFailed",
 		"channelNotFound",
 	}
@@ -563,6 +565,12 @@ class WhatsAppSession:
 		community, size, inGroup, needsApproval, requested, chat when joined), channel (chat, name,
 		description, followers, following), chat (phone, text), call (video) or unsupported."""
 		return self._bridge("linkInfo", url, timeout=60)
+
+	def describePhoto(self, messageId: str, question: str) -> str:
+		"""Sends a message's photo to the chat with Meta AI with a question, and returns its answer.
+
+		Fails with noMetaAi when the user has no chat with Meta AI, aiTimeout when it does not answer."""
+		return self._bridge("describePhoto", messageId, question, timeout=150)
 
 	def joinGroupLink(self, code: str) -> dict:
 		"""Joins a group from its invite code. Returns chat, or requested when admins approve members."""

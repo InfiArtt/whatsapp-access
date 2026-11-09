@@ -187,7 +187,7 @@ jauh lebih jernih daripada perekam WhatsApp sendiri. Semuanya bisa diubah di pen
 | Alt+D | Menyimpan filenya ke folder pilihan Anda. |
 | Alt+L | Membuka tautan di dalamnya. Link WhatsApp dibuka di sini: link undangan grup menanyakan apakah Anda ingin bergabung, link channel apakah Anda ingin mengikutinya, dan link wa.me membuka chat itu. |
 | Alt+I | Untuk pesan Anda: siapa yang menerima, membaca, dan memutarnya, dan kapan. |
-| Alt+P | Mendeskripsikan foto dengan add-on AI Content Describer, bila terpasang. |
+| Alt+P | Meta AI mendeskripsikan foto, lalu deskripsinya dibacakan. Foto dikirim ke chat Anda dengan Meta AI beserta pertanyaannya, seperti yang bisa Anda lakukan di WhatsApp, dan tetap tersimpan di sana bersama jawabannya. |
 | Delete | Menghapusnya, untuk Anda atau untuk semua orang. |
 | Applications | Menunya: juga bintangi, edit, sematkan 24 jam, 7 hari, atau 30 hari, balas secara pribadi di grup, lihat siapa yang bereaksi, dan jawab acara. |
 

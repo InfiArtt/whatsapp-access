@@ -5,6 +5,10 @@ notes the add-on shows before it installs an update.
 
 ## [Unreleased]
 
+- Alt+P describes a photo with Meta AI, with no other add-on needed: the photo goes to your chat with
+  Meta AI with a question in your language, and its answer is read out when it is finished. It also
+  works on statuses. The photo and the answer stay in the chat with Meta AI. The AI Content Describer
+  add-on is no longer used.
 - Chats with Meta AI: its answer is read out once it has finished writing it, whole, instead of
   "Thinking" and then nothing. Its answers are no longer called "edited", the empty message it shows
   while it starts is left out, and its chat no longer says "no info" for its online status.
