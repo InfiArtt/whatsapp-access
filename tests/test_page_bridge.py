@@ -526,3 +526,45 @@ def test_waiting_to_be_linked_is_recognised_on_both_login_pages(path, modules, n
         check=True,
     )
     assert json.loads(result.stdout)["needsLink"] is needsLink
+
+
+CHANNELS_HELPER = r"""
+const fs = require("fs");
+const source = fs.readFileSync(process.argv[1], "utf8").replace(/\r\n/g, "\n");
+const take = (name) => {
+    const start = source.indexOf("\tfunction " + name + "(");
+    const end = source.indexOf("\n\t}\n", start) + 4;
+    return source.slice(start, end);
+};
+const f = new Function(take("recordChannels") + take("copyChannels") + "; return { recordChannels, copyChannels };")();
+class AudioData { constructor(init) { Object.assign(this, init); } }
+globalThis.AudioData = AudioData;
+// A stereo frame: the voice only on the right.
+const frame = {
+    numberOfFrames: 2, numberOfChannels: 2, sampleRate: 48000, timestamp: 0,
+    copyTo(plane, { planeIndex }) { plane.set(planeIndex === 0 ? [0, 0] : [0.5, 1]); },
+};
+process.stdout.write(JSON.stringify({
+    unchecked: f.recordChannels(false, 2),
+    checked: f.recordChannels(true, 2),
+    checkedMonoMicrophone: f.recordChannels(true, 1),
+    mono: Array.from(f.copyChannels(frame, 1).data),
+}));
+"""
+
+
+def test_voice_notes_are_mono_when_stereo_is_unchecked():
+    result = subprocess.run(
+        [NODE, "-e", CHANNELS_HELPER, str(PACKAGE_DIR / "pageBridge.js")],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    assert json.loads(result.stdout) == {
+        "unchecked": 1,
+        "checked": 2,
+        "checkedMonoMicrophone": 1,
+        # Both sides mixed: a voice on one side is kept, at half level.
+        "mono": [0.25, 0.5],
+    }

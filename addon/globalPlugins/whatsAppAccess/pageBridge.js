@@ -2410,7 +2410,7 @@
 							continue;
 						}
 						if (!state.encoder) {
-							state.channels = Math.min(2, frame.numberOfChannels);
+							state.channels = recordChannels(!!options.stereo, frame.numberOfChannels);
 							state.sampleRate = frame.sampleRate;
 							if (!OPUS_RATES.has(state.sampleRate)) {
 								throw new Error("sampleRate:" + state.sampleRate);
@@ -2477,13 +2477,31 @@
 		return { microphone: state.label };
 	}
 
+	// How many channels a voice note gets: stereo only when the user wants it and the microphone gives
+	// two. channelCount in getUserMedia is only a wish: a microphone with two channels, without WhatsApp's
+	// sound processing, gives two anyway, so asking for one was not enough to record in mono.
+	function recordChannels(stereo, microphoneChannels) {
+		return stereo ? Math.min(2, Math.max(1, microphoneChannels)) : 1;
+	}
+
 	function copyChannels(frame, channels) {
 		const n = frame.numberOfFrames;
 		const data = new Float32Array(n * channels);
-		for (let c = 0; c < channels; c++) {
-			const plane = new Float32Array(n);
-			frame.copyTo(plane, { planeIndex: Math.min(c, frame.numberOfChannels - 1), format: "f32-planar" });
-			data.set(plane, c * n);
+		if (channels === 1 && frame.numberOfChannels >= 2) {
+			// Mono from a stereo microphone: both sides mixed, so a voice on one side is not lost.
+			const left = new Float32Array(n);
+			const right = new Float32Array(n);
+			frame.copyTo(left, { planeIndex: 0, format: "f32-planar" });
+			frame.copyTo(right, { planeIndex: 1, format: "f32-planar" });
+			for (let i = 0; i < n; i++) {
+				data[i] = (left[i] + right[i]) / 2;
+			}
+		} else {
+			for (let c = 0; c < channels; c++) {
+				const plane = new Float32Array(n);
+				frame.copyTo(plane, { planeIndex: Math.min(c, frame.numberOfChannels - 1), format: "f32-planar" });
+				data.set(plane, c * n);
+			}
 		}
 		return new AudioData({
 			format: "f32-planar",
