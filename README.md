@@ -160,9 +160,10 @@ background for new messages and calls.
 | Ctrl+D | Throw it away. |
 
 Voice notes are recorded from your microphone's own sound, without the browser's echo
-cancellation, noise suppression and automatic volume, in stereo if the microphone has two
-channels, and at 128 kilobits per second, much clearer than WhatsApp's own recorder. You can change
-all of this in the add-on's settings.
+cancellation, noise suppression and automatic volume, and at 128 kilobits per second, much clearer
+than WhatsApp's own recorder. You can change all of this in the add-on's settings. They are in mono:
+stereo can be turned on there for a microphone with two channels, but WhatsApp on the iPhone does not
+play stereo voice notes.
 
 ### Keys on a message
 

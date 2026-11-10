@@ -1260,10 +1260,15 @@ class WhatsAppSettingsPanel(SettingsPanel):
 		)
 		self.speedChoice.SetSelection(("1", "1.5", "2").index(settings["playbackSpeed"]))
 		self.stereoBox = helper.addItem(
-			# Translators: A checkbox in this add-on's settings.
-			wx.CheckBox(self, label=_("Record voice notes in &stereo when the microphone has two channels"))
+			wx.CheckBox(
+				self,
+				# Translators: A checkbox in this add-on's settings.
+				label=_(
+					"Record voice notes in &stereo when the microphone has two channels (iPhones cannot play them)"
+				),
+			)
 		)
-		self.stereoBox.SetValue(settings["stereo"])
+		self.stereoBox.SetValue(settings["stereoVoiceNotes"])
 		self.rawBox = helper.addItem(
 			wx.CheckBox(
 				self,
@@ -1390,7 +1395,7 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			# The next NVDA+Shift+W connects the new way.
 			plugin.disconnectForChange()
 		settings["announce"] = ANNOUNCE_CHOICES[self.announceChoice.GetSelection()]
-		settings["stereo"] = self.stereoBox.GetValue()
+		settings["stereoVoiceNotes"] = self.stereoBox.GetValue()
 		settings["rawMicrophone"] = self.rawBox.GetValue()
 		settings["voiceKbps"] = self.kbpsSpin.GetValue()
 		settings["sounds"] = self.soundsBox.GetValue()

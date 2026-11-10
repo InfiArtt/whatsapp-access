@@ -261,6 +261,8 @@ class ChatWindow(wx.Dialog):
 		self._shownChats: list[dict] = []
 		self.chat: dict | None = None
 		self._messages: list[dict] = []
+		self._pins: list[dict] = []
+		"""The open chat's pinned messages, oldest first, as the buttons above its messages show."""
 		self._recording = False
 		self._hasRecording = False
 		self._recordingChatId: str | None = None
@@ -944,6 +946,20 @@ class ChatWindow(wx.Dialog):
 		self.moreButton.Bind(wx.EVT_BUTTON, lambda evt: self._conversationMenu())
 		header.Add(self.moreButton, 0)
 		sizer.Add(header, 0, wx.EXPAND | wx.BOTTOM, 6)
+		# The chat's pinned messages, as WhatsApp's bar above a chat, just before the messages: Shift+Tab
+		# from them reaches it. The newest is shown; with more, a button lists them all. Hidden without pins.
+		pinned = wx.BoxSizer(wx.HORIZONTAL)
+		self.pinnedButton = wx.Button(panel, label="")
+		self.pinnedButton.Bind(
+			wx.EVT_BUTTON, lambda evt: self._pins and self._goToChosenMessage(self._pins[-1])
+		)
+		pinned.Add(self.pinnedButton, 1, wx.RIGHT, 6)
+		self.allPinnedButton = wx.Button(panel, label="")
+		self.allPinnedButton.Bind(wx.EVT_BUTTON, lambda evt: self._showPinned())
+		pinned.Add(self.allPinnedButton, 0)
+		sizer.Add(pinned, 0, wx.EXPAND | wx.BOTTOM, 6)
+		self.pinnedButton.Hide()
+		self.allPinnedButton.Hide()
 		self._presence: dict | None = None
 		self._presenceText = ""
 		self._unreadAtOpen = 0
@@ -1512,6 +1528,7 @@ class ChatWindow(wx.Dialog):
 		self.cannotSendBox.Show(not self._canWrite)
 		self.messageList.Set([])
 		self._messages = []
+		self._showPins([])
 		self._selectedMessageIds = set()
 		self.composeBox.Clear()
 		self._cancelReply(announce=False)
@@ -1547,14 +1564,25 @@ class ChatWindow(wx.Dialog):
 				self.session.markSeen(chatId)
 			except WhatsAppError as e:
 				log.debugWarning(f"WhatsApp Access: could not mark the chat as read: {e}")
-			return messages
+			try:
+				pins = self.session.pinnedMessages(chatId)
+			except WhatsAppError as e:
+				log.debugWarning(f"WhatsApp Access: could not read the pinned messages: {e}")
+				pins = []
+			return messages, pins
+
+		def loaded(result: tuple[list[dict], list[dict]]) -> None:
+			messages, pins = result
+			if self.chat and self.chat["id"] == chatId:
+				self._showPins(pins)
+			self._gotMessages(chatId, messages, opening=True)
 
 		def loadFailed(error: Exception) -> None:
 			# Only if that chat is still open: the user may have moved on to another one meanwhile.
 			if self.chat and self.chat["id"] == chatId:
 				self.showChats()
 
-		self._run(load, lambda messages: self._gotMessages(chatId, messages, opening=True), loadFailed)
+		self._run(load, loaded, loadFailed)
 		self._updateButtons()
 		# Meta AI has no online or last seen, which would read as "no info".
 		if isChannel or chat.get("isAi"):
@@ -2752,7 +2780,7 @@ class ChatWindow(wx.Dialog):
 			if microphone:
 				deviceId = next((m["id"] for m in self.session.microphones() if m["label"] == microphone), "")
 			return self.session.startRecording(
-				settings["stereo"], settings["rawMicrophone"], settings["voiceKbps"], deviceId
+				settings["stereoVoiceNotes"], settings["rawMicrophone"], settings["voiceKbps"], deviceId
 			)
 
 		def started(result: dict) -> None:
@@ -3521,8 +3549,36 @@ class ChatWindow(wx.Dialog):
 			message["pinned"] = duration is not None
 			# Translators: Reported after pinning or unpinning a message.
 			ui.message(_("Pinned") if duration else _("Unpinned"))
+			self._refreshPins()
 
 		self._run(lambda: self.session.pinMessage(message["id"], duration), done)
+
+	def _showPins(self, pins: list[dict]) -> None:
+		"""Show the newest pinned message above the messages, and the button for all when there are more."""
+		self._pins = pins
+		if pins:
+			isGroup = bool(self.chat and self.chat.get("isGroup"))
+			newest = messageText.messageLine(pins[-1], isGroup)
+			# A button's & marks its shortcut key; the message's own are kept as they are.
+			# Translators: The button above a chat's messages with its pinned message; Enter goes to it.
+			self.pinnedButton.SetLabel(_("Pinned: {message}").format(message=newest).replace("&", "&&"))
+			# Translators: The button beside the pinned message when a chat has several: lists them all.
+			self.allPinnedButton.SetLabel(_("Go to pinned messages ({count})").format(count=len(pins)))
+		self.pinnedButton.Show(bool(pins))
+		self.allPinnedButton.Show(len(pins) > 1)
+		self.conversationPanel.Layout()
+
+	def _refreshPins(self) -> None:
+		"""Read the open chat's pinned messages again, after one was pinned or unpinned."""
+		if not self.chat:
+			return
+		chatId = self.chat["id"]
+
+		def got(pins: list[dict]) -> None:
+			if self.chat and self.chat["id"] == chatId:
+				self._showPins(pins)
+
+		self._run(lambda: self.session.pinnedMessages(chatId), got, lambda e: None)
 
 	def _showPinned(self) -> None:
 		if not self.chat:
@@ -3551,6 +3607,11 @@ class ChatWindow(wx.Dialog):
 			chosen = messages[picker.selection()]
 		finally:
 			picker.Destroy()
+		self._goToChosenMessage(chosen)
+
+	def _goToChosenMessage(self, chosen: dict) -> None:
+		"""Go to a message in the conversation, or open its chat at it."""
+		isGroup = bool(self.chat and self.chat.get("isGroup"))
 		if self.chat and chosen.get("chatId") == self.chat["id"]:
 			index = next((i for i, m in enumerate(self._messages) if m.get("id") == chosen["id"]), -1)
 			if index >= 0:

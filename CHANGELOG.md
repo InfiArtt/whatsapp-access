@@ -3,6 +3,21 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.6.6]
+
+**Required update.** Voice notes sent from WhatsApp Access could not be played on an iPhone. WhatsApp
+stays closed until this version is installed.
+
+- Voice notes are recorded in mono. People on an iPhone could not play voice notes recorded in stereo,
+  from a microphone with two channels: WhatsApp told them the audio was "no longer available" and to
+  ask for it again. Everyone starts in mono, also those who had turned stereo on. Stereo can still be
+  turned on in the add-on's settings, which now say that iPhones cannot play it; leave it off unless
+  you know everyone you send voice notes to can play it. Thanks to Moon, who found it.
+- A chat's pinned message is shown above its messages, as in WhatsApp: Shift+Tab from the messages
+  reaches it, and Enter goes to it. With more than one, the newest is shown, and "Go to pinned
+  messages" beside it lists them all. A pinned message older than the messages loaded in the chat was
+  left out of that list, which could say there were none; it is there now too.
+
 ## [0.6.5]
 
 - Exit group is in the chat list's and the archive's menu (the Applications key), not only in an open

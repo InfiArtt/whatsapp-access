@@ -49,8 +49,8 @@ msgstr ""
 "Menyambung ke WhatsApp Web di {browser}. Kalau {browser} bertanya apakah mengizinkan remote debugging, "
 "pilih Allow: tekan Shift+Tab, lalu Enter."
 
-msgid "Record voice notes in &stereo when the microphone has two channels"
-msgstr "Rekam voice note dalam &stereo bila mikrofon punya dua kanal"
+msgid "Record voice notes in &stereo when the microphone has two channels (iPhones cannot play them)"
+msgstr "Rekam voice note dalam &stereo bila mikrofon punya dua kanal (tidak bisa diputar di iPhone)"
 
 msgid "Use the microphone's own sound: no echo cancellation, noise suppression or automatic volume"
 msgstr "Pakai suara asli mikrofon: tanpa peredam gema, peredam bising, atau volume otomatis"
@@ -2953,3 +2953,9 @@ msgstr "Posisi pesan suara:"
 
 msgid "{position} of {length}"
 msgstr "{position} dari {length}"
+
+msgid "Pinned: {message}"
+msgstr "Disematkan: {message}"
+
+msgid "Go to pinned messages ({count})"
+msgstr "Buka pesan yang disematkan ({count})"
