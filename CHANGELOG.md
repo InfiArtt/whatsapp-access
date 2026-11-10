@@ -3,6 +3,14 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.6.5]
+
+- Exit group is in the chat list's and the archive's menu (the Applications key), not only in an open
+  chat's More options. Delete on a group you are still in offers to exit it, or exit and delete it;
+  before, it did nothing and said nothing, as WhatsApp deletes a group only once you left it.
+- Changing a privacy setting, such as last seen, failed with "Something went wrong": WhatsApp now loads
+  that code only with its own settings screen, and the add-on loads it first.
+
 ## [0.6.4]
 
 - With "Record voice notes in stereo" unchecked, voice notes are now sent in mono. A microphone with
