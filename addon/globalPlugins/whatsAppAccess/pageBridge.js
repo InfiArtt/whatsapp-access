@@ -2130,6 +2130,10 @@
 		if (!name) {
 			throw new Error("badSetting");
 		}
+		if (!req("WAWebSetPrivacyForOneCategoryAction")) {
+			// WhatsApp now loads its privacy code with its own settings screen.
+			await req("WAWebSettingsFlowLoadable").requireBundle();
+		}
 		await req("WAWebSetPrivacyForOneCategoryAction").setPrivacyForOneCategory({ name: name, value: String(value) });
 		return true;
 	}

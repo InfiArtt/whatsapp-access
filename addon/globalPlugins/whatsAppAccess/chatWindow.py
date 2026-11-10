@@ -3244,6 +3244,12 @@ class ChatWindow(wx.Dialog):
 		add(menu, _("&Open"), lambda: self.openChat(chat))
 		# Translators: An item in a chat's menu: how new messages from this chat are announced.
 		self._addChatItems(menu, chat, add)
+		if _isJoinedGroup(chat):
+			# Translators: An item in a chat's menu, like WhatsApp's: leaves the group.
+			add(menu, _("E&xit group…"), lambda: self._exitGroup(chat))
+		else:
+			# Translators: An item in a chat's menu, like WhatsApp's.
+			add(menu, _("Delete chat…"), lambda: self._deleteChat(chat))
 		source = self.archivedList if self.tabs.GetSelection() == self.TAB_ARCHIVED else self.chatList
 		source.PopupMenu(menu)
 		menu.Destroy()
@@ -3861,8 +3867,9 @@ class ChatWindow(wx.Dialog):
 		def done(result: Any) -> None:
 			# Translators: Reported after leaving a group.
 			ui.message(_("You left {name}").format(name=chat["title"]))
-			if answer == wx.ID_YES:
+			if answer == wx.ID_YES and self.chat and self.chat["id"] == chat["id"]:
 				self.showChats()
+			self.refreshChats()
 
 		self._run(lambda: self.session.exitGroup(chat["id"], answer == wx.ID_YES), done)
 
@@ -4638,6 +4645,11 @@ class ChatWindow(wx.Dialog):
 		chats = self._chosenChats()
 		if not chats:
 			return
+		if len(chats) == 1 and _isJoinedGroup(chats[0]):
+			# WhatsApp deletes a group only after the user exits it: Delete offers that, Exit and delete
+			# first, rather than doing nothing.
+			self._exitGroup(chats[0])
+			return
 		names = ", ".join(c.get("title", "") for c in chats[:5]) + ("…" if len(chats) > 5 else "")
 		if not askYesNo(
 			self,
@@ -5233,6 +5245,12 @@ def _passesFilter(chat: dict, chatFilter: str) -> bool:
 	if chatFilter == "favorites":
 		return bool(chat.get("favorite"))
 	return True
+
+
+def _isJoinedGroup(chat: dict) -> bool:
+	"""A group the user is still in, other than a community's announcements, which one leaves with the
+	community: WhatsApp has the user exit it before the chat can be deleted."""
+	return bool(chat.get("isGroup") and not chat.get("left") and not chat.get("announcementGroup"))
 
 
 class RepliesDialog(wx.Dialog):
