@@ -2953,3 +2953,9 @@ msgstr "Posisi pesan suara:"
 
 msgid "{position} of {length}"
 msgstr "{position} dari {length}"
+
+msgid "Pinned: {message}"
+msgstr "Disematkan: {message}"
+
+msgid "{count} pinned messages, newest: {message}"
+msgstr "{count} pesan disematkan, terbaru: {message}"

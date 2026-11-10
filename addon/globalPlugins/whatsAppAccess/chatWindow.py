@@ -83,6 +83,9 @@ OPENED_TYPES = ("image", "video", "ptv", "document", "sticker")
 PLAYED_TYPES = ("ptt", "audio", "video", "ptv")
 # Voice messages and audio have the position slider.
 SEEKABLE_TYPES = ("ptt", "audio")
+# The line at the top of a conversation for its pinned messages, as WhatsApp's bar above a chat. It is
+# a row of the messages list, but no message: what is done to messages leaves it alone.
+PINNED_ROW = "pinnedRow"
 POSITION_STEP_SECONDS = 5
 POSITION_PAGE_SECONDS = 30
 POSITION_FOLLOW_MS = 1000
@@ -261,6 +264,8 @@ class ChatWindow(wx.Dialog):
 		self._shownChats: list[dict] = []
 		self.chat: dict | None = None
 		self._messages: list[dict] = []
+		self._pins: list[dict] = []
+		"""The open chat's pinned messages, oldest first, as the line at the top of its messages shows."""
 		self._recording = False
 		self._hasRecording = False
 		self._recordingChatId: str | None = None
@@ -1512,6 +1517,7 @@ class ChatWindow(wx.Dialog):
 		self.cannotSendBox.Show(not self._canWrite)
 		self.messageList.Set([])
 		self._messages = []
+		self._pins = []
 		self._selectedMessageIds = set()
 		self.composeBox.Clear()
 		self._cancelReply(announce=False)
@@ -1547,14 +1553,23 @@ class ChatWindow(wx.Dialog):
 				self.session.markSeen(chatId)
 			except WhatsAppError as e:
 				log.debugWarning(f"WhatsApp Access: could not mark the chat as read: {e}")
-			return messages
+			try:
+				pins = self.session.pinnedMessages(chatId)
+			except WhatsAppError as e:
+				log.debugWarning(f"WhatsApp Access: could not read the pinned messages: {e}")
+				pins = []
+			return messages, pins
 
 		def loadFailed(error: Exception) -> None:
 			# Only if that chat is still open: the user may have moved on to another one meanwhile.
 			if self.chat and self.chat["id"] == chatId:
 				self.showChats()
 
-		self._run(load, lambda messages: self._gotMessages(chatId, messages, opening=True), loadFailed)
+		self._run(
+			load,
+			lambda result: self._gotMessages(chatId, result[0], opening=True, pins=result[1]),
+			loadFailed,
+		)
 		self._updateButtons()
 		# Meta AI has no online or last seen, which would read as "no info".
 		if isChannel or chat.get("isAi"):
@@ -1568,12 +1583,23 @@ class ChatWindow(wx.Dialog):
 				lambda people: self._gotParticipants(chatId, people),
 			)
 
-	def _gotMessages(self, chatId: str, messages: list[dict], opening: bool = False) -> None:
+	def _gotMessages(
+		self, chatId: str, messages: list[dict], opening: bool = False, pins: list[dict] | None = None
+	) -> None:
+		"""Show a chat's messages. pins replaces its pinned messages; None keeps those shown."""
 		if not self.chat or self.chat["id"] != chatId:
 			return
-		self._messages = messages
+		if pins is not None:
+			self._pins = pins
 		isGroup = self.chat.get("isGroup", False)
-		self.messageList.Set([messageText.messageLine(m, isGroup) for m in messages])
+		messages = ([self._pinnedRow()] if self._pins else []) + messages
+		self._messages = messages
+		self.messageList.Set(
+			[
+				self._pinnedRowText() if m.get("type") == PINNED_ROW else messageText.messageLine(m, isGroup)
+				for m in messages
+			]
+		)
 		# Once the selection below is made, which sends no event: the slider follows the message chosen.
 		wx.CallAfter(self._showPositionSlider)
 		# Opened from a starred message or a search result: go to that message.
@@ -1596,7 +1622,62 @@ class ChatWindow(wx.Dialog):
 		index = self.messageList.GetSelection()
 		if index == wx.NOT_FOUND or index >= len(self._messages):
 			return None
-		return self._messages[index]
+		message = self._messages[index]
+		return None if message.get("type") == PINNED_ROW else message
+
+	def _onPinnedRow(self) -> bool:
+		index = self.messageList.GetSelection()
+		return 0 <= index < len(self._messages) and self._messages[index].get("type") == PINNED_ROW
+
+	# The line for pinned messages -------------------------------------------------------------------------
+
+	def _pinnedRow(self) -> dict:
+		return {"id": PINNED_ROW, "type": PINNED_ROW}
+
+	def _pinnedRowText(self) -> str:
+		isGroup = bool(self.chat and self.chat.get("isGroup"))
+		newest = messageText.messageLine(self._pins[-1], isGroup)
+		if len(self._pins) == 1:
+			# Translators: The line at the top of a chat's messages for its one pinned message.
+			return _("Pinned: {message}").format(message=newest)
+		# Translators: The line at the top of a chat's messages when it has several pinned messages; the
+		# newest is said after the count.
+		return _("{count} pinned messages, newest: {message}").format(count=len(self._pins), message=newest)
+
+	def _openPinned(self) -> None:
+		"""Enter on the pinned line: go to the pinned message, or choose one when there are several."""
+		if len(self._pins) == 1:
+			self._goToChosenMessage(self._pins[0])
+		else:
+			# Translators: The title of the list of a chat's pinned messages, and what it says when there are none.
+			self._pickMessage(list(self._pins), _("Pinned messages"), _("No pinned messages"))
+
+	def _refreshPins(self) -> None:
+		"""Read the open chat's pinned messages again and show, change or remove the line for them."""
+		if not self.chat:
+			return
+		chatId = self.chat["id"]
+
+		def got(pins: list[dict]) -> None:
+			if not self.chat or self.chat["id"] != chatId:
+				return
+			had = bool(self._messages) and self._messages[0].get("type") == PINNED_ROW
+			self._pins = pins
+			selection = self.messageList.GetSelection()
+			if pins and had:
+				self.messageList.SetString(0, self._pinnedRowText())
+			elif pins:
+				self._messages.insert(0, self._pinnedRow())
+				self.messageList.Insert(self._pinnedRowText(), 0)
+				if selection != wx.NOT_FOUND:
+					self.messageList.SetSelection(selection + 1)
+			elif had:
+				del self._messages[0]
+				self.messageList.Delete(0)
+				if selection not in (wx.NOT_FOUND, 0):
+					self.messageList.SetSelection(selection - 1)
+
+		self._run(lambda: self.session.pinnedMessages(chatId), got, lambda e: None)
 
 	def _onMessageListKey(self, evt: wx.KeyEvent) -> None:
 		key = evt.GetKeyCode()
@@ -1615,6 +1696,9 @@ class ChatWindow(wx.Dialog):
 		evt.Skip()
 
 	def _activateMessage(self) -> None:
+		if self._onPinnedRow():
+			self._openPinned()
+			return
 		message = self._selectedMessage()
 		if message is None:
 			return
@@ -2142,7 +2226,11 @@ class ChatWindow(wx.Dialog):
 		if self._loadingEarlier or not self._messages or not self.chat:
 			return
 		self._loadingEarlier = True
-		chatId, firstId = self.chat["id"], self._messages[0]["id"]
+		first = next((m for m in self._messages if m.get("type") != PINNED_ROW), None)
+		if first is None:
+			self._loadingEarlier = False
+			return
+		chatId, firstId = self.chat["id"], first["id"]
 		self._run(
 			lambda: self.session.loadEarlier(chatId, firstId),
 			lambda earlier: self._gotEarlier(chatId, earlier),
@@ -2158,9 +2246,11 @@ class ChatWindow(wx.Dialog):
 			ui.message(_("No earlier messages"))
 			return
 		isGroup = self.chat.get("isGroup", False)
-		self._messages = earlier + self._messages
-		self.messageList.InsertItems([messageText.messageLine(m, isGroup) for m in earlier], 0)
-		self.messageList.SetSelection(len(earlier) - 1)
+		# Below the line for pinned messages, which stays at the top.
+		at = 1 if self._messages and self._messages[0].get("type") == PINNED_ROW else 0
+		self._messages = self._messages[:at] + earlier + self._messages[at:]
+		self.messageList.InsertItems([messageText.messageLine(m, isGroup) for m in earlier], at)
+		self.messageList.SetSelection(at + len(earlier) - 1)
 		# Translators: Reported after older messages were added at the top of a conversation.
 		ui.message(_("{count} earlier messages").format(count=len(earlier)))
 
@@ -3521,6 +3611,7 @@ class ChatWindow(wx.Dialog):
 			message["pinned"] = duration is not None
 			# Translators: Reported after pinning or unpinning a message.
 			ui.message(_("Pinned") if duration else _("Unpinned"))
+			self._refreshPins()
 
 		self._run(lambda: self.session.pinMessage(message["id"], duration), done)
 
@@ -3551,6 +3642,11 @@ class ChatWindow(wx.Dialog):
 			chosen = messages[picker.selection()]
 		finally:
 			picker.Destroy()
+		self._goToChosenMessage(chosen)
+
+	def _goToChosenMessage(self, chosen: dict) -> None:
+		"""Go to a message in the conversation, or open its chat at it."""
+		isGroup = bool(self.chat and self.chat.get("isGroup"))
 		if self.chat and chosen.get("chatId") == self.chat["id"]:
 			index = next((i for i, m in enumerate(self._messages) if m.get("id") == chosen["id"]), -1)
 			if index >= 0:
