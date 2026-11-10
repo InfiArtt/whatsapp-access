@@ -568,3 +568,47 @@ def test_voice_notes_are_mono_when_stereo_is_unchecked():
         # Both sides mixed: a voice on one side is kept, at half level.
         "mono": [0.25, 0.5],
     }
+
+
+PINNED_HELPER = r"""
+const fs = require("fs");
+const source = fs.readFileSync(process.argv[1], "utf8").replace(/\r\n/g, "\n");
+const take = (head) => {
+    const start = source.indexOf("\t" + head + "(");
+    const end = source.indexOf("\n\t}\n", start) + 4;
+    return source.slice(start, end);
+};
+// One pin's message is loaded; the other, older one is only in WhatsApp's storage.
+const loaded = { id: "new", t: 200 };
+const stored = { id: "old", t: 100 };
+const pins = [
+    { chatId: "chat", parentMsgKey: "new" },
+    { chatId: "chat", parentMsgKey: "old" },
+    { chatId: "other", parentMsgKey: "elsewhere" },
+];
+const req = () => ({ PinInChatCollection: { getModelsArray: () => pins }, isPinValid: () => true });
+const collections = () => ({
+    Msg: {
+        get: (key) => (key === "new" ? loaded : undefined),
+        getMessagesById: async (keys) => ({ messages: keys.includes("old") ? [stored] : [] }),
+    },
+});
+const messageInfo = (m) => m.id;
+const pinnedMessages = new Function(
+    "req", "collections", "messageInfo",
+    take("function pinnedOf") + take("async function pinnedMessages") + "; return pinnedMessages;"
+)(req, collections, messageInfo);
+pinnedMessages("chat").then((ids) => process.stdout.write(JSON.stringify(ids)));
+"""
+
+
+def test_pinned_messages_include_ones_not_loaded_yet():
+    result = subprocess.run(
+        [NODE, "-e", PINNED_HELPER, str(PACKAGE_DIR / "pageBridge.js")],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    # The older pin is read from storage instead of being left out; oldest first, as WhatsApp lists them.
+    assert json.loads(result.stdout) == ["old", "new"]

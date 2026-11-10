@@ -1794,9 +1794,25 @@
 			.sort((a, b) => ((a.msg && a.msg.t) || 0) - ((b.msg && b.msg.t) || 0));
 	}
 
-	function pinnedMessages(chatId) {
-		return pinnedOf(chatId)
+	// A pinned message older than the messages WhatsApp has loaded is not in memory: it is read from
+	// WhatsApp's storage, or it would be left out and the list would say there are no pinned messages.
+	async function pinnedMessages(chatId) {
+		const pins = pinnedOf(chatId);
+		const missing = pins.filter((p) => !p.msg).map((p) => p.parentKey);
+		if (missing.length) {
+			try {
+				const found = await collections().Msg.getMessagesById(missing);
+				const byId = new Map(((found && found.messages) || []).map((m) => [String(m.id), m]));
+				for (const p of pins) {
+					p.msg = p.msg || byId.get(String(p.parentKey));
+				}
+			} catch (e) {
+				// Those that cannot be read are left out.
+			}
+		}
+		return pins
 			.filter((p) => p.msg)
+			.sort((a, b) => (a.msg.t || 0) - (b.msg.t || 0))
 			.map((p) => messageInfo(p.msg));
 	}
 
