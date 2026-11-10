@@ -13,4 +13,7 @@ def load():
 
 def test_voice_notes_are_mono_by_default():
     # WhatsApp on the iPhone does not play stereo voice notes: it says they are no longer available.
-    assert load().CONFIG_SPEC["stereo"] == "boolean(default=False)"
+    spec = load().CONFIG_SPEC
+    assert spec["stereoVoiceNotes"] == "boolean(default=False)"
+    # The old setting, on for everyone until 0.6.5, must not be read again: everyone starts in mono.
+    assert "stereo" not in spec

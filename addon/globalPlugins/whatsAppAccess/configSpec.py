@@ -20,8 +20,9 @@ CONFIG_SPEC = {
 	# Which incoming messages NVDA reads out. Muted chats are never read out, except the open one.
 	"announce": 'option("all", "personal", "openChat", "off", default="all")',
 	# Record voice notes in stereo when the microphone has two channels. Off by default: WhatsApp on the
-	# iPhone does not play stereo voice notes, and says they are "no longer available".
-	"stereo": "boolean(default=False)",
+	# iPhone does not play stereo voice notes, and says they are "no longer available". It was "stereo",
+	# on by default, until 0.6.5; the new name starts everyone in mono, whatever they had chosen.
+	"stereoVoiceNotes": "boolean(default=False)",
 	# Turn off the browser's echo cancellation, noise suppression and automatic gain for voice notes.
 	"rawMicrophone": "boolean(default=True)",
 	# Opus bit rate of voice notes. WhatsApp's own recorder uses much less.

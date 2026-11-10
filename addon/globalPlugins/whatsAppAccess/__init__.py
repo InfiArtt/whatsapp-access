@@ -1268,7 +1268,7 @@ class WhatsAppSettingsPanel(SettingsPanel):
 				),
 			)
 		)
-		self.stereoBox.SetValue(settings["stereo"])
+		self.stereoBox.SetValue(settings["stereoVoiceNotes"])
 		self.rawBox = helper.addItem(
 			wx.CheckBox(
 				self,
@@ -1395,7 +1395,7 @@ class WhatsAppSettingsPanel(SettingsPanel):
 			# The next NVDA+Shift+W connects the new way.
 			plugin.disconnectForChange()
 		settings["announce"] = ANNOUNCE_CHOICES[self.announceChoice.GetSelection()]
-		settings["stereo"] = self.stereoBox.GetValue()
+		settings["stereoVoiceNotes"] = self.stereoBox.GetValue()
 		settings["rawMicrophone"] = self.rawBox.GetValue()
 		settings["voiceKbps"] = self.kbpsSpin.GetValue()
 		settings["sounds"] = self.soundsBox.GetValue()

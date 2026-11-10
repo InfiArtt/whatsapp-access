@@ -2752,7 +2752,7 @@ class ChatWindow(wx.Dialog):
 			if microphone:
 				deviceId = next((m["id"] for m in self.session.microphones() if m["label"] == microphone), "")
 			return self.session.startRecording(
-				settings["stereo"], settings["rawMicrophone"], settings["voiceKbps"], deviceId
+				settings["stereoVoiceNotes"], settings["rawMicrophone"], settings["voiceKbps"], deviceId
 			)
 
 		def started(result: dict) -> None:
