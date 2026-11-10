@@ -2957,5 +2957,5 @@ msgstr "{position} dari {length}"
 msgid "Pinned: {message}"
 msgstr "Disematkan: {message}"
 
-msgid "{count} pinned messages, newest: {message}"
-msgstr "{count} pesan disematkan, terbaru: {message}"
+msgid "Go to pinned messages ({count})"
+msgstr "Buka pesan yang disematkan ({count})"
