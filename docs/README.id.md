@@ -170,8 +170,9 @@ pesan baru dan panggilan.
 | Ctrl+D | Membuangnya. |
 
 Voice note direkam dari suara asli mikrofon Anda, tanpa peredam gema, peredam bising, dan pengatur
-volume otomatis browser, dalam stereo kalau mikrofonnya dua kanal, dan pada 128 kilobit per detik,
-jauh lebih jernih daripada perekam WhatsApp sendiri. Semuanya bisa diubah di pengaturan add-on.
+volume otomatis browser, dan pada 128 kilobit per detik, jauh lebih jernih daripada perekam WhatsApp
+sendiri. Semuanya bisa diubah di pengaturan add-on. Voice note direkam dalam mono: stereo bisa
+dinyalakan di sana untuk mikrofon dua kanal, tetapi WhatsApp di iPhone tidak memutar voice note stereo.
 
 ### Tombol pada pesan
 

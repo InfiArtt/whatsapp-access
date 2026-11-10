@@ -3,6 +3,13 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [Unreleased]
+
+- Voice notes are recorded in mono again by default. People on an iPhone could not play voice notes
+  recorded in stereo, from a microphone with two channels: WhatsApp told them the audio was "no longer
+  available" and to ask for it again. Stereo can still be turned on in the add-on's settings, which now
+  say that iPhones cannot play it.
+
 ## [0.6.5]
 
 - Exit group is in the chat list's and the archive's menu (the Applications key), not only in an open
