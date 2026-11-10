@@ -3,7 +3,7 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
-## [Unreleased]
+## [0.6.5]
 
 - Exit group is in the chat list's and the archive's menu (the Applications key), not only in an open
   chat's More options. Delete on a group you are still in offers to exit it, or exit and delete it;
