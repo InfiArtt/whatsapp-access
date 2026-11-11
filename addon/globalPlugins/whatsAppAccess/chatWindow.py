@@ -1122,6 +1122,25 @@ class ChatWindow(wx.Dialog):
 
 	# Chats ----------------------------------------------------------------------------------------------
 
+	def _updateTitle(self) -> None:
+		"""The window's title, as WhatsApp Web's tab: "(5) WhatsApp" with 5 chats unread, and the open chat's
+		name in front while one is open. Set only when it changes, so NVDA does not hear it again."""
+		if self.chat:
+			# Translators: The add-on's window title while a chat is open, such as "Budi - WhatsApp".
+			title = _("{chat} - WhatsApp").format(
+				chat=messageText.windowTitleName(self.chat.get("title", ""))
+			)
+		else:
+			# Translators: The title of the add-on's window.
+			title = _("WhatsApp")
+		# The open chat is not counted: it is being read, and counting it until WhatsApp marks it read made
+		# the title change, and NVDA say it, twice on opening it.
+		openId = self.chat["id"] if self.chat else None
+		unread = sum(1 for c in self._chats if c["id"] != openId and messageText.isUnread(c))
+		title = messageText.withUnreadCount(title, unread)
+		if self.GetTitle() != title:
+			self.SetTitle(title)
+
 	def refreshChats(self, focus: bool = False) -> None:
 		self._run(lambda: self.session.chats(False), lambda chats: self._gotChats(chats, focus))
 		if self.tabs.GetSelection() == self.TAB_ARCHIVED:
@@ -1130,6 +1149,7 @@ class ChatWindow(wx.Dialog):
 	def _gotChats(self, chats: list[dict], focus: bool) -> None:
 		self._chats = chats
 		self._showChats()
+		self._updateTitle()
 		if focus:
 			self.chatList.SetFocus()
 
@@ -1564,8 +1584,7 @@ class ChatWindow(wx.Dialog):
 		self.chat = None
 		self._messages = []
 		self.conversationPanel.Hide()
-		# Translators: The title of the add-on's window.
-		self.SetTitle(_("WhatsApp"))
+		self._updateTitle()
 		self.Layout()
 		self._focusTab(self.tabs.GetSelection())
 		self.refreshChats()
@@ -1607,8 +1626,7 @@ class ChatWindow(wx.Dialog):
 			self.composeBox.SetInsertionPointEnd()
 		self._closeMentions()
 		self._closeEmoji()
-		# Translators: The add-on's window title while a chat is open, such as "Budi - WhatsApp".
-		self.SetTitle(_("{chat} - WhatsApp").format(chat=messageText.windowTitleName(chat.get("title", ""))))
+		self._updateTitle()
 		self.conversationPanel.Show()
 		self.Layout()
 		chatId = chat["id"]

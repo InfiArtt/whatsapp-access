@@ -461,3 +461,9 @@ def test_a_very_long_message_is_cut_when_read_out_as_it_arrives():
     said = messageText.announcement(message, "Budi", False, False)
     assert len(said) < messageText.ANNOUNCE_CHARS + 200
     assert said.endswith("the rest is in the chat")
+
+
+def test_the_window_title_says_how_many_chats_are_unread():
+    assert messageText.withUnreadCount("WhatsApp", 5) == "(5) WhatsApp"
+    assert messageText.withUnreadCount("Budi - WhatsApp", 1) == "(1) Budi - WhatsApp"
+    assert messageText.withUnreadCount("WhatsApp", 0) == "WhatsApp"

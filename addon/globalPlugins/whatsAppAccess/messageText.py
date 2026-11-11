@@ -373,6 +373,11 @@ def repliesText(count: int) -> str:
 	return _("{count} replies").format(count=count)
 
 
+def withUnreadCount(title: str, unreadChats: int) -> str:
+	"""A window title with how many chats are unread in front, as WhatsApp Web's tab: "(5) WhatsApp"."""
+	return f"({unreadChats}) {title}" if unreadChats > 0 else title
+
+
 def isUnread(chat: dict) -> bool:
 	"""Whether a chat has unread messages, or was marked unread."""
 	return bool(chat.get("unread") or chat.get("markedUnread"))

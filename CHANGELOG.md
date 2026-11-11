@@ -8,6 +8,8 @@ notes the add-on shows before it installs an update.
 - New keys, from anywhere in the window: Alt+1 goes to the open chat's messages, Alt+2 to its first
   unread message, Alt+3 to the chat list (the chat stays open) and Alt+4 to its pinned message. The chat
   list's filters (all, unread, groups, favorites) moved to Alt+Shift+1 to Alt+Shift+4.
+- The window title says how many chats are unread, as WhatsApp Web's tab does: "(5) WhatsApp". The open
+  chat is not counted.
 - When Windows shut down or restarted, NVDA said "WhatsApp stopped. Starting it again…" and started it
   again: Windows closes the hidden browser first. Nothing is said or started then now.
 - With NVDA in Indonesian, much of the add-on spoke English: the chat window, call window, first-time
