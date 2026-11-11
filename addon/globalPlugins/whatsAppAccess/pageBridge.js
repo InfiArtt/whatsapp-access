@@ -3278,7 +3278,10 @@
 		} catch (e) {
 			// Then only the count stays as it was.
 		}
-		const sending = Promise.resolve(req("WAWebContactStatusBridge").sendReadStatus(m, undefined, undefined));
+		// With the time it was seen, in seconds: without it the receipt went out with t="undefined", and the
+		// poster never saw the user among the viewers.
+		const seenAt = Math.floor(Date.now() / 1000);
+		const sending = Promise.resolve(req("WAWebContactStatusBridge").sendReadStatus(m, seenAt, undefined));
 		sending.catch(() => {});
 		// The receipt is queued; waiting for it longer would only hold the call.
 		const outcome = await Promise.race([
