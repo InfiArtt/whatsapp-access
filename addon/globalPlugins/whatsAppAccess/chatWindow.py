@@ -43,7 +43,7 @@ MAX_MESSAGES_TO_REACH_UNREAD = 400
 # How long after a message arrives in the open chat it is marked read; see _markSeenSoon.
 MARK_SEEN_DELAY_MS = 1500
 MENTION_SUGGESTIONS = 20
-# The chat list's filters, as WhatsApp's tabs; Alt+1 to Alt+4 choose them.
+# The chat list's filters, as WhatsApp's tabs; Alt+Shift+1 to Alt+Shift+4 choose them.
 FILTERS = ("all", "unread", "groups", "favorites")
 # Telling the other person "typing…" again after this many seconds of writing, and stopping after a pause.
 TYPING_REPEAT_SECONDS = 8
@@ -414,7 +414,7 @@ class ChatWindow(wx.Dialog):
 		self.searchBox.Bind(wx.EVT_TEXT, lambda evt: self._showChats())
 		sizer.Add(self.searchBox, 0, wx.EXPAND | wx.BOTTOM, 6)
 		# Translators: The label of the choice of which chats to list, like WhatsApp's tabs.
-		sizer.Add(wx.StaticText(panel, label=_("&Filter (Alt+1 to Alt+4):")))
+		sizer.Add(wx.StaticText(panel, label=_("&Filter (Alt+Shift+1 to Alt+Shift+4):")))
 		self.filterChoice = wx.Choice(panel, choices=filterNames())
 		self.filterChoice.SetSelection(0)
 		self.filterChoice.Bind(wx.EVT_CHOICE, lambda evt: self._showChats())
@@ -1171,7 +1171,7 @@ class ChatWindow(wx.Dialog):
 		return line
 
 	def _setFilter(self, index: int) -> None:
-		"""Alt+1 to Alt+4: show all chats, unread ones, groups or favorites, as WhatsApp's tabs."""
+		"""Alt+Shift+1 to Alt+Shift+4: show all chats, unread ones, groups or favorites, as WhatsApp's tabs."""
 		if self.tabs.GetSelection() != self.TAB_CHATS:
 			self.tabs.ChangeSelection(self.TAB_CHATS)
 			self._updateSections()
@@ -1182,6 +1182,35 @@ class ChatWindow(wx.Dialog):
 			# Translators: Read out after choosing a chat list filter: its name and how many chats it shows.
 			_("{filter}, {count} chats").format(filter=filterNames()[index], count=len(self._shownChats))
 		)
+
+	def _jumpTo(self, place: int) -> None:
+		"""Alt+1 to Alt+4, from anywhere in the window: the open chat's messages, its first unread message,
+		the chat list, or the open chat's pinned message."""
+		if place == 2:
+			if self.tabs.GetSelection() != self.TAB_CHATS:
+				self.tabs.ChangeSelection(self.TAB_CHATS)
+				self._updateSections()
+			self.chatList.SetFocus()
+			index = self.chatList.GetSelection()
+			if index != wx.NOT_FOUND:
+				ui.message(self.chatList.GetString(index))
+			return
+		if not self.chat or not self.conversationPanel.IsShown():
+			# Translators: Said for Alt+1, Alt+2 or Alt+4 when no chat is open.
+			ui.message(_("No chat is open"))
+			return
+		if place == 0:
+			self.messageList.SetFocus()
+			index = self.messageList.GetSelection()
+			if index != wx.NOT_FOUND:
+				ui.message(self.messageList.GetString(index))
+		elif place == 1:
+			self._goToFirstUnread()
+		elif self.pinnedButton.IsShown():
+			self.pinnedButton.SetFocus()
+		else:
+			# Translators: Said for Alt+4 in a chat that has no pinned message.
+			ui.message(_("No pinned messages"))
 
 	def _nextUnread(self) -> None:
 		"""Alt+U. In a chat: go to its first unread message, where WhatsApp shows "5 unread messages".
@@ -5043,8 +5072,11 @@ class ChatWindow(wx.Dialog):
 		):
 			self._switchChat(-1 if modifiers & wx.MOD_SHIFT else 1)
 			return
-		if modifiers == wx.MOD_ALT and ord("1") <= key <= ord("4"):
+		if modifiers == wx.MOD_ALT | wx.MOD_SHIFT and ord("1") <= key <= ord("4"):
 			self._setFilter(key - ord("1"))
+			return
+		if modifiers == wx.MOD_ALT and ord("1") <= key <= ord("4"):
+			self._jumpTo(key - ord("1"))
 			return
 		if modifiers == wx.MOD_ALT and key == ord("U"):
 			self._nextUnread()

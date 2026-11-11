@@ -55,6 +55,10 @@ phone for about 14 days, as for every linked device.
 | NVDA+Shift+W | Anywhere | Open the WhatsApp window. |
 | Enter | Chat list | Open the chat. |
 | Alt+E | In a chat | Go to **Type a message**; Enter sends. |
+| Alt+1 | Anywhere in the window | The open chat's messages. |
+| Alt+2 | Anywhere in the window | The open chat's first unread message. |
+| Alt+3 | Anywhere in the window | The chat list; the open chat stays open. |
+| Alt+4 | Anywhere in the window | The open chat's pinned message. |
 | Ctrl+R | In a chat | Record a voice note; Ctrl+Shift+R sends it. |
 | Applications | On a message or chat | Its menu: reply, react, forward, delete and more. |
 | Alt+T | In a chat | Hear whether the person is online or when they were last seen. |
@@ -91,8 +95,8 @@ background for new messages and calls.
 
 ### Chats
 
-- Type in **Search chats** (Alt+S) to find a chat by name. Alt+1 to Alt+4 show all chats, unread
-  chats, groups or favorites.
+- Type in **Search chats** (Alt+S) to find a chat by name. Alt+Shift+1 to Alt+Shift+4 show all
+  chats, unread chats, groups or favorites.
 - Each chat in the list (Alt+C) says its name, how many messages you have not read, whether it is
   pinned or muted, whether its messages disappear, whether a group call is going on, and the last
   message. A message you started writing is kept as a draft, and the list says so.

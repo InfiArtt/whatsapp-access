@@ -57,6 +57,10 @@ atau tidak memakai WhatsApp di ponsel sekitar 14 hari, seperti semua perangkat t
 | NVDA+Shift+W | Di mana saja | Membuka jendela WhatsApp. |
 | Enter | Daftar chat | Membuka chat. |
 | Alt+E | Di chat | Ke **Ketik pesan**; Enter mengirim. |
+| Alt+1 | Di mana saja di jendela | Pesan-pesan di chat yang terbuka. |
+| Alt+2 | Di mana saja di jendela | Pesan pertama yang belum dibaca di chat yang terbuka. |
+| Alt+3 | Di mana saja di jendela | Daftar chat; chat yang terbuka tetap terbuka. |
+| Alt+4 | Di mana saja di jendela | Pesan yang disematkan di chat yang terbuka. |
 | Ctrl+R | Di chat | Merekam voice note; Ctrl+Shift+R mengirimnya. |
 | Applications | Di pesan atau chat | Menunya: balas, reaksi, teruskan, hapus, dan lainnya. |
 | Alt+T | Di chat | Mendengar apakah orangnya online atau kapan terakhir dilihat. |
@@ -95,8 +99,8 @@ pesan baru dan panggilan.
 
 ### Chat
 
-- Ketik di **Cari chat** (Alt+S) untuk mencari chat menurut nama. Alt+1 sampai Alt+4 menampilkan
-  semua chat, chat belum dibaca, grup, atau favorit.
+- Ketik di **Cari chat** (Alt+S) untuk mencari chat menurut nama. Alt+Shift+1 sampai Alt+Shift+4
+  menampilkan semua chat, chat belum dibaca, grup, atau favorit.
 - Setiap chat di daftar (Alt+C) menyebut namanya, berapa pesan yang belum dibaca, apakah
   disematkan atau dibisukan, apakah pesannya sementara, apakah ada panggilan grup yang sedang
   berlangsung, dan pesan terakhir. Pesan yang mulai Anda tulis disimpan sebagai draf, dan daftar

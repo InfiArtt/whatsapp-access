@@ -75,8 +75,9 @@ def sections() -> list[tuple[str, list[tuple[str, str]]]]:
 			[
 				# Translators: In the keyboard shortcuts list.
 				("Alt+S", _("Search chats")),
-				# Translators: In the keyboard shortcuts list: Alt+1 to Alt+4 and the chat filters they choose.
-				(_("Alt+1 to Alt+4"), _("All, Unread, Groups, Favorites")),
+				# Translators: In the keyboard shortcuts list: Alt+Shift+1 to Alt+Shift+4 and the chat filters
+				# they choose.
+				(_("Alt+Shift+1 to Alt+Shift+4"), _("All, Unread, Groups, Favorites")),
 				# Translators: In the keyboard shortcuts list.
 				("Alt+U", _("Next unread chat")),
 				# Translators: In the keyboard shortcuts list.
@@ -91,6 +92,14 @@ def sections() -> list[tuple[str, list[tuple[str, str]]]]:
 			# Translators: A section of the keyboard shortcuts list: keys in an open chat.
 			_("Chat"),
 			[
+				# Translators: In the keyboard shortcuts list.
+				("Alt+1", _("Messages")),
+				# Translators: In the keyboard shortcuts list: Alt+2 goes to the open chat's first unread message.
+				("Alt+2", _("First unread message")),
+				# Translators: In the keyboard shortcuts list: Alt+3 goes back to the chat list, the chat stays open.
+				("Alt+3", _("Chat list")),
+				# Translators: In the keyboard shortcuts list: Alt+4 goes to the open chat's pinned message.
+				("Alt+4", _("Pinned message")),
 				# Translators: In the keyboard shortcuts list.
 				("Alt+M", _("Messages")),
 				# Translators: In the keyboard shortcuts list.

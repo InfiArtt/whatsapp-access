@@ -648,8 +648,8 @@ msgstr "reaksi: {counts}"
 msgid "&Chats (Space checks):"
 msgstr "&Chat (Spasi mencentang):"
 
-msgid "&Filter (Alt+1 to Alt+4):"
-msgstr "&Saring (Alt+1 sampai Alt+4):"
+msgid "&Filter (Alt+Shift+1 to Alt+Shift+4):"
+msgstr "&Saring (Alt+Shift+1 sampai Alt+Shift+4):"
 
 msgid "&Forward"
 msgstr "&Teruskan"
@@ -2323,8 +2323,8 @@ msgid "Search chats"
 msgstr "Cari chat"
 
 #. Translators: In the keyboard shortcuts list: Alt+1 to Alt+4 and the chat filters they choose.
-msgid "Alt+1 to Alt+4"
-msgstr "Alt+1 sampai Alt+4"
+msgid "Alt+Shift+1 to Alt+Shift+4"
+msgstr "Alt+Shift+1 sampai Alt+Shift+4"
 
 #. Translators: In the keyboard shortcuts list: Alt+1 to Alt+4 and the chat filters they choose.
 msgid "All, Unread, Groups, Favorites"
@@ -2991,3 +2991,12 @@ msgstr "Tautan itu menulis di kotak pesan: {text}"
 
 msgid "the rest is in the chat"
 msgstr "sisanya ada di chat"
+
+msgid "No chat is open"
+msgstr "Tidak ada chat yang terbuka"
+
+msgid "First unread message"
+msgstr "Pesan pertama yang belum dibaca"
+
+msgid "Pinned message"
+msgstr "Pesan yang disematkan"
