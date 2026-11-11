@@ -8,12 +8,15 @@ import threading
 import time
 from collections.abc import Callable
 
+import addonHandler
 import api
 import ui
 import wx
 from logHandler import log
 
 from .whatsApp import WhatsAppError
+
+addonHandler.initTranslation()
 
 # WhatsApp keeps a link code valid for a few minutes; the add-on waits that long for the phone.
 LINK_WAIT_SECONDS = 300
@@ -45,7 +48,8 @@ class SetupDialog(wx.Dialog):
 			# Translators: The second way to reach WhatsApp.
 			label=_(
 				"&WhatsApp Web in your own browser. Uses the WhatsApp Web tab you have open in Brave or Chrome. "
-				"Your browser asks for permission each time it starts."
+				"Less safe: remote debugging stays on in that browser, and a program that is allowed in can "
+				"control all of it, your other sites too. Use a browser profile only for WhatsApp."
 			),
 		)
 		for choice in (self.hiddenChoice, self.ownChoice):
@@ -109,6 +113,8 @@ class LinkDialog(wx.Dialog):
 		self.copyButton.Bind(wx.EVT_BUTTON, lambda evt: self._copy())
 		self.copyButton.Disable()
 		sizer.Add(self.copyButton, 0, wx.BOTTOM, 6)
+		# Translators: The label of the box that says how to use the link code on the phone.
+		sizer.Add(wx.StaticText(self, label=_("How to link:")))
 		help = wx.TextCtrl(
 			self,
 			value=_(

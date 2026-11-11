@@ -89,6 +89,10 @@ def check(manual: bool, onlyIfRequired: bool = False) -> None:
 	onlyIfRequired offers a new version only when it is a required update."""
 	global _busy
 	if _busy:
+		if manual:
+			# Translators: Said when the user checks for updates while a check or download is already
+			# going on.
+			ui.message(_("Already checking for updates. The answer comes in a moment"))
 		return
 	_busy = True
 	if manual:

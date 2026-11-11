@@ -250,6 +250,9 @@ class WhatsAppSession:
 				raise WhatsAppError("refused", str(e)) from e
 			except OSError as e:
 				raise WhatsAppError("noBrowser", str(e)) from e
+			except cdp.Disconnected as e:
+				# The browser closed before the connection was made, as when it is stopped meanwhile.
+				raise WhatsAppError("disconnected", str(e)) from e
 			self.browserName = target.browser.name
 			try:
 				pages = []
@@ -369,14 +372,17 @@ class WhatsAppSession:
 				return "ready"
 			if time.monotonic() > deadline and not stillLoadingChats(state, time.monotonic() - started):
 				diagnosis = self._diagnosePage()
-				_log.warning(f"WhatsApp Access: WhatsApp Web did not become ready: {state} {diagnosis}")
+				# What the page shows may be chats: names and messages stay out of NVDA's log, which users
+				# attach to bug reports.
+				shown = {key: value for key, value in diagnosis.items() if key != "text"}
+				_log.warning(f"WhatsApp Access: WhatsApp Web did not become ready: {state} {shown}")
 				if not str(diagnosis.get("url") or "").startswith("web.whatsapp.com"):
 					# The page is not WhatsApp at all: the browser's error page, such as no connection or a
 					# firewall blocking it. What it says is passed on, rather than "still loading".
 					raise WhatsAppError(
 						"pageNotLoaded", str(diagnosis.get("text") or diagnosis.get("url") or "")[:200]
 					)
-				raise WhatsAppError("notReady", str(diagnosis)[:500])
+				raise WhatsAppError("notReady", str(shown)[:500])
 			time.sleep(0.5)
 
 	def _diagnosePage(self) -> dict:

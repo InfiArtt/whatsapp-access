@@ -100,8 +100,9 @@ def test_the_open_chat_says_the_message_even_when_content_is_off():
 
 def test_the_window_title_names_the_chat_without_a_phone_number():
     assert messageText.windowTitleName("Qisti") == "Qisti"
-    assert messageText.windowTitleName("+6285640306004 ~Prima Agus Setiyawan") == "~Prima Agus Setiyawan"
-    assert messageText.windowTitleName("~Prima Agus Setiyawan") == "~Prima Agus Setiyawan"
+    stranger = "~Prima Agus Setiyawan (not a contact)"
+    assert messageText.windowTitleName("+6285640306004 ~Prima Agus Setiyawan") == stranger
+    assert messageText.windowTitleName("~Prima Agus Setiyawan") == stranger
     assert messageText.windowTitleName("+6285640306004") == "+6285640306004"
     assert messageText.windowTitleName("Tim ~Kreatif") == "Tim ~Kreatif"
 
@@ -436,3 +437,33 @@ def test_photos_are_described_with_the_users_own_question_or_the_default():
     assert messageText.describeQuestion("  Apa ini?  ") == "Apa ini?"
     assert messageText.describeQuestion("") == messageText.defaultDescribeQuestion()
     assert messageText.describeQuestion("   ") == messageText.defaultDescribeQuestion()
+
+
+def test_a_long_message_full_of_marks_is_handled_at_once():
+    import time
+
+    # A stranger's message like this froze NVDA for over a minute: the formatting took time growing with
+    # the square of its length.
+    for unit in (".*a", "._a", ".~a", ".`a"):
+        start = time.monotonic()
+        messageText.plainText(unit * 20000)
+        assert time.monotonic() - start < 1
+    assert messageText.plainText("*bold* and _italic_ in 2*3*4") == "bold and italic in 2*3*4"
+
+
+def test_a_time_out_of_any_calendar_is_left_out_rather_than_failing():
+    for bad in (-1, 10**12, 10**20, "soon"):
+        assert messageText.timeText(bad) == ""
+
+
+def test_a_very_long_message_is_cut_when_read_out_as_it_arrives():
+    message = {"type": "chat", "text": "a" * 50000, "fromMe": False, "sender": "Budi"}
+    said = messageText.announcement(message, "Budi", False, False)
+    assert len(said) < messageText.ANNOUNCE_CHARS + 200
+    assert said.endswith("the rest is in the chat")
+
+
+def test_the_window_title_says_how_many_chats_are_unread():
+    assert messageText.withUnreadCount("WhatsApp", 5) == "(5) WhatsApp"
+    assert messageText.withUnreadCount("Budi - WhatsApp", 1) == "(1) Budi - WhatsApp"
+    assert messageText.withUnreadCount("WhatsApp", 0) == "WhatsApp"

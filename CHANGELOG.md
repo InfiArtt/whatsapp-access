@@ -3,6 +3,72 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.6.7]
+
+**Required update.** One long message could freeze NVDA, read receipts went out for messages you never
+heard, and much of the add-on spoke English to Indonesian users. WhatsApp stays closed until this version
+is installed.
+
+- New keys, from anywhere in the window: Alt+1 goes to the open chat's messages, Alt+2 to its first
+  unread message, Alt+3 to the chat list (the chat stays open) and Alt+4 to its pinned message. The chat
+  list's filters (all, unread, groups, favorites) moved to Alt+Shift+1 to Alt+Shift+4.
+- Watching someone's status updates now counts as seeing them. The list kept saying "4 new", and the
+  person never saw you among the viewers: the receipt went out without the time it was seen. The box
+  that shows a status has a label.
+- The window title says how many chats are unread, as WhatsApp Web's tab does: "(5) WhatsApp". The open
+  chat is not counted.
+- When Windows shut down or restarted, NVDA said "WhatsApp stopped. Starting it again…" and started it
+  again: Windows closes the hidden browser first. Nothing is said or started then now.
+- With NVDA in Indonesian, much of the add-on spoke English: the chat window, call window, first-time
+  setup and the lines read for chats and messages did not load the add-on's translations.
+- Errors that should stay silent were spoken, such as "Something went wrong" while typing on a weak
+  connection, after marking a chat read, or when looking up emoji.
+- A message typed while a voice note or files were still sending stayed unsent until the next message.
+  Sending files or a voice note while something else is still going out now says so instead of nothing.
+- A message that arrived while a chat was opening disappeared from the list.
+- When the computer starts without internet, WhatsApp is tried again every minute, a few times, instead
+  of staying closed until NVDA+Shift+W.
+- Closing WhatsApp fully while it was still starting could start it again by itself.
+- "WhatsApp lost its connection" could be said after WhatsApp was already closed.
+- A voice note that could not be recorded, such as with a microphone the browser cannot use, is said at
+  once, not only when stopping it minutes later. A recording started twice quickly could leave the
+  microphone on.
+- Changing a privacy setting could fail before WhatsApp's own settings had been opened once.
+- Archiving, muting or deleting several chats stopped at the first one that failed.
+- Pinning a message when the chat already had the most pins could fail to unpin the oldest.
+- Alt+U from another section, such as Calls, moved the focus to the hidden chat list. The chat list no
+  longer jumps to the top after new messages while the Archived section is open.
+- Files attached as documents could go out as photos when another chat was opened during sending.
+- Opening a chat no longer pulls the focus away from the message box when you started typing.
+- Deleting a chat no longer closes another chat opened meanwhile. Message info no longer opens after
+  leaving the chat. An event's window is named after the event.
+- In a call, when the focused button goes away, such as Answer once the call connects, the focus moves to
+  End instead of to nowhere.
+- Checking for updates: a dropped connection during the download is reported, a release whose file is not
+  uploaded yet no longer blocks the one before it, and checking while a check is running says so.
+- The help text in the Link WhatsApp window has a label.
+
+Security:
+
+- One very long message full of formatting marks, sent by anyone, kept NVDA busy for a minute or more each
+  time it was read. Formatting is now removed in an instant, and a long message read out as it arrives is
+  cut after 1,000 characters ("the rest is in the chat").
+- An event with an impossible start time no longer breaks the chat list.
+- Read receipts (blue ticks) are no longer sent for messages that arrive while you are in another program;
+  they are sent when you come back to the window.
+- A group call asks first: one key rang everyone in the group.
+- A group call is said to be one ("group voice call"), so a group named like a contact cannot pass for
+  that person calling. The window title of a chat with someone outside your contacts says "not a
+  contact".
+- Text that a wa.me link puts in the message box is read out, so it is not sent unheard.
+- Only web addresses (http and https) are opened from messages.
+- An update is installed only if its file really is this add-on at the version its release names.
+- Photos and documents opened during a session are removed when NVDA closes. NVDA's log no longer gets
+  the text WhatsApp Web showed when it failed to load, or the names of opened files.
+- Choosing WhatsApp Web in your own browser now says what it risks, and the connecting message says to
+  choose Cancel when the browser asks at any other time.
+- Releases are published only from the main branch, with GitHub's actions pinned to exact versions.
+
 ## [0.6.6]
 
 **Required update.** Voice notes sent from WhatsApp Access could not be played on an iPhone. WhatsApp

@@ -8,10 +8,12 @@ This module uses only Python's standard library, so it can be tested without NVD
 """
 
 import hashlib
+import http.client
 import json
 import os
 import re
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 
 REPOSITORY = "InfiArtt/whatsapp-access"
@@ -110,8 +112,18 @@ def newestRelease(releases: list[dict], current: str) -> Release:
 	published = [data for data in releases if isinstance(data, dict) and _published(data)]
 	if not published:
 		raise UpdateError("noRelease")
-	newest = max(published, key=lambda data: versionTuple(str(data["tag_name"])))
-	release = parseRelease(newest)
+	# The newest one with its add-on file: a release whose file is not uploaded yet is passed over, so it
+	# does not keep everyone from the one before it.
+	release = None
+	problem: UpdateError | None = None
+	for data in sorted(published, key=lambda data: versionTuple(str(data["tag_name"])), reverse=True):
+		try:
+			release = parseRelease(data)
+			break
+		except UpdateError as e:
+			problem = problem or e
+	if release is None:
+		raise problem or UpdateError("noRelease")
 	release.required = any(
 		isNewer(str(data["tag_name"]), current) and isRequired(str(data.get("body") or ""))
 		for data in published
@@ -123,7 +135,7 @@ def latestRelease(current: str, timeout: float = 15) -> Release:
 	try:
 		with _open(RELEASES_URL, "application/vnd.github+json", timeout) as response:
 			data = json.load(response)
-	except OSError as e:
+	except (OSError, http.client.HTTPException) as e:
 		code = getattr(e, "code", None)
 		# 404: the repository is not public.
 		raise UpdateError("noRelease" if code == 404 else f"network: {e}") from e
@@ -132,6 +144,33 @@ def latestRelease(current: str, timeout: float = 15) -> Release:
 	if not isinstance(data, list):
 		raise UpdateError("noRelease")
 	return newestRelease(data, current)
+
+
+ADDON_NAME = "whatsAppAccess"
+
+
+def checkPackage(path: str, version: str) -> None:
+	"""The file must be this add-on, at the version its release names. Otherwise a release whose file is
+	another add-on, or an older or newer version than its tag, would be installed; and a required update
+	whose file never reaches its version would keep WhatsApp closed for good."""
+	try:
+		with zipfile.ZipFile(path) as package:
+			manifest = package.read("manifest.ini").decode("utf-8")
+	except (OSError, KeyError, UnicodeDecodeError, zipfile.BadZipFile) as e:
+		raise UpdateError(f"badPackage: {e}") from e
+	values = {}
+	for line in manifest.splitlines():
+		key, sep, value = line.partition("=")
+		if sep:
+			values[key.strip()] = value.strip().strip('"')
+	if values.get("name") != ADDON_NAME:
+		raise UpdateError(f"badPackage: name {values.get('name')!r}")
+	try:
+		same = versionTuple(values.get("version", "")) == versionTuple(version)
+	except UpdateError:
+		same = False
+	if not same:
+		raise UpdateError(f"badPackage: version {values.get('version')!r} for {version}")
 
 
 def download(release: Release, path: str, timeout: float = 60) -> str:
@@ -149,10 +188,12 @@ def download(release: Release, path: str, timeout: float = 60) -> str:
 				while chunk := response.read(64 * 1024):
 					digest.update(chunk)
 					file.write(chunk)
-		except OSError as e:
+		except (OSError, http.client.HTTPException) as e:
+			# A connection that drops partway raises IncompleteRead, which is no OSError.
 			raise UpdateError(f"network: {e}") from e
 		if digest.hexdigest() != release.sha256:
 			raise UpdateError("badChecksum")
+		checkPackage(path, release.version)
 	except BaseException:
 		try:
 			os.remove(path)

@@ -71,8 +71,46 @@ def test_a_release_without_a_checksum_is_not_installed():
         updates.parseRelease(data)
 
 
+def package(name="whatsAppAccess", version="0.2.0"):
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("manifest.ini", f'name = "{name}"\nversion = "{version}"\n')
+    return buffer.getvalue()
+
+
+def serving(monkeypatch, content):
+    class Response:
+        def __init__(self):
+            self.parts = [content, b""]
+
+        def read(self, size):
+            return self.parts.pop(0)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(updates, "_open", lambda url, accept, timeout: Response())
+
+
+def test_a_file_that_is_not_this_version_of_this_add_on_is_refused(tmp_path, monkeypatch):
+    for content in (package(version="0.1.0"), package(name="evilAddon"), b"not a zip"):
+        serving(monkeypatch, content)
+        release = updates.parseRelease(release_data())
+        release.sha256 = hashlib.sha256(content).hexdigest()
+        path = tmp_path / "a.nvda-addon"
+        with pytest.raises(updates.UpdateError, match="badPackage"):
+            updates.download(release, str(path))
+        assert not path.exists()
+
+
 def test_download_checks_the_checksum(tmp_path, monkeypatch):
-    content = b"add-on bytes"
+    content = package()
 
     class Response:
         def __init__(self):
@@ -164,3 +202,33 @@ def test_drafts_and_prereleases_neither_count_nor_require():
     assert (newest.version, newest.required) == ("0.4.2", False)
     with pytest.raises(updates.UpdateError, match="noRelease"):
         updates.newestRelease([listed("0.6.0", prerelease=True)], "0.4.1")
+
+
+def test_a_release_whose_file_is_not_uploaded_yet_does_not_hide_the_one_before():
+    releases = [
+        release_data(tag_name="v0.6.0", body="**Required update.**", assets=[]),
+        listed("0.5.0", "Fixes."),
+    ]
+    newest = updates.newestRelease(releases, "0.4.1")
+    # 0.5.0 is offered; 0.6.0 still counts as required, so its arrival is not missed.
+    assert (newest.version, newest.required) == ("0.5.0", True)
+
+
+def test_a_connection_dropped_during_the_download_is_a_network_error(tmp_path, monkeypatch):
+    import http.client
+
+    class Broken:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self, size):
+            raise http.client.IncompleteRead(b"partial", 100)
+
+    monkeypatch.setattr(updates, "_open", lambda *args, **kwargs: Broken())
+    path = tmp_path / "a.nvda-addon"
+    with pytest.raises(updates.UpdateError, match="network"):
+        updates.download(updates.parseRelease(release_data()), str(path))
+    assert not path.exists()

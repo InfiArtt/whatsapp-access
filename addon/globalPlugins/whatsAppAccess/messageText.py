@@ -11,6 +11,16 @@ import os
 import re
 import time
 
+try:
+	import addonHandler
+except ImportError:
+	# Outside NVDA, as in the tests: _() is the test's own.
+	addonHandler = None
+if addonHandler is not None:
+	# Each module needs its own call: NVDA puts the add-on's _() in the calling module only. Without it,
+	# NVDA's own _() is used, which does not know the add-on's strings, and they stay in English.
+	addonHandler.initTranslation()
+
 PREVIEW_CHARS = 120
 QUOTE_CHARS = 50
 
@@ -32,17 +42,23 @@ def duration(seconds: float) -> str:
 
 # WhatsApp's formatting: ```monospace```, `code`, *bold*, _italic_ and ~strikethrough~. A mark counts only
 # next to text and not inside a word, as in WhatsApp, so 2*3*4, snake_case and "a * b" stay as they are.
+# The text between two marks holds no mark of the same kind, so each try stops at the next mark and a long
+# message full of marks takes linear time. Before, one message of 30,000 characters such as ".*a.*a…"
+# kept NVDA's main thread busy for half a minute each time it was read.
 _FORMATTING = [re.compile(r"```(.+?)```", re.DOTALL)] + [
-	re.compile(r"(?<![\w%s])%s(?=\S)([^\n]*?\S)%s(?![\w%s])" % ((re.escape(mark),) * 4))
+	re.compile(r"(?<![\w{0}]){0}(?=[^\s{0}])([^\n{0}]*[^\s{0}]){0}(?![\w{0}])".format(re.escape(mark)))
 	for mark in ("`", "*", "_", "~")
 ]
+# Formatting is taken off this much of a message; the rest, if any, is left as it is.
+FORMATTING_CHARS = 10000
 
 
 def plainText(text: str) -> str:
 	"""A message's text without WhatsApp's formatting marks, so they are not read out."""
+	head, rest = text[:FORMATTING_CHARS], text[FORMATTING_CHARS:]
 	for pattern in _FORMATTING:
-		text = pattern.sub(r"\1", text)
-	return text
+		head = pattern.sub(r"\1", head)
+	return head + rest
 
 
 def content(message: dict) -> str:
@@ -161,7 +177,12 @@ def timeText(timestamp: float, now: float | None = None) -> str:
 	if not timestamp:
 		return ""
 	now = time.time() if now is None else now
-	when = time.localtime(timestamp)
+	try:
+		when = time.localtime(timestamp)
+	except (OverflowError, OSError, ValueError, TypeError):
+		# A time no calendar has, such as an event someone sent with a made-up start: said without it,
+		# rather than failing the whole chat list.
+		return ""
 	today = time.localtime(now)
 	clock = time.strftime("%H:%M", when)
 	if when[:3] == today[:3]:
@@ -191,7 +212,11 @@ def windowTitleName(title: str) -> str:
 	the phone number in front, such as "~Budi" for "+62812… ~Budi". A number alone stays."""
 	number, separator, name = title.partition(" ~")
 	if separator and number.startswith("+") and name:
-		return "~" + name
+		title = "~" + name
+	if title.startswith("~"):
+		# NVDA usually does not read "~": without this, a stranger named "Mom" would be heard as Mom.
+		# Translators: Said after the name of someone who is not in the user's contacts.
+		return "{name} ({notContact})".format(name=title, notContact=_("not a contact"))
 	return title
 
 
@@ -348,6 +373,11 @@ def repliesText(count: int) -> str:
 	return _("{count} replies").format(count=count)
 
 
+def withUnreadCount(title: str, unreadChats: int) -> str:
+	"""A window title with how many chats are unread in front, as WhatsApp Web's tab: "(5) WhatsApp"."""
+	return f"({unreadChats}) {title}" if unreadChats > 0 else title
+
+
 def isUnread(chat: dict) -> bool:
 	"""Whether a chat has unread messages, or was marked unread."""
 	return bool(chat.get("unread") or chat.get("markedUnread"))
@@ -384,6 +414,18 @@ def chatLine(chat: dict, now: float | None = None) -> str:
 	return ", ".join(p for p in parts if p)
 
 
+# A message read out as it arrives is cut here: someone could otherwise keep NVDA talking for minutes. The
+# whole message is in the chat.
+ANNOUNCE_CHARS = 1000
+
+
+def shortened(text: str) -> str:
+	if len(text) <= ANNOUNCE_CHARS:
+		return text
+	# Translators: Said after the beginning of a long message read out as it arrives.
+	return text[:ANNOUNCE_CHARS].rstrip() + " … " + _("the rest is in the chat")
+
+
 def announcement(
 	message: dict, chatTitle: str, isGroup: bool, inOpenChat: bool, withContent: bool = True
 ) -> str:
@@ -393,8 +435,9 @@ def announcement(
 	messages say: that choice is for messages from elsewhere. Elsewhere it says where it came from, and
 	without content only who it is from.
 	"""
+	said = shortened(content(message))
 	if inOpenChat:
-		return f"{sender(message)}: {content(message)}"
+		return f"{sender(message)}: {said}"
 	if not withContent:
 		if isGroup:
 			# Translators: Read out for a new group message when the user chose not to hear what it says.
@@ -404,10 +447,10 @@ def announcement(
 	if isGroup:
 		# Translators: Read out when a message arrives in a group that is not open in the add-on's window.
 		return _("New message in {chat} from {sender}: {message}").format(
-			chat=chatTitle, sender=sender(message), message=content(message)
+			chat=chatTitle, sender=sender(message), message=said
 		)
 	# Translators: Read out when a message arrives in a personal chat that is not open in the add-on's window.
-	return _("New message from {sender}: {message}").format(sender=chatTitle, message=content(message))
+	return _("New message from {sender}: {message}").format(sender=chatTitle, message=said)
 
 
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}

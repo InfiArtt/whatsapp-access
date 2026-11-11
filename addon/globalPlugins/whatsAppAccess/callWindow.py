@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+import addonHandler
 import config
 import ui
 import wx
@@ -18,8 +19,20 @@ from . import messageText, sounds, volumes
 from .configSpec import CONFIG_SECTION
 from .whatsApp import WhatsAppError, WhatsAppSession
 
+addonHandler.initTranslation()
+
 
 def callKind(call: dict) -> str:
+	if call.get("group"):
+		# A group call is named after the group, a name anyone in it can choose, such as "Mom": saying it
+		# is a group keeps it from passing for a call from that person.
+		return (
+			# Translators: The kind of call in a group, said with the group's name.
+			_("group video call")
+			if call.get("video")
+			# Translators: The kind of call in a group, said with the group's name.
+			else _("group voice call")
+		)
 	return (
 		# Translators: The kind of call, said with who is calling.
 		_("video call")
@@ -202,6 +215,9 @@ class CallWindow(wx.Dialog):
 				self.statusBox.SetValue(text)
 
 	def _updateButtons(self) -> None:
+		focused = wx.Window.FindFocus()
+		if focused is not None and focused.GetTopLevelParent() is not self:
+			focused = None
 		call = self.call or {}
 		ringingIn = bool(call.get("incoming") and call.get("ringing") and not call.get("connected"))
 		active = not call.get("ended") and not ringingIn
@@ -236,6 +252,10 @@ class CallWindow(wx.Dialog):
 			self._fillPeople(call.get("participants") or [])
 		self.Layout()
 		self.Fit()
+		if focused is not None and not focused.IsShown():
+			# The button that had focus went away, as Answer once the call connects: focus moves on to
+			# what is there now, instead of to nowhere.
+			self.focusAction()
 
 	def _fillPeople(self, people: list[dict]) -> None:
 		# Those in the call first, then those invited who have not joined.
