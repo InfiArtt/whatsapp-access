@@ -3,7 +3,11 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
-## [Unreleased]
+## [0.6.7]
+
+**Required update.** One long message could freeze NVDA, read receipts went out for messages you never
+heard, and much of the add-on spoke English to Indonesian users. WhatsApp stays closed until this version
+is installed.
 
 - New keys, from anywhere in the window: Alt+1 goes to the open chat's messages, Alt+2 to its first
   unread message, Alt+3 to the chat list (the chat stays open) and Alt+4 to its pinned message. The chat
