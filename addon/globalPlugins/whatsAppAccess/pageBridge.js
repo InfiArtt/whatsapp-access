@@ -1296,20 +1296,28 @@
 	async function chatsAction(chatIds, action, seconds) {
 		let done = 0;
 		let skipped = 0;
+		let failed = 0;
 		for (const chatId of chatIds) {
-			if (action === "delete") {
-				const chat = getChat(chatId);
-				if (isGroupChat(chat) && !chat.isReadOnly) {
-					skipped++;
-					continue;
+			try {
+				if (action === "delete") {
+					const chat = getChat(chatId);
+					if (isGroupChat(chat) && !chat.isReadOnly) {
+						skipped++;
+						continue;
+					}
+					await req("WAWebDeleteChatAction").sendDelete(chat);
+				} else {
+					await chatAction(chatId, action, seconds);
 				}
-				await req("WAWebDeleteChatAction").sendDelete(chat);
-			} else {
-				await chatAction(chatId, action, seconds);
+				done++;
+			} catch (e) {
+				failed++;
 			}
-			done++;
 		}
-		return { done: done, skipped: skipped };
+		if (!done && failed) {
+			throw new Error("chatsActionFailed");
+		}
+		return { done: done, skipped: skipped + failed };
 	}
 
 	// Starred messages, channels and communities ------------------------------------------------------
@@ -1776,7 +1784,15 @@
 		}
 		const pins = pinnedOf(m.id.remote.toString());
 		if (pins.length >= req("WAWebPinMsgGatingUtils").getMaxPins()) {
-			const oldest = collections().Msg.get(pins[0].parentKey);
+			let oldest = pins[0].msg;
+			if (!oldest) {
+				try {
+					const found = await collections().Msg.getMessagesById([pins[0].parentKey]);
+					oldest = found && found.messages && found.messages[0];
+				} catch (e) {
+					// Then WhatsApp is left to refuse the new pin.
+				}
+			}
 			if (oldest) {
 				await send({ msg: oldest, pinType: T.UNPIN_FOR_ALL });
 			}
@@ -2146,7 +2162,13 @@
 		if (!name) {
 			throw new Error("badSetting");
 		}
-		if (!req("WAWebSetPrivacyForOneCategoryAction")) {
+		let loaded = null;
+		try {
+			loaded = req("WAWebSetPrivacyForOneCategoryAction");
+		} catch (e) {
+			// Not loaded: require throws for a module whose code has not arrived.
+		}
+		if (!loaded) {
 			// WhatsApp now loads its privacy code with its own settings screen.
 			await req("WAWebSettingsFlowLoadable").requireBundle();
 		}
@@ -2276,6 +2298,10 @@
 
 	const OPUS_RATES = new Set([8000, 12000, 16000, 24000, 48000]);
 	let recording = null;
+	// Set while a recording is starting, before it is in recording: a second start is refused meanwhile.
+	let recordingStarting = false;
+	// Changes when a recording is thrown away, so a stop still finishing then keeps nothing.
+	let recordingGeneration = 0;
 	let recorded = null;
 	// A recording left running stops by itself after this long, as if the user had stopped it, so a
 	// forgotten one does not keep the microphone open and fill the page's memory.
@@ -2377,10 +2403,18 @@
 	}
 
 	async function startRecording(options) {
-		if (recording) {
+		if (recording || recordingStarting) {
 			throw new Error("alreadyRecording");
 		}
-		options = options || {};
+		recordingStarting = true;
+		try {
+			return await beginRecording(options || {});
+		} finally {
+			recordingStarting = false;
+		}
+	}
+
+	async function beginRecording(options) {
 		const raw = options.raw !== false;
 		const audio = {
 			echoCancellation: !raw,
@@ -2402,6 +2436,10 @@
 			ownMicrophoneRequest = false;
 		}
 		const track = stream.getAudioTracks()[0];
+		if (!track) {
+			stream.getTracks().forEach((t) => t.stop());
+			throw new Error("microphone:NotFoundError");
+		}
 		const state = {
 			stream: stream,
 			track: track,
@@ -2417,7 +2455,13 @@
 			label: track.label,
 		};
 		const bitrate = Math.min(256000, Math.max(16000, (options.kbps || 128) * 1000));
-		const reader = new MediaStreamTrackProcessor({ track: track }).readable.getReader();
+		let reader;
+		try {
+			reader = new MediaStreamTrackProcessor({ track: track }).readable.getReader();
+		} catch (e) {
+			stream.getTracks().forEach((t) => t.stop());
+			throw new Error("recording:" + e);
+		}
 		state.done = (async () => {
 			try {
 				for (;;) {
@@ -2472,7 +2516,12 @@
 						if (frame.numberOfChannels === state.channels) {
 							state.encoder.encode(frame);
 						} else {
-							state.encoder.encode(copyChannels(frame, state.channels));
+							const copy = copyChannels(frame, state.channels);
+							try {
+								state.encoder.encode(copy);
+							} finally {
+								copy.close();
+							}
 						}
 					} finally {
 						frame.close();
@@ -2480,6 +2529,9 @@
 				}
 			} catch (e) {
 				state.error = e;
+				if (recording === state) {
+					emit({ type: "recordingFailed", error: String(e) });
+				}
 			}
 		})();
 		recording = state;
@@ -2579,7 +2631,11 @@
 		}
 		recording = null;
 		clearTimeout(state.limitTimer);
+		const generation = recordingGeneration;
 		await finishRecording(state);
+		if (generation !== recordingGeneration) {
+			throw new Error("notRecording");
+		}
 		if (!state.packets.length) {
 			throw new Error("emptyRecording");
 		}
@@ -2610,6 +2666,7 @@
 
 	async function cancelRecording() {
 		const state = recording;
+		recordingGeneration++;
 		recording = null;
 		recorded = null;
 		stoppedAtLimit = null;
@@ -3798,7 +3855,9 @@
 	}
 
 	// Watches one chat's presence while it is open in the add-on, and reports changes.
+	let watchGeneration = 0;
 	async function watchPresence(chatId) {
+		const generation = ++watchGeneration;
 		if (watched) {
 			clearInterval(watched.timer);
 			watched = null;
@@ -3807,6 +3866,10 @@
 			return null;
 		}
 		const first = await presence(chatId);
+		if (generation !== watchGeneration) {
+			// Another chat was opened meanwhile; that watch is the one kept.
+			return first;
+		}
 		const state = { chatId: chatId, last: JSON.stringify(first) };
 		state.timer = setInterval(() => {
 			let now;

@@ -14,6 +14,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+import addonHandler
 import api
 import config
 import ui
@@ -33,6 +34,8 @@ from .moreDialogs import (
 )
 from .questions import askThreeWay, askYesNo
 from .whatsApp import WhatsAppError, WhatsAppSession
+
+addonHandler.initTranslation()
 
 MESSAGES_TO_LOAD = 50
 MAX_MESSAGES_TO_REACH_UNREAD = 400
@@ -76,6 +79,12 @@ ACK_GROUP_MS = 700
 
 
 PLAYBACK_SPEEDS = ("1", "1.5", "2")
+
+
+def ignoreError(error: Exception) -> None:
+	"""The error handler of work that fails silently: its failure is logged at most, never said."""
+
+
 # Messages whose file Enter opens and Alt+D saves.
 FILE_TYPES = ("image", "video", "ptv", "document", "sticker", "audio", "ptt")
 OPENED_TYPES = ("image", "video", "ptv", "document", "sticker")
@@ -885,7 +894,7 @@ class ChatWindow(wx.Dialog):
 		finally:
 			viewer.Destroy()
 			# However it closed (Escape, Close or Alt+F4), a status still playing stops with it.
-			self._run(self.session.stopAudio, onError=lambda e: None)
+			self._run(self.session.stopAudio, onError=ignoreError)
 		self._loadTab(self.TAB_STATUS)
 		self.statusList.SetFocus()
 
@@ -1096,6 +1105,9 @@ class ChatWindow(wx.Dialog):
 			onDone(result)
 
 	def _failed(self, error: Exception, onError: Callable[[Exception], None] | None) -> None:
+		if onError is ignoreError:
+			# Work whose failure is no news, such as saying "typing" or marking a chat read.
+			return
 		if not self:
 			# The window was closed meanwhile. Closing WhatsApp fully closes the window and the connection
 			# together, so its last calls, such as going offline, find the connection gone: that is no news.
@@ -1127,8 +1139,13 @@ class ChatWindow(wx.Dialog):
 			for c in self._chats
 			if (not query or query in c.get("title", "").lower()) and _passesFilter(c, chatFilter)
 		]
-		selected = self._selectedChat()
-		selectedId = selected["id"] if selected else None
+		# The chat list's own selection, also while another section such as Archived is open.
+		current = self.chatList.GetSelection()
+		selectedId = (
+			self._shownChats[current]["id"]
+			if current != wx.NOT_FOUND and current < len(self._shownChats)
+			else None
+		)
 		lines = [self._chatLine(c) for c in shown]
 		oldIds = [c["id"] for c in self._shownChats]
 		self._shownChats = shown
@@ -1175,6 +1192,10 @@ class ChatWindow(wx.Dialog):
 			# Translators: Reported when no chat in the list has unread messages.
 			ui.message(_("No unread chats"))
 			return
+		if self.tabs.GetSelection() != self.TAB_CHATS:
+			# The chat list is on the Chats section: show it, so focus is not on a hidden list.
+			self.tabs.ChangeSelection(self.TAB_CHATS)
+			self._updateSections()
 		current = self.chatList.GetSelection()
 		index = next((i for i in unread if i > current), unread[0])
 		self.chatList.SetSelection(index)
@@ -1458,7 +1479,7 @@ class ChatWindow(wx.Dialog):
 		self._seenTimer = None
 		if self.chat:
 			chatId = self.chat["id"]
-			self._run(lambda: self.session.markSeen(chatId), onError=lambda e: None)
+			self._run(lambda: self.session.markSeen(chatId), onError=ignoreError)
 
 	def _keepDraft(self) -> None:
 		if not self.chat:
@@ -1598,6 +1619,24 @@ class ChatWindow(wx.Dialog):
 
 	def _gotMessages(self, chatId: str, messages: list[dict], opening: bool = False) -> None:
 		if not self.chat or self.chat["id"] != chatId:
+			return
+		if opening:
+			# Messages that arrived while the chat loaded are already in the list; they stay, after the
+			# loaded ones, rather than vanish until the chat is opened again.
+			loadedIds = {m.get("id") for m in messages}
+			messages = messages + [m for m in self._messages if m.get("id") not in loadedIds]
+		if opening and wx.Window.FindFocus() is self.composeBox:
+			# The user started typing while the chat loaded: the messages come, the focus stays.
+			self._messages = messages
+			isGroup = self.chat.get("isGroup", False)
+			self.messageList.Set([messageText.messageLine(m, isGroup) for m in messages])
+			self._goToMessageId = None
+			self._firstUnreadId = messageText.firstUnreadId(messages, self._unreadAtOpen)
+			index = next(
+				(i for i, m in enumerate(messages) if m.get("id") == self._firstUnreadId), len(messages) - 1
+			)
+			if messages:
+				self.messageList.SetSelection(index)
 			return
 		self._messages = messages
 		isGroup = self.chat.get("isGroup", False)
@@ -1881,8 +1920,12 @@ class ChatWindow(wx.Dialog):
 			# Translators: Reported when asking for message info on someone else's message.
 			ui.message(_("Message info is only for your own messages"))
 			return
+		chatId = self.chat["id"] if self.chat else None
 
 		def show(receipts: dict) -> None:
+			if not self.chat or self.chat["id"] != chatId:
+				# The user left the chat meanwhile.
+				return
 			dialog = TextDialog(
 				self,
 				# Translators: The title of the message info window.
@@ -2222,6 +2265,17 @@ class ChatWindow(wx.Dialog):
 		if chatId not in self._sendingIn:
 			self._sendNextText(chatId)
 
+	def _sendingDone(self, chatId: str) -> None:
+		"""A file or voice note finished going out: messages typed meanwhile go now."""
+		self._sendingIn.discard(chatId)
+		if self._textQueue.get(chatId):
+			self._sendNextText(chatId)
+
+	def _saySendingBusy(self) -> None:
+		# Translators: Said when files or a voice note cannot be sent yet, because a message, file or
+		# voice note is still going out in this chat.
+		ui.message(_("Still sending. Try again in a moment"))
+
 	def _sendNextText(self, chatId: str) -> None:
 		queue = self._textQueue.get(chatId)
 		if not queue:
@@ -2364,8 +2418,11 @@ class ChatWindow(wx.Dialog):
 			return
 		chatId = self.chat["id"]
 		if chatId in self._sendingIn:
+			self._saySendingBusy()
 			return
 		paths = list(self._attachments)
+		# Decided now: opening another chat while they go out empties the list of documents.
+		kinds = {path: self._attachedKind(path) for path in paths}
 		caption = self.composeBox.GetValue().strip()
 		rawCaption = self.composeBox.GetValue()
 		quotedId = self._replyTo["id"] if self._replyTo else ""
@@ -2374,7 +2431,7 @@ class ChatWindow(wx.Dialog):
 
 		def send() -> int:
 			for index, path in enumerate(paths):
-				kind = self._attachedKind(path)
+				kind = kinds[path]
 				mime = mimetypes.guess_type(path)[0] or "application/octet-stream"
 				# WhatsApp puts the caption on the first file and the reply on it too.
 				first = index == 0
@@ -2386,7 +2443,7 @@ class ChatWindow(wx.Dialog):
 
 		def forgetSent() -> None:
 			"""Take the files that went out off the list, with the caption and reply that went with them."""
-			self._sendingIn.discard(chatId)
+			self._sendingDone(chatId)
 			if not sentPaths or not self.chat or self.chat["id"] != chatId:
 				return
 			self._attachments = [p for p in self._attachments if p not in sentPaths]
@@ -2440,7 +2497,7 @@ class ChatWindow(wx.Dialog):
 		chatId = self.chat["id"]
 		if time.monotonic() - self._lastTyping > TYPING_REPEAT_SECONDS:
 			self._lastTyping = time.monotonic()
-			self._run(lambda: self.session.setTyping(chatId, "composing"), onError=lambda e: None)
+			self._run(lambda: self.session.setTyping(chatId, "composing"), onError=ignoreError)
 		if self._typingTimer is not None:
 			self._typingTimer.Stop()
 		self._typingTimer = wx.CallLater(TYPING_PAUSE_MS, self._stopTyping)
@@ -2452,7 +2509,7 @@ class ChatWindow(wx.Dialog):
 		if self._lastTyping and self.chat:
 			self._lastTyping = 0.0
 			chatId = self.chat["id"]
-			self._run(lambda: self.session.setTyping(chatId, "paused"), onError=lambda e: None)
+			self._run(lambda: self.session.setTyping(chatId, "paused"), onError=ignoreError)
 
 	def _updateMentions(self) -> None:
 		"""After "@" and part of a name, offer the group's people whose names start that way."""
@@ -2508,7 +2565,7 @@ class ChatWindow(wx.Dialog):
 		self._run(
 			lambda: self.session.emojiSuggestions(typed.replace("_", " "), EMOJI_SUGGESTIONS),
 			found,
-			onError=lambda e: None,
+			onError=ignoreError,
 		)
 
 	def _closeEmoji(self) -> None:
@@ -2787,7 +2844,7 @@ class ChatWindow(wx.Dialog):
 			self._recordingStarting = False
 			if generation != self._recordingGeneration or not self.chat or self.chat["id"] != chatId:
 				# The user left the chat, or threw the note away, before the microphone was ready.
-				self._run(self.session.cancelRecording, onError=lambda e: None)
+				self._run(self.session.cancelRecording, onError=ignoreError)
 				return
 			self._recording = True
 			self._hasRecording = False
@@ -2796,7 +2853,7 @@ class ChatWindow(wx.Dialog):
 			self._updateButtons()
 			self.recordButton.SetFocus()
 			sounds.play(sounds.RECORD_START)
-			self._run(lambda: self.session.setTyping(chatId, "recording"), onError=lambda e: None)
+			self._run(lambda: self.session.setTyping(chatId, "recording"), onError=ignoreError)
 			ui.message(
 				withHint(
 					# Translators: Reported when recording a voice note starts; a hint follows.
@@ -2824,7 +2881,7 @@ class ChatWindow(wx.Dialog):
 			self._recordingStopping = False
 			if generation != self._recordingGeneration or not self.chat or self.chat["id"] != chatId:
 				# Thrown away, or the chat was left, while it stopped: the page must not keep it either.
-				self._run(self.session.cancelRecording, onError=lambda e: None)
+				self._run(self.session.cancelRecording, onError=ignoreError)
 				return
 			self._recording = False
 			self._paused = False
@@ -2832,7 +2889,7 @@ class ChatWindow(wx.Dialog):
 			self._updateButtons()
 			self.sendVoiceButton.SetFocus()
 			sounds.play(sounds.RECORD_STOP)
-			self._run(lambda: self.session.setTyping(chatId, "paused"), onError=lambda e: None)
+			self._run(lambda: self.session.setTyping(chatId, "paused"), onError=ignoreError)
 			if then == "send":
 				self._sendRecording()
 				return
@@ -2875,6 +2932,21 @@ class ChatWindow(wx.Dialog):
 		# Translators: Said when a voice note stops by itself because it reached the longest length.
 		ui.message(_("Recording stopped after 30 minutes"))
 		self._stopRecording()
+
+	def onRecordingFailed(self) -> None:
+		"""The page could not go on recording, such as with a microphone it cannot use: say so now, not
+		only when the user stops the recording minutes later."""
+		if not self._recording:
+			return
+		self._paused = False
+		self._recording = False
+		self._hasRecording = False
+		self._recordingChatId = None
+		self._recordingGeneration += 1
+		self._updateButtons()
+		self._run(self.session.cancelRecording, onError=ignoreError)
+		# Translators: Said when recording a voice note stopped because the microphone could not be used.
+		ui.message(_("Recording stopped: this microphone cannot be recorded. Choose another in the settings"))
 
 	def _sendVoiceNow(self) -> None:
 		"""Ctrl+Shift+R: send the voice note, stopping the recording first if needed."""
@@ -2932,12 +3004,13 @@ class ChatWindow(wx.Dialog):
 			self._discardRecording()
 			return
 		if chatId in self._sendingIn:
+			self._saySendingBusy()
 			return
 		generation = self._recordingGeneration
 		self._sendingIn.add(chatId)
 
 		def sent(result: Any) -> None:
-			self._sendingIn.discard(chatId)
+			self._sendingDone(chatId)
 			if generation != self._recordingGeneration:
 				return
 			self._hasRecording = False
@@ -2952,7 +3025,7 @@ class ChatWindow(wx.Dialog):
 		self._run(
 			lambda: (self.session.stopAudio(), self.session.sendRecording(chatId)),
 			sent,
-			lambda error: self._sendingIn.discard(chatId),
+			lambda error: self._sendingDone(chatId),
 		)
 
 	# Menus, as in WhatsApp ------------------------------------------------------------------------------
@@ -3080,7 +3153,7 @@ class ChatWindow(wx.Dialog):
 				reactions = self.session.reactions(message["id"])
 			except Exception:  # noqa: BLE001 - the line is only a little out of date then
 				return
-			wx.CallAfter(self.onReactions, message["id"], reactions)
+			wx.CallAfter(lambda: self and self.onReactions(message["id"], reactions))
 
 		self._run(react, done)
 
@@ -3516,7 +3589,8 @@ class ChatWindow(wx.Dialog):
 
 	def _setDisappearing(self, chatId: str, seconds: int) -> None:
 		def update() -> None:
-			if self.chat and self.chat["id"] == chatId:
+			# The window may have closed meanwhile.
+			if self and self.chat and self.chat["id"] == chatId:
 				self.chat["disappearing"] = seconds
 				self.chatButton.SetLabel(self._headerLabel(self.chat, self._presenceText))
 
@@ -3578,14 +3652,15 @@ class ChatWindow(wx.Dialog):
 			if self.chat and self.chat["id"] == chatId:
 				self._showPins(pins)
 
-		self._run(lambda: self.session.pinnedMessages(chatId), got, lambda e: None)
+		self._run(lambda: self.session.pinnedMessages(chatId), got, ignoreError)
 
 	def _showPinned(self) -> None:
 		if not self.chat:
 			return
+		chatId = self.chat["id"]
 		# Translators: Reported when a chat has no pinned messages.
 		self._run(
-			lambda: self.session.pinnedMessages(self.chat["id"]),
+			lambda: self.session.pinnedMessages(chatId),
 			# Translators: The title of the list of a chat's pinned messages, and what it says when there are none.
 			lambda found: self._pickMessage(found, _("Pinned messages"), _("No pinned messages")),
 		)
@@ -3697,7 +3772,9 @@ class ChatWindow(wx.Dialog):
 
 	def _showEvent(self, message: dict) -> None:
 		def show(event: dict) -> None:
-			dialog = TextDialog(self, event.get("name", ""), messageText.eventText(event))
+			text = messageText.eventText(event)
+			# Named after the event, not "Message from" it.
+			dialog = TextDialog(self, "", text, title=event.get("name") or (text.splitlines() or [""])[0])
 			try:
 				dialog.ShowModal()
 			finally:
@@ -3904,7 +3981,9 @@ class ChatWindow(wx.Dialog):
 			sounds.play(sounds.DISCARD)
 			# Translators: Reported after a chat was deleted.
 			ui.message(_("Deleted"))
-			self.showChats()
+			# Only the deleted chat closes, not another one the user opened meanwhile.
+			if self.chat and self.chat["id"] == chat["id"]:
+				self.showChats()
 
 		self._run(lambda: self.session.deleteChat(chat["id"]), done)
 
@@ -4456,7 +4535,7 @@ class ChatWindow(wx.Dialog):
 			if self and position.get("loaded") and self._playingId == message["id"]:
 				self.positionSlider.SetValue(int(position.get("time") or 0))
 
-		self._run(self.session.audioPosition, show, onError=lambda e: None)
+		self._run(self.session.audioPosition, show, onError=ignoreError)
 
 	def onPlaybackEnded(self, messageId: str | None = None) -> None:
 		"""A voice message ended: as in WhatsApp, the voice message right after it plays next."""
@@ -4821,7 +4900,7 @@ class ChatWindow(wx.Dialog):
 				self._discardRecording()
 			elif chatOpen and self._hasRecording:
 				# A recorded note is not thrown away by Escape, as leaving the chat would: it says what to do.
-				self._run(self.session.stopAudio, onError=lambda e: None)
+				self._run(self.session.stopAudio, onError=ignoreError)
 				sounds.play(sounds.DISCARD)
 				# Translators: Said when the user tries to close a chat that still has a voice note recorded.
 				ui.message(_("Send the voice note with Ctrl+Shift+R or throw it away with Ctrl+D first"))

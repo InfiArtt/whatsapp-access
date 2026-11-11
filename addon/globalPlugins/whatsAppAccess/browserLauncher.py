@@ -32,6 +32,19 @@ from . import cdp
 MINIMUM_MAJOR_VERSION = 120
 START_TIMEOUT_SECONDS = 45.0
 WHATSAPP_URL = "https://web.whatsapp.com/"
+# GetSystemMetrics: whether Windows is shutting down, restarting or signing the user out.
+SM_SHUTTINGDOWN = 0x2000
+
+
+def windowsShuttingDown(getSystemMetrics: Callable[[int], int] | None = None) -> bool:
+	"""Whether Windows is shutting down, restarting or signing out. It then closes the hidden browser
+	before NVDA, which is no reason to say WhatsApp stopped or to start it again."""
+	if getSystemMetrics is None:
+		getSystemMetrics = ctypes.windll.user32.GetSystemMetrics
+	try:
+		return bool(getSystemMetrics(SM_SHUTTINGDOWN))
+	except OSError:
+		return False
 
 
 @dataclass(frozen=True)

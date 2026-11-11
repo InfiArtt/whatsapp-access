@@ -164,3 +164,33 @@ def test_drafts_and_prereleases_neither_count_nor_require():
     assert (newest.version, newest.required) == ("0.4.2", False)
     with pytest.raises(updates.UpdateError, match="noRelease"):
         updates.newestRelease([listed("0.6.0", prerelease=True)], "0.4.1")
+
+
+def test_a_release_whose_file_is_not_uploaded_yet_does_not_hide_the_one_before():
+    releases = [
+        release_data(tag_name="v0.6.0", body="**Required update.**", assets=[]),
+        listed("0.5.0", "Fixes."),
+    ]
+    newest = updates.newestRelease(releases, "0.4.1")
+    # 0.5.0 is offered; 0.6.0 still counts as required, so its arrival is not missed.
+    assert (newest.version, newest.required) == ("0.5.0", True)
+
+
+def test_a_connection_dropped_during_the_download_is_a_network_error(tmp_path, monkeypatch):
+    import http.client
+
+    class Broken:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self, size):
+            raise http.client.IncompleteRead(b"partial", 100)
+
+    monkeypatch.setattr(updates, "_open", lambda *args, **kwargs: Broken())
+    path = tmp_path / "a.nvda-addon"
+    with pytest.raises(updates.UpdateError, match="network"):
+        updates.download(updates.parseRelease(release_data()), str(path))
+    assert not path.exists()

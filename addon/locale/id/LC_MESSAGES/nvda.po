@@ -2959,3 +2959,15 @@ msgstr "Disematkan: {message}"
 
 msgid "Go to pinned messages ({count})"
 msgstr "Buka pesan yang disematkan ({count})"
+
+msgid "Still sending. Try again in a moment"
+msgstr "Masih mengirim. Coba lagi sebentar lagi"
+
+msgid "Recording stopped: this microphone cannot be recorded. Choose another in the settings"
+msgstr "Rekaman berhenti: mikrofon ini tidak bisa direkam. Pilih mikrofon lain di pengaturan"
+
+msgid "Already checking for updates. The answer comes in a moment"
+msgstr "Sedang memeriksa pembaruan. Jawabannya sebentar lagi"
+
+msgid "How to link:"
+msgstr "Cara menautkan:"

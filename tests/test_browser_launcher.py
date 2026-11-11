@@ -162,3 +162,15 @@ def test_a_reused_process_id_is_never_closed(tmp_path, monkeypatch):
     browserLauncher.closeLeftovers(str(tmp_path), "brave.exe")
     assert "PID eq 4242" in ran[0]
     assert ran[1] == "byProfile"
+
+
+def test_windows_shutting_down_is_read_from_system_metrics():
+    asked = []
+
+    def metrics(index):
+        asked.append(index)
+        return 1
+
+    assert browserLauncher.windowsShuttingDown(metrics) is True
+    assert asked == [browserLauncher.SM_SHUTTINGDOWN]
+    assert browserLauncher.windowsShuttingDown(lambda index: 0) is False

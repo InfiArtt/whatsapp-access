@@ -3,6 +3,39 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [Unreleased]
+
+- When Windows shut down or restarted, NVDA said "WhatsApp stopped. Starting it again…" and started it
+  again: Windows closes the hidden browser first. Nothing is said or started then now.
+- With NVDA in Indonesian, much of the add-on spoke English: the chat window, call window, first-time
+  setup and the lines read for chats and messages did not load the add-on's translations.
+- Errors that should stay silent were spoken, such as "Something went wrong" while typing on a weak
+  connection, after marking a chat read, or when looking up emoji.
+- A message typed while a voice note or files were still sending stayed unsent until the next message.
+  Sending files or a voice note while something else is still going out now says so instead of nothing.
+- A message that arrived while a chat was opening disappeared from the list.
+- When the computer starts without internet, WhatsApp is tried again every minute, a few times, instead
+  of staying closed until NVDA+Shift+W.
+- Closing WhatsApp fully while it was still starting could start it again by itself.
+- "WhatsApp lost its connection" could be said after WhatsApp was already closed.
+- A voice note that could not be recorded, such as with a microphone the browser cannot use, is said at
+  once, not only when stopping it minutes later. A recording started twice quickly could leave the
+  microphone on.
+- Changing a privacy setting could fail before WhatsApp's own settings had been opened once.
+- Archiving, muting or deleting several chats stopped at the first one that failed.
+- Pinning a message when the chat already had the most pins could fail to unpin the oldest.
+- Alt+U from another section, such as Calls, moved the focus to the hidden chat list. The chat list no
+  longer jumps to the top after new messages while the Archived section is open.
+- Files attached as documents could go out as photos when another chat was opened during sending.
+- Opening a chat no longer pulls the focus away from the message box when you started typing.
+- Deleting a chat no longer closes another chat opened meanwhile. Message info no longer opens after
+  leaving the chat. An event's window is named after the event.
+- In a call, when the focused button goes away, such as Answer once the call connects, the focus moves to
+  End instead of to nowhere.
+- Checking for updates: a dropped connection during the download is reported, a release whose file is not
+  uploaded yet no longer blocks the one before it, and checking while a check is running says so.
+- The help text in the Link WhatsApp window has a label.
+
 ## [0.6.6]
 
 **Required update.** Voice notes sent from WhatsApp Access could not be played on an iPhone. WhatsApp

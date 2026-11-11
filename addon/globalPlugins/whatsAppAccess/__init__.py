@@ -48,6 +48,13 @@ RESTART_WINDOW_SECONDS = 600
 # Starting WhatsApp with NVDA waits a little, so NVDA's own start is not slowed down.
 AUTO_START_DELAY_MS = 4000
 START_RETRY_SECONDS = 3
+# Starting with NVDA, as after the computer starts, may find no internet yet: it is tried again a few
+# times, a minute apart, without a word.
+AUTO_START_RETRIES = 5
+AUTO_START_RETRY_MS = 60000
+# The hidden browser is started again only after this long, and only if Windows is not shutting down by
+# then: at a restart, Windows may close the browser a moment before it says it is shutting down.
+RESTART_DELAY_MS = 3000
 # A lost connection is said only after this long, so a short drop stays silent.
 CONNECTION_LOST_DELAY_MS = 8000
 
@@ -121,6 +128,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._showWhenStarted = False
 		"""NVDA+Shift+W was pressed while a start was already on its way: open the window when it is done."""
 		self._autoStartTimer: wx.CallLater | None = None
+		self._autoStartRetries = 0
 		settings = config.conf[CONFIG_SECTION]
 		if settings["setupDone"] and settings["connection"] == "hidden" and settings["startWithNVDA"]:
 			self._autoStartTimer = wx.CallLater(AUTO_START_DELAY_MS, self._startHidden, False, False)
@@ -408,6 +416,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self._autoStartTimer = None
 		if self._terminated:
 			return
+		if not announce and self.session.connected:
+			# A start of its own, such as a try again after no internet, finds WhatsApp already started.
+			return
 		if updateCheck.isUpdateRequired():
 			# Not even by itself with NVDA: WhatsApp Web changed so that this version no longer works.
 			if announce:
@@ -461,6 +472,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				except (OSError, WhatsAppError) as e:
 					# Right after NVDA reloads, the last hidden browser may still be closing and hold the
 					# profile; try once more when it is gone.
+					if self._terminated or self.hidden is not hidden:
+						# Closed fully, reloaded or changed meanwhile: that is why it failed; no new try.
+						log.info(f"WhatsApp Access: start stopped ({e})")
+						return
 					log.info(f"WhatsApp Access: first start failed ({e}); trying again")
 					hidden.stop()
 					time.sleep(START_RETRY_SECONDS)
@@ -474,7 +489,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 				wx.CallAfter(self._connectFailed, e, browser.name, announce)
 				return
 			log.info(f"WhatsApp Access: hidden browser connected, {state}")
-			if self._terminated:
+			if self._terminated or self.hidden is not hidden:
 				# NVDA stopped the plugin while the browser started; it must not stay behind.
 				self.session.close()
 				hidden.stop()
@@ -485,6 +500,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def _hiddenStarted(self, state: str, thenShow: bool) -> None:
 		self._connecting = False
+		self._autoStartRetries = 0
 		thenShow = thenShow or self._showWhenStarted
 		self._showWhenStarted = False
 		if self._terminated:
@@ -516,6 +532,11 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def _restartHidden(self) -> None:
 		"""The hidden browser stopped by itself: start it again, a few times at most."""
+		if self._terminated or self._stopping or browserLauncher.windowsShuttingDown():
+			return
+		if self.session.connected or self._connecting:
+			# Started again meanwhile, as with NVDA+Shift+W.
+			return
 		now = time.monotonic()
 		self._restarts = [t for t in self._restarts if now - t < RESTART_WINDOW_SECONDS] + [now]
 		if len(self._restarts) > MAX_RESTARTS:
@@ -550,6 +571,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		"""The connection settings changed: drop the current connection; the next one uses the new way."""
 		self._stopping = True
 		self.calls.connectionGone()
+		self._forgetConnectionState()
 		if self.window:
 			self.window.Close()
 		self.session.close()
@@ -557,6 +579,15 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			self.hidden.stop()
 			self.hidden = None
 		self._stopping = False
+
+	def _forgetConnectionState(self) -> None:
+		"""The connection is gone: a "lost its connection" still waiting is not said, and the next
+		connection starts with nothing lost."""
+		if self._lostTimer is not None:
+			self._lostTimer.Stop()
+			self._lostTimer = None
+		self._connectionLost = False
+		self._saidLost = False
 
 	def unlink(self) -> None:
 		"""Log out of WhatsApp and delete the hidden browser's profile with everything WhatsApp kept."""
@@ -639,11 +670,23 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 
 	def _connectFailed(self, error: Exception, browserName: str, announce: bool = True) -> None:
 		self._connecting = False
+		if self._terminated:
+			return
 		# The user asked for the window while it was starting, so they want to hear why it failed.
 		announce = announce or self._showWhenStarted
 		self._showWhenStarted = False
 		if announce:
 			ui.message(errorText(error, browserName))
+			return
+		settings = config.conf[CONFIG_SECTION]
+		if (
+			settings["connection"] == "hidden"
+			and settings["startWithNVDA"]
+			and self._autoStartRetries < AUTO_START_RETRIES
+			and not (isinstance(error, WhatsAppError) and error.code in ("needsLink", "noChromium"))
+		):
+			self._autoStartRetries += 1
+			self._autoStartTimer = wx.CallLater(AUTO_START_RETRY_MS, self._startHidden, False, False)
 
 	def _connected(self) -> None:
 		self._connecting = False
@@ -696,12 +739,16 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 	def _disconnected(self) -> None:
 		# A call cannot outlive the connection; WhatsApp will not say it ended.
 		self.calls.connectionGone()
+		self._forgetConnectionState()
 		if self.window:
 			self.window.Close()
 		if self._stopping:
 			return
+		if browserLauncher.windowsShuttingDown():
+			# Windows closed the browser on its way down: nothing stopped, and nothing is said.
+			return
 		if config.conf[CONFIG_SECTION]["connection"] == "hidden":
-			self._restartHidden()
+			wx.CallLater(RESTART_DELAY_MS, self._restartHidden)
 			return
 		ui.message(errorText(WhatsAppError("disconnected")))
 
@@ -753,6 +800,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 			window.onPlaybackEnded(event.get("messageId"))
 		elif kind == "recordingLimit" and window:
 			window.onRecordingLimit()
+		elif kind == "recordingFailed" and window:
+			log.warning(f"WhatsApp Access: recording failed: {event.get('error')}")
+			window.onRecordingFailed()
 		elif kind == "connection":
 			self._onConnection(event.get("state") or {})
 

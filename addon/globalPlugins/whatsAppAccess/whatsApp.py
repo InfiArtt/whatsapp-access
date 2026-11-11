@@ -250,6 +250,9 @@ class WhatsAppSession:
 				raise WhatsAppError("refused", str(e)) from e
 			except OSError as e:
 				raise WhatsAppError("noBrowser", str(e)) from e
+			except cdp.Disconnected as e:
+				# The browser closed before the connection was made, as when it is stopped meanwhile.
+				raise WhatsAppError("disconnected", str(e)) from e
 			self.browserName = target.browser.name
 			try:
 				pages = []

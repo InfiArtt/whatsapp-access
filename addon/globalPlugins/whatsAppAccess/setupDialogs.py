@@ -8,12 +8,15 @@ import threading
 import time
 from collections.abc import Callable
 
+import addonHandler
 import api
 import ui
 import wx
 from logHandler import log
 
 from .whatsApp import WhatsAppError
+
+addonHandler.initTranslation()
 
 # WhatsApp keeps a link code valid for a few minutes; the add-on waits that long for the phone.
 LINK_WAIT_SECONDS = 300
@@ -109,6 +112,8 @@ class LinkDialog(wx.Dialog):
 		self.copyButton.Bind(wx.EVT_BUTTON, lambda evt: self._copy())
 		self.copyButton.Disable()
 		sizer.Add(self.copyButton, 0, wx.BOTTOM, 6)
+		# Translators: The label of the box that says how to use the link code on the phone.
+		sizer.Add(wx.StaticText(self, label=_("How to link:")))
 		help = wx.TextCtrl(
 			self,
 			value=_(

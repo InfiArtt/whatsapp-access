@@ -11,6 +11,16 @@ import os
 import re
 import time
 
+try:
+	import addonHandler
+except ImportError:
+	# Outside NVDA, as in the tests: _() is the test's own.
+	addonHandler = None
+if addonHandler is not None:
+	# Each module needs its own call: NVDA puts the add-on's _() in the calling module only. Without it,
+	# NVDA's own _() is used, which does not know the add-on's strings, and they stay in English.
+	addonHandler.initTranslation()
+
 PREVIEW_CHARS = 120
 QUOTE_CHARS = 50
 

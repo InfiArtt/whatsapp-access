@@ -8,6 +8,7 @@ This module uses only Python's standard library, so it can be tested without NVD
 """
 
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -110,8 +111,18 @@ def newestRelease(releases: list[dict], current: str) -> Release:
 	published = [data for data in releases if isinstance(data, dict) and _published(data)]
 	if not published:
 		raise UpdateError("noRelease")
-	newest = max(published, key=lambda data: versionTuple(str(data["tag_name"])))
-	release = parseRelease(newest)
+	# The newest one with its add-on file: a release whose file is not uploaded yet is passed over, so it
+	# does not keep everyone from the one before it.
+	release = None
+	problem: UpdateError | None = None
+	for data in sorted(published, key=lambda data: versionTuple(str(data["tag_name"])), reverse=True):
+		try:
+			release = parseRelease(data)
+			break
+		except UpdateError as e:
+			problem = problem or e
+	if release is None:
+		raise problem or UpdateError("noRelease")
 	release.required = any(
 		isNewer(str(data["tag_name"]), current) and isRequired(str(data.get("body") or ""))
 		for data in published
@@ -123,7 +134,7 @@ def latestRelease(current: str, timeout: float = 15) -> Release:
 	try:
 		with _open(RELEASES_URL, "application/vnd.github+json", timeout) as response:
 			data = json.load(response)
-	except OSError as e:
+	except (OSError, http.client.HTTPException) as e:
 		code = getattr(e, "code", None)
 		# 404: the repository is not public.
 		raise UpdateError("noRelease" if code == 404 else f"network: {e}") from e
@@ -149,7 +160,8 @@ def download(release: Release, path: str, timeout: float = 60) -> str:
 				while chunk := response.read(64 * 1024):
 					digest.update(chunk)
 					file.write(chunk)
-		except OSError as e:
+		except (OSError, http.client.HTTPException) as e:
+			# A connection that drops partway raises IncompleteRead, which is no OSError.
 			raise UpdateError(f"network: {e}") from e
 		if digest.hexdigest() != release.sha256:
 			raise UpdateError("badChecksum")
