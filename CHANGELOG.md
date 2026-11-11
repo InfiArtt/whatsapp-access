@@ -8,6 +8,9 @@ notes the add-on shows before it installs an update.
 - New keys, from anywhere in the window: Alt+1 goes to the open chat's messages, Alt+2 to its first
   unread message, Alt+3 to the chat list (the chat stays open) and Alt+4 to its pinned message. The chat
   list's filters (all, unread, groups, favorites) moved to Alt+Shift+1 to Alt+Shift+4.
+- Watching someone's status updates now counts as seeing them: the Status list kept saying "4 new". The
+  receipt WhatsApp sends for it no longer holds up marking them seen. The box that shows a status has a
+  label.
 - The window title says how many chats are unread, as WhatsApp Web's tab does: "(5) WhatsApp". The open
   chat is not counted.
 - When Windows shut down or restarted, NVDA said "WhatsApp stopped. Starting it again…" and started it

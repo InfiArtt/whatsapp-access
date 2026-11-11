@@ -5749,6 +5749,8 @@ class StatusViewer(wx.Dialog):
 		# Start at the first status not seen yet, as WhatsApp does.
 		self.item = next((i for i, item in enumerate(items) if not item.get("viewed")), 0)
 		sizer = wx.BoxSizer(wx.VERTICAL)
+		# Translators: The label of the box that shows one status update in the Status window.
+		sizer.Add(wx.StaticText(self, label=_("Status update:")), 0, wx.LEFT | wx.TOP, 8)
 		self.textBox = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY, size=(520, 140))
 		sizer.Add(self.textBox, 1, wx.EXPAND | wx.ALL, 8)
 		help = wx.StaticText(

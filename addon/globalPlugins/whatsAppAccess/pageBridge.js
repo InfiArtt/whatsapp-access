@@ -3243,7 +3243,10 @@
 					.filter((m) => !m.isNotification && m.type !== "revoked")
 					.map((m) => {
 						const info = messageInfo(m);
-						info.viewed = (typeof m.ack === "number" && m.ack >= 3) || !!m.isViewed;
+						info.viewed =
+							(typeof m.ack === "number" && m.ack >= 3) ||
+							!!m.isViewed ||
+							!!(s.readKeys && s.readKeys[String(m.id)]);
 						return info;
 					});
 				const last = items.length ? items[items.length - 1] : null;
@@ -3263,7 +3266,26 @@
 	// turned read receipts off in WhatsApp.
 	async function statusSeen(messageId) {
 		const m = getMsg(messageId);
-		return !!(await req("WAWebContactStatusBridge").sendReadStatus(m, undefined, undefined));
+		// WhatsApp's own record of what was seen comes first: the receipt below goes through WhatsApp's job
+		// queue, whose promise did not settle, and the person stayed at "4 new" however often their
+		// statuses were watched.
+		try {
+			const C = collections();
+			const status = C.Status && C.Status.getModelsArray().find((x) => x.msgs && x.msgs.get(messageId));
+			if (status && typeof status.handleReadStatus === "function") {
+				status.handleReadStatus(m.id);
+			}
+		} catch (e) {
+			// Then only the count stays as it was.
+		}
+		const sending = Promise.resolve(req("WAWebContactStatusBridge").sendReadStatus(m, undefined, undefined));
+		sending.catch(() => {});
+		// The receipt is queued; waiting for it longer would only hold the call.
+		const outcome = await Promise.race([
+			sending.then(() => "sent"),
+			new Promise((resolve) => setTimeout(() => resolve("queued"), 10000)),
+		]);
+		return outcome;
 	}
 
 	// WhatsApp Web cannot react to a status: sendReactionToMsg looks up the message's chat, and a status,

@@ -3000,3 +3000,6 @@ msgstr "Pesan pertama yang belum dibaca"
 
 msgid "Pinned message"
 msgstr "Pesan yang disematkan"
+
+msgid "Status update:"
+msgstr "Pembaruan status:"
