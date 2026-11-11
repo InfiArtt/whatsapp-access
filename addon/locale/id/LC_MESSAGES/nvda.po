@@ -43,11 +43,13 @@ msgid "Still connecting to WhatsApp Web"
 msgstr "Masih menyambung ke WhatsApp Web"
 
 msgid ""
-"Connecting to WhatsApp Web in {browser}. If {browser} asks whether to allow remote debugging, choose "
-"Allow: press Shift+Tab, then Enter."
+"Connecting to WhatsApp Web in {browser}. {browser} now asks whether to allow remote debugging: choose "
+"Allow with Shift+Tab, then Enter. If it asks at any other time, choose Cancel: another program is trying "
+"to control your browser."
 msgstr ""
-"Menyambung ke WhatsApp Web di {browser}. Kalau {browser} bertanya apakah mengizinkan remote debugging, "
-"pilih Allow: tekan Shift+Tab, lalu Enter."
+"Menyambung ke WhatsApp Web di {browser}. {browser} sekarang bertanya apakah mengizinkan remote debugging: "
+"pilih Allow dengan Shift+Tab, lalu Enter. Kalau ia bertanya di waktu lain, pilih Cancel: ada program lain "
+"yang mencoba mengendalikan browser Anda."
 
 msgid "Record voice notes in &stereo when the microphone has two channels (iPhones cannot play them)"
 msgstr "Rekam voice note dalam &stereo bila mikrofon punya dua kanal (tidak bisa diputar di iPhone)"
@@ -781,8 +783,8 @@ msgstr "&Jalankan WhatsApp saat NVDA menyala, agar pesan baru dibacakan"
 msgid "Unlin&k this computer and remove its WhatsApp data…"
 msgstr "Putuskan tautan komputer ini dan hapus data &WhatsApp-nya…"
 
-msgid "&WhatsApp Web in your own browser. Uses the WhatsApp Web tab you have open in Brave or Chrome. Your browser asks for permission each time it starts."
-msgstr "&WhatsApp Web di browser Anda sendiri. Memakai tab WhatsApp Web yang terbuka di Brave atau Chrome. Browser Anda meminta izin setiap kali dibuka."
+msgid "&WhatsApp Web in your own browser. Uses the WhatsApp Web tab you have open in Brave or Chrome. Less safe: remote debugging stays on in that browser, and a program that is allowed in can control all of it, your other sites too. Use a browser profile only for WhatsApp."
+msgstr "&WhatsApp Web di browser Anda sendiri. Memakai tab WhatsApp Web yang terbuka di Brave atau Chrome. Kurang aman: remote debugging tetap menyala di browser itu, dan program yang diizinkan masuk bisa mengendalikan seluruhnya, termasuk situs Anda yang lain. Pakai profil browser khusus untuk WhatsApp."
 
 msgid "A hidden browser of the add-on's own"
 msgstr "Browser tersembunyi milik add-on"
@@ -2971,3 +2973,21 @@ msgstr "Sedang memeriksa pembaruan. Jawabannya sebentar lagi"
 
 msgid "How to link:"
 msgstr "Cara menautkan:"
+
+msgid "Call everyone in {group}? All its members' phones ring."
+msgstr "Telepon semua orang di {group}? Ponsel semua anggotanya akan berdering."
+
+msgid "Group call"
+msgstr "Panggilan grup"
+
+msgid "group video call"
+msgstr "panggilan video grup"
+
+msgid "group voice call"
+msgstr "panggilan suara grup"
+
+msgid "The link wrote in the message box: {text}"
+msgstr "Tautan itu menulis di kotak pesan: {text}"
+
+msgid "the rest is in the chat"
+msgstr "sisanya ada di chat"

@@ -9,6 +9,7 @@ import os
 import re
 import threading
 import time
+import urllib.parse
 import webbrowser
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -401,6 +402,7 @@ class ChatWindow(wx.Dialog):
 		self.Bind(wx.EVT_CLOSE, self._onClose)
 		self.Bind(wx.EVT_ACTIVATE, self._onActivate)
 		self._online = False
+		self._seenWaiting = False
 
 	# Building -------------------------------------------------------------------------------------------
 
@@ -918,7 +920,7 @@ class ChatWindow(wx.Dialog):
 			self._run(lambda: self.session.joinGroupCall(chatId))
 			return
 		if call.get("group"):
-			self._run(lambda: self.session.startGroupCall(chatId))
+			self._startGroupCall(chatId, call.get("name", ""))
 			return
 		self._run(lambda: self.session.startCall(chatId))
 
@@ -1293,9 +1295,14 @@ class ChatWindow(wx.Dialog):
 			phone, text = info["phone"], info.get("text") or ""
 
 			def opened(chat: dict) -> None:
-				if text and not self._drafts.get(chat["id"]):
+				filled = bool(text) and not self._drafts.get(chat["id"])
+				if filled:
 					self._drafts[chat["id"]] = text
 				self.openChat(chat)
+				if filled:
+					# The link's sender chose this text: it is said, so it is not sent unheard.
+					# Translators: Said when a wa.me link put text in the message box, with that text.
+					ui.message(_("The link wrote in the message box: {text}").format(text=text))
 
 			self._run(lambda: self.session.chatWithNumber(phone), opened)
 		elif kind == "call":
@@ -1477,6 +1484,12 @@ class ChatWindow(wx.Dialog):
 
 	def _markSeenNow(self) -> None:
 		self._seenTimer = None
+		if not self._online:
+			# The user is in another program: the sender sees no blue ticks for messages nobody heard. They
+			# are marked read when the window is in front again.
+			self._seenWaiting = True
+			return
+		self._seenWaiting = False
 		if self.chat:
 			chatId = self.chat["id"]
 			self._run(lambda: self.session.markSeen(chatId), onError=ignoreError)
@@ -1736,7 +1749,8 @@ class ChatWindow(wx.Dialog):
 			try:
 				os.startfile(path)
 			except OSError as e:
-				log.debugWarning(f"WhatsApp Access: could not open {path}: {e}")
+				# The file's name, from the sender, stays out of the log; its type is enough.
+				log.debugWarning(f"WhatsApp Access: could not open a {os.path.splitext(path)[1]} file: {e}")
 				# Translators: Reported when Windows has no program to open a downloaded file.
 				ui.message(_("Windows has no program to open {name}").format(name=name))
 
@@ -1795,9 +1809,20 @@ class ChatWindow(wx.Dialog):
 			return
 		chatId = self.chat["id"]
 		if self.chat.get("isGroup"):
-			self._run(lambda: self.session.startGroupCall(chatId))
+			self._startGroupCall(chatId, self.chat.get("title", ""))
 			return
 		self._run(lambda: self.session.startCall(chatId))
+
+	def _startGroupCall(self, chatId: str, title: str) -> None:
+		"""A group call rings everyone in it at once: asked first, so a stray key rings nobody."""
+		if not self._confirm(
+			# Translators: Asked before a group voice call, with the group's name.
+			_("Call everyone in {group}? All its members' phones ring.").format(group=title),
+			# Translators: The title of the question before a group call.
+			_("Group call"),
+		):
+			return
+		self._run(lambda: self.session.startGroupCall(chatId))
 
 	def _openLinks(self) -> None:
 		"""Alt+L: open a link in the message in the browser; with several, choose which."""
@@ -1825,6 +1850,9 @@ class ChatWindow(wx.Dialog):
 			self.openWhatsAppLink(link)
 			return
 		url = link if "://" in link else "https://" + link
+		if urllib.parse.urlsplit(url).scheme.lower() not in ("http", "https"):
+			# Only web addresses go to the browser; anything else could start another program.
+			return
 		# Translators: Reported when a link from a message opens in the browser.
 		ui.message(_("Opening {link}").format(link=link))
 		webbrowser.open(url)
@@ -3502,7 +3530,7 @@ class ChatWindow(wx.Dialog):
 				menu,
 				# Translators: An item in a group's More options menu: calls everyone in the group.
 				_("S&tart a group voice call"),
-				lambda: self._run(lambda: self.session.startGroupCall(chatId)),
+				lambda: self._startGroupCall(chatId, chat.get("title", "")),
 			)
 		menu.AppendSeparator()
 		self._addChatItems(menu, chat, add)
@@ -4841,6 +4869,8 @@ class ChatWindow(wx.Dialog):
 		if self and online != self._online:
 			self._online = online
 			self._run(lambda: self.session.setOnline(online))
+			if online and getattr(self, "_seenWaiting", False):
+				self._markSeenSoon()
 
 	def onCallChanged(self) -> None:
 		"""During a call, a bar at the top says who it is with and offers Return to call and Mute."""

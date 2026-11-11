@@ -13,6 +13,7 @@ import json
 import os
 import re
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 
 REPOSITORY = "InfiArtt/whatsapp-access"
@@ -145,6 +146,33 @@ def latestRelease(current: str, timeout: float = 15) -> Release:
 	return newestRelease(data, current)
 
 
+ADDON_NAME = "whatsAppAccess"
+
+
+def checkPackage(path: str, version: str) -> None:
+	"""The file must be this add-on, at the version its release names. Otherwise a release whose file is
+	another add-on, or an older or newer version than its tag, would be installed; and a required update
+	whose file never reaches its version would keep WhatsApp closed for good."""
+	try:
+		with zipfile.ZipFile(path) as package:
+			manifest = package.read("manifest.ini").decode("utf-8")
+	except (OSError, KeyError, UnicodeDecodeError, zipfile.BadZipFile) as e:
+		raise UpdateError(f"badPackage: {e}") from e
+	values = {}
+	for line in manifest.splitlines():
+		key, sep, value = line.partition("=")
+		if sep:
+			values[key.strip()] = value.strip().strip('"')
+	if values.get("name") != ADDON_NAME:
+		raise UpdateError(f"badPackage: name {values.get('name')!r}")
+	try:
+		same = versionTuple(values.get("version", "")) == versionTuple(version)
+	except UpdateError:
+		same = False
+	if not same:
+		raise UpdateError(f"badPackage: version {values.get('version')!r} for {version}")
+
+
 def download(release: Release, path: str, timeout: float = 60) -> str:
 	"""Save the release's add-on file at path, checking it against GitHub's SHA-256.
 
@@ -165,6 +193,7 @@ def download(release: Release, path: str, timeout: float = 60) -> str:
 			raise UpdateError(f"network: {e}") from e
 		if digest.hexdigest() != release.sha256:
 			raise UpdateError("badChecksum")
+		checkPackage(path, release.version)
 	except BaseException:
 		try:
 			os.remove(path)

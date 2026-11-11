@@ -71,8 +71,46 @@ def test_a_release_without_a_checksum_is_not_installed():
         updates.parseRelease(data)
 
 
+def package(name="whatsAppAccess", version="0.2.0"):
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("manifest.ini", f'name = "{name}"\nversion = "{version}"\n')
+    return buffer.getvalue()
+
+
+def serving(monkeypatch, content):
+    class Response:
+        def __init__(self):
+            self.parts = [content, b""]
+
+        def read(self, size):
+            return self.parts.pop(0)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(updates, "_open", lambda url, accept, timeout: Response())
+
+
+def test_a_file_that_is_not_this_version_of_this_add_on_is_refused(tmp_path, monkeypatch):
+    for content in (package(version="0.1.0"), package(name="evilAddon"), b"not a zip"):
+        serving(monkeypatch, content)
+        release = updates.parseRelease(release_data())
+        release.sha256 = hashlib.sha256(content).hexdigest()
+        path = tmp_path / "a.nvda-addon"
+        with pytest.raises(updates.UpdateError, match="badPackage"):
+            updates.download(release, str(path))
+        assert not path.exists()
+
+
 def test_download_checks_the_checksum(tmp_path, monkeypatch):
-    content = b"add-on bytes"
+    content = package()
 
     class Response:
         def __init__(self):

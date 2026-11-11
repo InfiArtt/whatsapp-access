@@ -48,7 +48,8 @@ class SetupDialog(wx.Dialog):
 			# Translators: The second way to reach WhatsApp.
 			label=_(
 				"&WhatsApp Web in your own browser. Uses the WhatsApp Web tab you have open in Brave or Chrome. "
-				"Your browser asks for permission each time it starts."
+				"Less safe: remote debugging stays on in that browser, and a program that is allowed in can "
+				"control all of it, your other sites too. Use a browser profile only for WhatsApp."
 			),
 		)
 		for choice in (self.hiddenChoice, self.ownChoice):

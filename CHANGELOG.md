@@ -36,6 +36,27 @@ notes the add-on shows before it installs an update.
   uploaded yet no longer blocks the one before it, and checking while a check is running says so.
 - The help text in the Link WhatsApp window has a label.
 
+Security:
+
+- One very long message full of formatting marks, sent by anyone, kept NVDA busy for a minute or more each
+  time it was read. Formatting is now removed in an instant, and a long message read out as it arrives is
+  cut after 1,000 characters ("the rest is in the chat").
+- An event with an impossible start time no longer breaks the chat list.
+- Read receipts (blue ticks) are no longer sent for messages that arrive while you are in another program;
+  they are sent when you come back to the window.
+- A group call asks first: one key rang everyone in the group.
+- A group call is said to be one ("group voice call"), so a group named like a contact cannot pass for
+  that person calling. The window title of a chat with someone outside your contacts says "not a
+  contact".
+- Text that a wa.me link puts in the message box is read out, so it is not sent unheard.
+- Only web addresses (http and https) are opened from messages.
+- An update is installed only if its file really is this add-on at the version its release names.
+- Photos and documents opened during a session are removed when NVDA closes. NVDA's log no longer gets
+  the text WhatsApp Web showed when it failed to load, or the names of opened files.
+- Choosing WhatsApp Web in your own browser now says what it risks, and the connecting message says to
+  choose Cancel when the browser asks at any other time.
+- Releases are published only from the main branch, with GitHub's actions pinned to exact versions.
+
 ## [0.6.6]
 
 **Required update.** Voice notes sent from WhatsApp Access could not be played on an iPhone. WhatsApp

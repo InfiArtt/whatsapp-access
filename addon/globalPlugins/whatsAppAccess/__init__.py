@@ -241,6 +241,8 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		self.session.close()
 		if self.hidden is not None:
 			self.hidden.stop()
+		# Other people's photos and documents opened in this session are not left on the disk.
+		dataFolder.clearTempMedia()
 		super().terminate()
 
 	# Opening the window -------------------------------------------------------------------------------
@@ -482,7 +484,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 					target = hidden.start()
 					state = self.session.connect(target, options)
 			except Exception as e:  # noqa: BLE001 - reported to the user
-				if isinstance(e, WhatsAppError):
+				if isinstance(e, (WhatsAppError, OSError)):
+					# A browser that would not start, as while it updates, is tried again and said in words;
+					# no traceback for it.
 					log.info(f"WhatsApp Access: could not start: {e}")
 				else:
 					log.exception("WhatsApp Access: starting the hidden browser")
@@ -644,8 +648,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
 		ui.message(
 			# Translators: Reported when the add-on starts connecting. The browser then asks the user.
 			_(
-				"Connecting to WhatsApp Web in {browser}. If {browser} asks whether to allow remote debugging, "
-				"choose Allow: press Shift+Tab, then Enter."
+				"Connecting to WhatsApp Web in {browser}. {browser} now asks whether to allow remote debugging: "
+				"choose Allow with Shift+Tab, then Enter. If it asks at any other time, choose Cancel: "
+				"another program is trying to control your browser."
 			).format(browser=target.browser.name)
 		)
 

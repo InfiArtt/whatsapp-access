@@ -23,6 +23,16 @@ addonHandler.initTranslation()
 
 
 def callKind(call: dict) -> str:
+	if call.get("group"):
+		# A group call is named after the group, a name anyone in it can choose, such as "Mom": saying it
+		# is a group keeps it from passing for a call from that person.
+		return (
+			# Translators: The kind of call in a group, said with the group's name.
+			_("group video call")
+			if call.get("video")
+			# Translators: The kind of call in a group, said with the group's name.
+			else _("group voice call")
+		)
 	return (
 		# Translators: The kind of call, said with who is calling.
 		_("video call")
