@@ -3,7 +3,7 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
-## [Unreleased]
+## [0.6.9]
 
 - WhatsApp starts in Microsoft Edge when nvda.exe is set to "Run this program as an administrator" or
   another mode on its Compatibility tab. Windows passed that setting on to Edge, which started itself
