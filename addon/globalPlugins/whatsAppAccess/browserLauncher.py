@@ -260,6 +260,19 @@ def launchArguments(browser: InstalledBrowser, profileDir: str, pipeHandles: tup
 	]
 
 
+def launchEnvironment(environ: dict[str, str] | None = None) -> dict[str, str]:
+	"""The hidden browser's environment: NVDA's, without Windows' compatibility layer.
+
+	When nvda.exe is set to "Run this program as an administrator" (or another compatibility mode), Windows
+	gives NVDA and every program it starts __COMPAT_LAYER. Microsoft Edge then starts itself again without
+	it and exits with code 0; the new one does not get the pipes.
+	"""
+	environ = dict(os.environ if environ is None else environ)
+	for name in [n for n in environ if n.upper() == "__COMPAT_LAYER"]:
+		del environ[name]
+	return environ
+
+
 def profileInUse(profileDir: str) -> bool:
 	"""Whether a browser still runs with this profile: Chromium keeps its lockfile open while it does."""
 	lock = Path(profileDir) / "lockfile"
@@ -432,6 +445,7 @@ class HiddenBrowser:
 					stderr=subprocess.DEVNULL,
 					startupinfo=info,
 					close_fds=True,
+					env=launchEnvironment(),
 					creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
 				)
 			except BaseException:
