@@ -226,6 +226,9 @@ def launchArguments(browser: InstalledBrowser, profileDir: str, pipeHandles: tup
 		# DevTools over the two pipes only; no port is opened.
 		"--remote-debugging-pipe",
 		f"--remote-debugging-io-pipes={pipeHandles[0]},{pipeHandles[1]}",
+		# Started with administrator rights (NVDA run as administrator, or UAC turned off), Microsoft Edge
+		# starts itself again without them and exits; the new one does not get the pipes.
+		"--do-not-de-elevate",
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--disable-gpu",
@@ -469,6 +472,12 @@ class HiddenBrowser:
 		process = self.process
 		if "answer" in outcome:
 			return
+		if "error" in outcome and process is not None:
+			# The pipe closes a moment before the browser's exit code is known; the code tells more.
+			try:
+				process.wait(timeout=2)
+			except subprocess.TimeoutExpired:
+				pass
 		if process is not None and process.poll() is not None:
 			reason = f"{self.browser.name} closed while starting (exit code {process.returncode})"
 			if leftover:

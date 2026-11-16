@@ -97,9 +97,32 @@ def test_devtools_goes_over_a_pipe_never_a_port():
     arguments = browserLauncher.launchArguments(browser("brave", 157), r"C:\profile", (11, 22))
     assert "--remote-debugging-pipe" in arguments
     assert "--remote-debugging-io-pipes=11,22" in arguments
+    # Edge started as administrator would otherwise start itself again without the pipes and exit.
+    assert "--do-not-de-elevate" in arguments
     assert not [
         a for a in arguments if a.startswith(("--remote-debugging-port", "--remote-debugging-address"))
     ]
+
+
+class ClosedPipe:
+    """A pipe the browser closed before answering."""
+
+    def send(self, message):
+        pass
+
+    def receive(self):
+        raise OSError("The browser closed the pipe")
+
+
+def test_a_browser_that_closes_its_pipe_and_exits_is_reported_with_its_exit_code(tmp_path):
+    hidden = browserLauncher.HiddenBrowser(browser("edge", 157), str(tmp_path))
+    # It exits a moment after its pipe closes, as Edge does when it starts itself again.
+    hidden.process = subprocess.Popen(
+        [sys.executable, "-c", "import sys, time; time.sleep(0.5); sys.exit(7)"],
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    with pytest.raises(OSError, match=r"closed while starting \(exit code 7\)"):
+        hidden._waitForAnswer(ClosedPipe(), "")
 
 
 def fake_browser(profile):
