@@ -104,6 +104,13 @@ def test_devtools_goes_over_a_pipe_never_a_port():
     ]
 
 
+def test_the_browser_does_not_inherit_a_compatibility_layer():
+    # Set when nvda.exe runs "as an administrator" from its Compatibility tab; Edge would restart without it.
+    environ = browserLauncher.launchEnvironment({"__COMPAT_LAYER": "RunAsAdmin", "PATH": r"C:\Windows"})
+    assert environ == {"PATH": r"C:\Windows"}
+    assert browserLauncher.launchEnvironment({"__compat_layer": "RunAsAdmin"}) == {}
+
+
 class ClosedPipe:
     """A pipe the browser closed before answering."""
 
