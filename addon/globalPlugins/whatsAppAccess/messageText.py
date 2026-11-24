@@ -710,3 +710,72 @@ def callChanges(before: list[dict], after: list[dict]) -> list[tuple[str, str]]:
 		if person.get("connected") and reaction and reaction != was.get("reaction"):
 			changes.append(("reaction", f"{name} {reaction}"))
 	return changes
+
+
+def featureName(function: str) -> str:
+	"""A bridge function's name as words: joinCallLink is "join call link"."""
+	return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", function).lower()
+
+
+def featureCheckText(results: list[list]) -> str:
+	"""The result of Settings' "Check what works", from WhatsAppSession.checkFeatures()["results"]."""
+	broken: dict[str, list[str]] = {}
+	unchecked: dict[str, list[str]] = {}
+	working = 0
+	for function, what, part, status in results:
+		if status == "ok":
+			working += 1
+		elif status == "missing":
+			broken.setdefault(featureName(function), []).append(what)
+		else:
+			unchecked.setdefault(featureName(function), []).append(what)
+	lines = []
+	if not broken:
+		# Translators: The first line of the check of what works, when nothing is broken.
+		lines.append(_("Nothing found broken. {count} things checked.").format(count=len(results)))
+	else:
+		lines.append(
+			# Translators: The first line of the check of what works, with how many features are broken.
+			_("{count} features do not work: WhatsApp changed what they use.").format(count=len(broken))
+		)
+	# Translators: In the check of what works: how many of the things checked are still there.
+	lines.append(_("Still there: {count} of {total}.").format(count=working, total=len(results)))
+	if broken:
+		lines.append("")
+		# Translators: A heading in the check of what works, before the features that are broken.
+		lines.append(_("Broken:"))
+		lines.extend(f"{name}: {', '.join(whats)}" for name, whats in sorted(broken.items()))
+	if unchecked:
+		lines.append("")
+		# Translators: A heading in the check of what works, before features WhatsApp loads only when they
+		# are used, or that it renamed: the check cannot tell which.
+		lines.append(_("Not found now; WhatsApp may load them only when used, or renamed them:"))
+		lines.extend(f"{name}: {', '.join(whats)}" for name, whats in sorted(unchecked.items()))
+	return "\n".join(lines)
+
+
+def featureIssue(check: dict, addonVersion: str, nvdaVersion: str, browser: str) -> tuple[str, str]:
+	"""The title and text of a GitHub issue about what the check found broken, in English for the developers.
+
+	Only versions and the names of WhatsApp's own code: nothing about the user, their chats or contacts.
+	"""
+	results = check.get("results") or []
+	broken = sorted({featureName(r[0]) for r in results if r[3] == "missing"})
+	unchecked = sorted({featureName(r[0]) for r in results if r[3] not in ("ok", "missing")})
+	title = "WhatsApp changed: " + (", ".join(broken[:4]) if broken else "check of what works")
+	lines = [
+		"Found with Settings > Check what works with WhatsApp now.",
+		"",
+		f"- WhatsApp Access: {addonVersion}",
+		f"- NVDA: {nvdaVersion}",
+		f"- Browser: {browser}",
+		f"- WhatsApp Web: {check.get('version') or 'unknown'}",
+		"",
+		"Broken (a module or function is missing):",
+	]
+	lines.extend(f"- {r[0]}: {r[1]}" for r in results if r[3] == "missing")
+	if not broken:
+		lines.append("- none")
+	lines += ["", "Not found now (loaded only when used, or renamed): " + (", ".join(unchecked) or "none")]
+	lines += ["", "What I was doing when it failed:", ""]
+	return title, "\n".join(lines)[:6000]

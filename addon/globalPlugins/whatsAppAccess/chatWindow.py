@@ -224,6 +224,14 @@ def errorText(error: Exception, browserName: str = "") -> str:
 	if code == "joinFailed":
 		# Translators: Reported when joining a group from its link failed.
 		return _("Could not join the group. Try again, or join from WhatsApp on your phone.")
+	if code == "callInProgress":
+		# Translators: Reported when joining a call while another call is going on.
+		return _("You are already in a call. Hang up first, then join.")
+	if code == "callLinkFailed":
+		# Translators: Reported when joining a call from its call link failed.
+		return _(
+			"Could not join the call. It may have ended; try again, or join from WhatsApp on your phone."
+		)
 	if code == "channelNotFound":
 		# Translators: Reported when a channel link leads nowhere.
 		return _("This channel could not be found.")
@@ -432,6 +440,10 @@ class ChatWindow(wx.Dialog):
 		# The list first, then the search and filter: Tab from an open chat's last button reaches the chats.
 		self.chatList.MoveBeforeInTabOrder(self.searchBox)
 		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: A button under the chat list, like WhatsApp's: a menu to start a chat, group or call.
+		self.newButton = wx.Button(panel, label=_("&New"))
+		self.newButton.Bind(wx.EVT_BUTTON, lambda evt: self._newMenu())
+		buttons.Add(self.newButton, 0, wx.RIGHT, 6)
 		# Translators: A button under the chat list with WhatsApp's menu there: opening a WhatsApp link and
 		# marking all chats as read.
 		self.optionsButton = wx.Button(panel, label=_("&Options"))
@@ -539,6 +551,9 @@ class ChatWindow(wx.Dialog):
 			(_("Blocked contacts"), self._showBlocked),
 			# Translators: An item in the Settings section: the add-on's own settings in NVDA.
 			(_("Add-on settings: sounds, volumes, microphone, notifications"), self._openAddonSettings),
+			# Translators: An item in the Settings section: checks whether WhatsApp still has everything the
+			# add-on uses, so a feature WhatsApp broke is known before it is needed, such as in a call.
+			(_("Check what works with WhatsApp now"), self._checkFeatures),
 		]
 		self.settingsList = wx.ListBox(panel, choices=[label for label, action in self._settingsItems])
 		self.settingsList.SetSelection(0)
@@ -789,6 +804,19 @@ class ChatWindow(wx.Dialog):
 		index = self.settingsList.GetSelection()
 		if 0 <= index < len(self._settingsItems):
 			self._settingsItems[index][1]()
+
+	def _checkFeatures(self) -> None:
+		# Translators: Said while the add-on checks what works with WhatsApp.
+		ui.message(_("Checking…"))
+
+		def show(check: dict) -> None:
+			dialog = FeatureCheckDialog(self, check, self.session.browserName or "")
+			try:
+				dialog.ShowModal()
+			finally:
+				dialog.Destroy()
+
+		self._run(self.session.checkFeatures, show)
 
 	def _openAddonSettings(self) -> None:
 		import gui
@@ -1272,23 +1300,55 @@ class ChatWindow(wx.Dialog):
 			)
 		return True
 
+	def _newMenu(self) -> None:
+		"""The New button under the chat list: a chat, a group or a call."""
+		menu = wx.Menu()
+		for label, action in (
+			# Translators: An item in the New menu under the chat list.
+			(_("New &chat (Ctrl+N)"), self._newChat),
+			# Translators: An item in the New menu under the chat list.
+			(_("New &group (Ctrl+Shift+N)"), self._newGroup),
+			# Translators: An item in the New menu under the chat list: a voice call to a contact or number.
+			(_("New voice c&all…"), self._newCall),
+		):
+			item = menu.Append(wx.ID_ANY, label)
+			menu.Bind(wx.EVT_MENU, lambda evt, action=action: action(), item)
+		self.newButton.PopupMenu(menu)
+		menu.Destroy()
+
 	def _newChat(self) -> None:
-		"""Ctrl+N: a chat with a phone number, without saving the contact first."""
-		dialog = wx.TextEntryDialog(
-			self,
-			# Translators: Asks for a phone number to start a chat, with an example.
-			_("Phone number, with country code, such as +62 812 3456 7890:"),
-			# Translators: The title of the dialog for starting a chat with a phone number.
-			_("New chat"),
+		"""Ctrl+N or New > New chat: a chat with a saved contact, found by name, or with any phone number."""
+		self._pickPerson(self.openChat)
+
+	def _newCall(self) -> None:
+		"""New > New voice call: calls a saved contact, found by name, or any phone number."""
+
+		def call(chat: dict) -> None:
+			self._run(lambda: self.session.startCall(chat["id"]))
+
+		self._pickPerson(
+			call,
+			# Translators: The title of the dialog for calling a contact or a phone number.
+			title=_("New voice call"),
+			# Translators: The button in the New voice call dialog that starts the call.
+			okLabel=_("C&all"),
 		)
-		try:
-			if dialog.ShowModal() != wx.ID_OK:
-				return
-			number = dialog.GetValue().strip()
-		finally:
-			dialog.Destroy()
-		if number:
-			self._run(lambda: self.session.chatWithNumber(number), self.openChat)
+
+	def _pickPerson(self, then: Callable[[dict], None], title: str = "", okLabel: str = "") -> None:
+		def pick(contacts: list[dict]) -> None:
+			dialog = NewChatDialog(self, contacts, title, okLabel)
+			try:
+				if dialog.ShowModal() != wx.ID_OK:
+					return
+				contact, number = dialog.choice()
+			finally:
+				dialog.Destroy()
+			if contact:
+				number = contact["id"].split("@")[0]
+			if number:
+				self._run(lambda: self.session.chatWithNumber(number), then)
+
+		self._run(self.session.contactChoices, pick)
 
 	def _optionsMenu(self) -> None:
 		"""The Options button under the chat list, like WhatsApp's menu above its chats."""
@@ -1354,9 +1414,20 @@ class ChatWindow(wx.Dialog):
 					ui.message(_("The link wrote in the message box: {text}").format(text=text))
 
 			self._run(lambda: self.session.chatWithNumber(phone), opened)
-		elif kind == "call":
-			# Translators: Reported for a WhatsApp call link, which the add-on cannot join yet.
-			ui.message(_("Call links cannot be joined from WhatsApp Access yet. Open it on your phone."))
+		elif kind == "call" and info.get("token"):
+			token = info["token"]
+			if not askYesNo(
+				self,
+				# Translators: Asked before joining a call from a WhatsApp call link.
+				_("Join this call? Your microphone is on when you join; the camera stays off."),
+				# Translators: The title of the question before joining a call from its link.
+				_("Join call"),
+				warning=False,
+			):
+				return
+			# Translators: Reported while joining a group call.
+			ui.message(_("Joining…"))
+			self._run(lambda: self.session.joinCallLink(token))
 		else:
 			# Translators: Reported for a WhatsApp link the add-on does not know how to open.
 			ui.message(_("WhatsApp Access cannot open this kind of link."))
@@ -5409,6 +5480,59 @@ class TextDialog(wx.Dialog):
 		box.SetInsertionPoint(0)
 
 
+class FeatureCheckDialog(wx.Dialog):
+	"""The check of what works with WhatsApp now, with a button to report what is broken on GitHub."""
+
+	def __init__(self, parent: wx.Window, check: dict, browser: str) -> None:
+		super().__init__(
+			parent,
+			# Translators: The title of the window with the result of the check of what works.
+			title=_("What works with WhatsApp now"),
+			style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+		)
+		self.check = check
+		self.browser = browser
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		box = wx.TextCtrl(
+			self,
+			value=messageText.featureCheckText(check.get("results") or []),
+			style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2,
+			size=(560, 300),
+		)
+		sizer.Add(box, 1, wx.EXPAND | wx.ALL, 10)
+		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: A button in the check of what works: opens a new issue on GitHub in the browser, filled
+		# in with the versions and what is broken, for the user to read, add to and send.
+		report = wx.Button(self, label=_("&Report issue on GitHub…"))
+		report.Bind(wx.EVT_BUTTON, lambda evt: self._report())
+		buttons.Add(report, 0, wx.RIGHT, 6)
+		# Translators: The button that closes the check of what works.
+		buttons.Add(wx.Button(self, wx.ID_CANCEL, label=_("Close")))
+		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM, 10)
+		self.SetSizerAndFit(sizer)
+		self.CentreOnParent()
+		box.SetFocus()
+		box.SetInsertionPoint(0)
+
+	def _report(self) -> None:
+		import urllib.parse
+
+		import addonHandler
+		import buildVersion
+
+		from .updates import REPOSITORY
+
+		title, body = messageText.featureIssue(
+			self.check, addonHandler.getCodeAddon().version, buildVersion.version, self.browser
+		)
+		query = urllib.parse.urlencode({"title": title, "body": body})
+		webbrowser.open(f"https://github.com/{REPOSITORY}/issues/new?{query}")
+		ui.message(
+			# Translators: Said after opening the new issue page, which the user still has to send.
+			_("Opened GitHub in your browser. Read the issue, add what you were doing, then submit it.")
+		)
+
+
 class DeleteDialog(wx.Dialog):
 	"""Delete for me, delete for everyone (when WhatsApp allows it), or cancel."""
 
@@ -5593,6 +5717,73 @@ class ListDialog(wx.Dialog):
 
 	def selection(self) -> int:
 		return max(0, self.list.GetSelection())
+
+
+class NewChatDialog(wx.Dialog):
+	"""Start a chat: type to find a saved contact by name or number, or type any phone number."""
+
+	def __init__(self, parent: wx.Window, contacts: list[dict], title: str = "", okLabel: str = "") -> None:
+		super().__init__(
+			parent,
+			# Translators: The title of the dialog for starting a chat with a contact or a phone number.
+			title=title or _("New chat"),
+			style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+		)
+		self.contacts = contacts
+		self.shown: list[dict] = []
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		sizer.Add(
+			# Translators: The label of the box in the New chat dialog that finds contacts or takes a number.
+			wx.StaticText(self, label=_("&Search contacts, or type a phone number with country code:")),
+			0,
+			wx.LEFT | wx.RIGHT | wx.TOP,
+			10,
+		)
+		self.searchBox = wx.TextCtrl(self)
+		self.searchBox.Bind(wx.EVT_TEXT, lambda evt: self._fill())
+		sizer.Add(self.searchBox, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+		# Translators: The label of the list of contacts in the New chat dialog.
+		sizer.Add(wx.StaticText(self, label=_("C&ontacts:")), 0, wx.LEFT | wx.TOP, 10)
+		self.list = wx.ListBox(self, style=wx.LB_SINGLE, size=(500, 300))
+		self.list.Bind(wx.EVT_LISTBOX_DCLICK, lambda evt: self.EndModal(wx.ID_OK))
+		sizer.Add(self.list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
+		buttons = wx.StdDialogButtonSizer()
+		# Translators: The button in the New chat dialog that opens the chat.
+		okButton = wx.Button(self, wx.ID_OK, label=okLabel or _("&Chat"))
+		okButton.SetDefault()
+		buttons.AddButton(okButton)
+		# Translators: A button that closes the New chat dialog.
+		buttons.AddButton(wx.Button(self, wx.ID_CANCEL, label=_("Cancel")))
+		buttons.Realize()
+		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 10)
+		self.SetSizerAndFit(sizer)
+		self.CentreOnParent()
+		self._fill()
+		self.searchBox.SetFocus()
+
+	def _fill(self) -> None:
+		query = self.searchBox.GetValue().strip().lower()
+		digits = "".join(ch for ch in query if ch.isdigit())
+		self.shown = [
+			c
+			for c in self.contacts
+			if not query
+			or query in c.get("title", "").lower()
+			or (len(digits) >= 3 and digits in c["id"].split("@")[0])
+		][:300]
+		self.list.Set([c.get("title", "") for c in self.shown])
+		if self.shown:
+			self.list.SetSelection(0)
+
+	def choice(self) -> tuple[dict | None, str]:
+		"""The chosen contact, or else the number typed; (None, "") when there is neither."""
+		index = self.list.GetSelection()
+		if self.shown and index != wx.NOT_FOUND:
+			return self.shown[index], ""
+		text = self.searchBox.GetValue().strip()
+		if sum(ch.isdigit() for ch in text) >= 6:
+			return None, text
+		return None, ""
 
 
 class ChatPickerDialog(wx.Dialog):

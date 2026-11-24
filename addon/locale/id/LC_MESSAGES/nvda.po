@@ -711,8 +711,8 @@ msgstr "Belum dibaca oleh {count}"
 msgid "Opening {link}"
 msgstr "Membuka {link}"
 
-msgid "Phone number, with country code, such as +62 812 3456 7890:"
-msgstr "Nomor telepon, dengan kode negara, misalnya +62 812 3456 7890:"
+msgid "&Search contacts, or type a phone number with country code:"
+msgstr "Ca&ri kontak, atau ketik nomor telepon dengan kode negara:"
 
 msgid "Played by"
 msgstr "Diputar oleh"
@@ -2827,8 +2827,8 @@ msgstr "Buka link WhatsApp"
 msgid "Opening link"
 msgstr "Membuka link"
 
-msgid "Call links cannot be joined from WhatsApp Access yet. Open it on your phone."
-msgstr "Link panggilan belum bisa dibuka dari WhatsApp Access. Buka di HP Anda."
+msgid "Join this call? Your microphone is on when you join; the camera stays off."
+msgstr "Gabung ke panggilan ini? Mikrofon Anda menyala saat bergabung; kamera tetap mati."
 
 msgid "WhatsApp Access cannot open this kind of link."
 msgstr "WhatsApp Access tidak bisa membuka link jenis ini."
@@ -3003,3 +3003,66 @@ msgstr "Pesan yang disematkan"
 
 msgid "Status update:"
 msgstr "Pembaruan status:"
+
+msgid "C&ontacts:"
+msgstr "K&ontak:"
+
+msgid "&Chat"
+msgstr "&Chat"
+
+msgid "Join call"
+msgstr "Gabung panggilan"
+
+msgid "You are already in a call. Hang up first, then join."
+msgstr "Anda sedang dalam panggilan. Tutup dulu, lalu gabung."
+
+msgid "Could not join the call. It may have ended; try again, or join from WhatsApp on your phone."
+msgstr "Tidak bisa bergabung ke panggilan. Mungkin sudah selesai; coba lagi, atau gabung dari WhatsApp di HP Anda."
+
+msgid "Check what works with WhatsApp now"
+msgstr "Periksa apa yang berfungsi dengan WhatsApp sekarang"
+
+msgid "Checking…"
+msgstr "Memeriksa…"
+
+msgid "What works with WhatsApp now"
+msgstr "Yang berfungsi dengan WhatsApp sekarang"
+
+msgid "Nothing found broken. {count} things checked."
+msgstr "Tidak ada yang rusak. {count} hal diperiksa."
+
+msgid "{count} features do not work: WhatsApp changed what they use."
+msgstr "{count} fitur tidak berfungsi: WhatsApp mengubah yang dipakainya."
+
+msgid "Still there: {count} of {total}."
+msgstr "Masih ada: {count} dari {total}."
+
+msgid "Broken:"
+msgstr "Rusak:"
+
+msgid "Not found now; WhatsApp may load them only when used, or renamed them:"
+msgstr "Tidak ditemukan sekarang; mungkin WhatsApp baru memuatnya saat dipakai, atau mengganti namanya:"
+
+msgid "&Report issue on GitHub…"
+msgstr "&Laporkan masalah di GitHub…"
+
+msgid "Opened GitHub in your browser. Read the issue, add what you were doing, then submit it."
+msgstr "GitHub dibuka di browser Anda. Baca laporannya, tambahkan apa yang sedang Anda lakukan, lalu kirim."
+
+msgid "&New"
+msgstr "&Baru"
+
+msgid "New &chat (Ctrl+N)"
+msgstr "&Chat baru (Ctrl+N)"
+
+msgid "New &group (Ctrl+Shift+N)"
+msgstr "&Grup baru (Ctrl+Shift+N)"
+
+msgid "New voice c&all…"
+msgstr "P&anggilan suara baru…"
+
+msgid "New voice call"
+msgstr "Panggilan suara baru"
+
+msgid "C&all"
+msgstr "P&anggil"

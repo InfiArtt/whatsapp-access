@@ -467,3 +467,42 @@ def test_the_window_title_says_how_many_chats_are_unread():
     assert messageText.withUnreadCount("WhatsApp", 5) == "(5) WhatsApp"
     assert messageText.withUnreadCount("Budi - WhatsApp", 1) == "(1) Budi - WhatsApp"
     assert messageText.withUnreadCount("WhatsApp", 0) == "WhatsApp"
+
+
+def test_the_check_of_what_works_names_broken_features_first():
+    text = messageText.featureCheckText(
+        [
+            ["profile", "WAWebStatusContactAction", "", "notFound"],
+            ["meWid", "WAWebUserPrefsMeUser.getMeUserOrThrow", "getMeUserOrThrow", "missing"],
+            ["callState", "WAWebCallCollection.activeCall", "", "ok"],
+        ]
+    )
+    lines = text.splitlines()
+    assert lines[0] == "1 features do not work: WhatsApp changed what they use."
+    assert lines[1] == "Still there: 1 of 3."
+    assert "me wid: WAWebUserPrefsMeUser.getMeUserOrThrow" in lines
+    assert "profile: WAWebStatusContactAction" in lines
+
+
+def test_the_check_of_what_works_says_when_nothing_is_broken():
+    text = messageText.featureCheckText([["joinCallLink", "WAWebVoipStartCall", "", "ok"]])
+    assert text.splitlines()[0] == "Nothing found broken. 1 things checked."
+    assert messageText.featureName("joinCallLink") == "join call link"
+
+
+def test_an_issue_about_the_check_has_versions_and_only_whatsapp_code_names():
+    check = {
+        "version": "2.3000.1",
+        "results": [
+            ["meWid", "WAWebUserPrefsMeUser.getMeUserOrThrow", "getMeUserOrThrow", "missing"],
+            ["profile", "WAWebStatusContactAction", "", "notFound"],
+            ["chats", "WAWebCollections.Chat", "", "ok"],
+        ],
+    }
+    title, body = messageText.featureIssue(check, "0.7.0", "2026.3", "Brave")
+    assert title == "WhatsApp changed: me wid"
+    assert "- WhatsApp Web: 2.3000.1" in body
+    assert "- NVDA: 2026.3" in body
+    assert "- meWid: WAWebUserPrefsMeUser.getMeUserOrThrow" in body
+    assert "profile" in body
+    assert "chats" not in body

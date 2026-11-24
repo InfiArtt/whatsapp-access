@@ -936,7 +936,7 @@
 				return { kind: "chat", phone: phone, text: String(data.text || "") };
 			}
 			case "CALL_LINK":
-				return { kind: "call", video: data.callType === "video" };
+				return { kind: "call", video: data.callType === "video", token: String(data.token || "") };
 			default:
 				return { kind: "unsupported" };
 		}
@@ -2088,7 +2088,13 @@
 	}
 
 	function meWid() {
-		return req("WAWebUserPrefsMeUser").getMeUserOrThrow();
+		// WhatsApp moved this from WAWebUserPrefsMeUser to WAWebUserUtils; without it the call state fails and
+		// the call window never learns a call connected, so its Mute and Hang up stay unavailable.
+		const prefs = req("WAWebUserPrefsMeUser");
+		if (typeof prefs.getMeUserOrThrow === "function") {
+			return prefs.getMeUserOrThrow();
+		}
+		return req("WAWebUserUtils").getMeUserOrThrow();
 	}
 
 	async function profile() {
@@ -2243,7 +2249,37 @@
 		if (!ongoing) {
 			throw new Error("noOngoingCall");
 		}
+		// A call started from a call link is listed under the chat with its creator, not a group; WhatsApp's
+		// group-call join does nothing for it, so it is joined through its link.
+		if (ongoing.isCallLink && ongoing.callLinkToken) {
+			return joinCallLink(String(ongoing.callLinkToken));
+		}
 		await req("WAWebVoipStartCall").joinOngoingWAWebVoipGroupCallPN({ callId: ongoing.id.id, chat: chat, isVideo: false });
+		return true;
+	}
+
+	// Joins a call from its call link, as WhatsApp's Join button for a call link does: it opens the call's
+	// lobby, then joins from there. Always with the camera off.
+	async function joinCallLink(token) {
+		if (req("WAWebCallCollection").activeCall) {
+			throw new Error("callInProgress");
+		}
+		try {
+			req("WAWebVoipCallAudioUnlock").prepareCallAudioElement();
+		} catch (e) {
+			// Older versions play call audio without this.
+		}
+		const entry = req("WAWebWamEnumLobbyEntryPointType").LOBBY_ENTRY_POINT_TYPE.CALL_LINK_CALL_LOG;
+		const outcome = await req("WAWebVoipPreviewCallLinkAction").previewCallLinkWithVoipInit({
+			callLinkCode: token,
+			isVideo: false,
+			lobbyEntryPoint: entry,
+		});
+		if (outcome !== "dispatched") {
+			throw new Error("callLinkFailed:" + outcome);
+		}
+		const stack = await voipStack();
+		await stack.joinCallLink();
 		return true;
 	}
 
@@ -3336,7 +3372,11 @@
 			if (!chat) {
 				continue;
 			}
-			const joined = !!(active && active.isGroup && String(active.groupJid) === String(chat.id) && !ringingGroupCall(chat));
+			const joined = !!(
+				active &&
+				((active.isGroup && String(active.groupJid) === String(chat.id) && !ringingGroupCall(chat)) ||
+					(m.isCallLink && active.isCallLink && String(active.callLinkToken) === String(m.callLinkToken)))
+			);
 			result.push({
 				id: "ongoing_" + msgId(m),
 				chatId: String(chat.id),
@@ -3974,6 +4014,67 @@
 		handlers.push([collection, event, handler]);
 	}
 
+	// Checks, for the user's "Check what works" in Settings, that the WhatsApp modules and functions the
+	// bridge uses are still there. It only looks: it calls nothing but the loading of WhatsApp's own code.
+	// bundles: the code bundles the bridge loads before some features, loaded first so their modules exist.
+	// refs: [feature, module, [member, ...]], as the add-on reads them from this file.
+	const SOMETIMES_THERE = new Set(["activeCall", "pendingCallLink", "pendingOutgoingCall"]);
+
+	async function checkFeatures(bundles, refs) {
+		for (const name of bundles) {
+			await loadBundle(name);
+		}
+		let map = {};
+		try {
+			map = req("__debug").modulesMap || {};
+		} catch (e) {}
+		const results = [];
+		for (const [feature, module, members] of refs) {
+			let m = null;
+			try {
+				m = req(module);
+			} catch (e) {}
+			if (m == null) {
+				results.push([feature, module, "", module in map ? "notLoaded" : "notFound"]);
+				continue;
+			}
+			for (const chain of members) {
+				let v = m;
+				let broken = "";
+				for (const part of chain.split(".")) {
+					if (SOMETIMES_THERE.has(part)) {
+						// Only there while it is so, such as a call while one goes on: not a sign of a change.
+						break;
+					}
+					if (v == null || !(part in Object(v))) {
+						broken = part;
+						break;
+					}
+					try {
+						v = v[part];
+					} catch (e) {
+						break;
+					}
+				}
+				results.push([feature, module + "." + chain, broken, broken ? "missing" : "ok"]);
+			}
+			if (!members.length) {
+				results.push([feature, module, "", "ok"]);
+			}
+		}
+		let version = "";
+		try {
+			const B = req("WAWebBuildConstants");
+			version = String(B.VERSION_STR || B.VERSION_BASE || "");
+		} catch (e) {}
+		if (!version) {
+			try {
+				version = String(window.Debug.VERSION || "");
+			} catch (e) {}
+		}
+		return { version: version, results: results };
+	}
+
 	// What hook() could not set up because WhatsApp changed it, for the add-on to report once.
 	let missingFeatures = [];
 
@@ -4302,6 +4403,8 @@
 		startGroupCall: startGroupCall,
 		ongoingGroupCall: ongoingGroupCall,
 		joinGroupCall: joinGroupCall,
+		joinCallLink: joinCallLink,
+		checkFeatures: checkFeatures,
 		connectionState: connectionState,
 		setOnline: setOnline,
 		raiseHand: raiseHand,

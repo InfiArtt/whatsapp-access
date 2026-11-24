@@ -3,6 +3,27 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [0.7.0]
+
+Today was a hectic one. A meeting I had to be in was a WhatsApp call started from a call link, and
+WhatsApp Access could not join it: Join in the Calls tab did nothing. Once I finally got in, I could
+not mute my microphone, and there was no Return to call either. I spent the first half hour of that meeting writing code instead of listening, just to get in and be
+heard properly. This update is what came out of that day. Everything that went wrong is fixed, and the
+things I found missing along the way are here as well.
+
+- Join in the Calls tab joins calls started from a call link, the way WhatsApp's own Join does, with the
+  camera off. Opening a call link from Options > Open a WhatsApp link joins its call too, after asking.
+- Mute (Ctrl+M), Hang up and Return to call work again, in every call. WhatsApp had moved something the
+  add-on used to follow a call, so the add-on thought no call was going on.
+- A New button beside Options, like WhatsApp's, with New chat, New group and New voice call. New chat
+  (Ctrl+N) and New voice call find your saved contacts by name or number, and still take any phone
+  number.
+- Settings (Ctrl+8) has "Check what works with WhatsApp now". WhatsApp changes its own code often, and
+  until now the add-on only found out when you used the feature, as I did in that meeting. The check
+  looks at everything the add-on uses in WhatsApp, without sending anything, and tells you which
+  features WhatsApp broke. Run it before an important call. "Report issue on GitHub" opens a new issue
+  filled in with the versions and what is broken, for you to read, add what you were doing, and send.
+
 ## [0.6.9]
 
 - WhatsApp starts in Microsoft Edge when nvda.exe is set to "Run this program as an administrator" or
