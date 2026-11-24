@@ -440,10 +440,10 @@ class ChatWindow(wx.Dialog):
 		# The list first, then the search and filter: Tab from an open chat's last button reaches the chats.
 		self.chatList.MoveBeforeInTabOrder(self.searchBox)
 		buttons = wx.BoxSizer(wx.HORIZONTAL)
-		# Translators: A button under the chat list, like WhatsApp's: starts a chat with a contact or number.
-		newChatButton = wx.Button(panel, label=_("&New chat (Ctrl+N)"))
-		newChatButton.Bind(wx.EVT_BUTTON, lambda evt: self._newChat())
-		buttons.Add(newChatButton, 0, wx.RIGHT, 6)
+		# Translators: A button under the chat list, like WhatsApp's: a menu to start a chat, group or call.
+		self.newButton = wx.Button(panel, label=_("&New"))
+		self.newButton.Bind(wx.EVT_BUTTON, lambda evt: self._newMenu())
+		buttons.Add(self.newButton, 0, wx.RIGHT, 6)
 		# Translators: A button under the chat list with WhatsApp's menu there: opening a WhatsApp link and
 		# marking all chats as read.
 		self.optionsButton = wx.Button(panel, label=_("&Options"))
@@ -1300,11 +1300,43 @@ class ChatWindow(wx.Dialog):
 			)
 		return True
 
-	def _newChat(self) -> None:
-		"""Ctrl+N or the New chat button: a chat with a saved contact, found by name, or with any phone number."""
+	def _newMenu(self) -> None:
+		"""The New button under the chat list: a chat, a group or a call."""
+		menu = wx.Menu()
+		for label, action in (
+			# Translators: An item in the New menu under the chat list.
+			(_("New &chat (Ctrl+N)"), self._newChat),
+			# Translators: An item in the New menu under the chat list.
+			(_("New &group (Ctrl+Shift+N)"), self._newGroup),
+			# Translators: An item in the New menu under the chat list: a voice call to a contact or number.
+			(_("New voice c&all…"), self._newCall),
+		):
+			item = menu.Append(wx.ID_ANY, label)
+			menu.Bind(wx.EVT_MENU, lambda evt, action=action: action(), item)
+		self.newButton.PopupMenu(menu)
+		menu.Destroy()
 
+	def _newChat(self) -> None:
+		"""Ctrl+N or New > New chat: a chat with a saved contact, found by name, or with any phone number."""
+		self._pickPerson(self.openChat)
+
+	def _newCall(self) -> None:
+		"""New > New voice call: calls a saved contact, found by name, or any phone number."""
+
+		def call(chat: dict) -> None:
+			self._run(lambda: self.session.startCall(chat["id"]))
+
+		self._pickPerson(
+			call,
+			# Translators: The title of the dialog for calling a contact or a phone number.
+			title=_("New voice call"),
+			# Translators: The button in the New voice call dialog that starts the call.
+			okLabel=_("C&all"),
+		)
+
+	def _pickPerson(self, then: Callable[[dict], None], title: str = "", okLabel: str = "") -> None:
 		def pick(contacts: list[dict]) -> None:
-			dialog = NewChatDialog(self, contacts)
+			dialog = NewChatDialog(self, contacts, title, okLabel)
 			try:
 				if dialog.ShowModal() != wx.ID_OK:
 					return
@@ -1314,7 +1346,7 @@ class ChatWindow(wx.Dialog):
 			if contact:
 				number = contact["id"].split("@")[0]
 			if number:
-				self._run(lambda: self.session.chatWithNumber(number), self.openChat)
+				self._run(lambda: self.session.chatWithNumber(number), then)
 
 		self._run(self.session.contactChoices, pick)
 
@@ -5690,9 +5722,13 @@ class ListDialog(wx.Dialog):
 class NewChatDialog(wx.Dialog):
 	"""Start a chat: type to find a saved contact by name or number, or type any phone number."""
 
-	def __init__(self, parent: wx.Window, contacts: list[dict]) -> None:
-		# Translators: The title of the dialog for starting a chat with a contact or a phone number.
-		super().__init__(parent, title=_("New chat"), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+	def __init__(self, parent: wx.Window, contacts: list[dict], title: str = "", okLabel: str = "") -> None:
+		super().__init__(
+			parent,
+			# Translators: The title of the dialog for starting a chat with a contact or a phone number.
+			title=title or _("New chat"),
+			style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+		)
 		self.contacts = contacts
 		self.shown: list[dict] = []
 		sizer = wx.BoxSizer(wx.VERTICAL)
@@ -5713,7 +5749,7 @@ class NewChatDialog(wx.Dialog):
 		sizer.Add(self.list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
 		buttons = wx.StdDialogButtonSizer()
 		# Translators: The button in the New chat dialog that opens the chat.
-		okButton = wx.Button(self, wx.ID_OK, label=_("&Chat"))
+		okButton = wx.Button(self, wx.ID_OK, label=okLabel or _("&Chat"))
 		okButton.SetDefault()
 		buttons.AddButton(okButton)
 		# Translators: A button that closes the New chat dialog.

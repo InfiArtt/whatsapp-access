@@ -3004,9 +3004,6 @@ msgstr "Pesan yang disematkan"
 msgid "Status update:"
 msgstr "Pembaruan status:"
 
-msgid "&New chat (Ctrl+N)"
-msgstr "Chat &baru (Ctrl+N)"
-
 msgid "C&ontacts:"
 msgstr "K&ontak:"
 
@@ -3051,3 +3048,21 @@ msgstr "&Laporkan masalah di GitHub…"
 
 msgid "Opened GitHub in your browser. Read the issue, add what you were doing, then submit it."
 msgstr "GitHub dibuka di browser Anda. Baca laporannya, tambahkan apa yang sedang Anda lakukan, lalu kirim."
+
+msgid "&New"
+msgstr "&Baru"
+
+msgid "New &chat (Ctrl+N)"
+msgstr "&Chat baru (Ctrl+N)"
+
+msgid "New &group (Ctrl+Shift+N)"
+msgstr "&Grup baru (Ctrl+Shift+N)"
+
+msgid "New voice c&all…"
+msgstr "P&anggilan suara baru…"
+
+msgid "New voice call"
+msgstr "Panggilan suara baru"
+
+msgid "C&all"
+msgstr "P&anggil"

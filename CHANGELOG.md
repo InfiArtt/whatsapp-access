@@ -10,8 +10,8 @@ notes the add-on shows before it installs an update.
   showed.
 - Join in the Calls tab joins calls started from a call link, and opening a call link from Options
   joins its call, with the camera off.
-- Ctrl+N, and the new "New chat" button beside Options, find saved contacts by name or number, or take
-  any phone number.
+- A New button beside Options, like WhatsApp's: New chat, New group and New voice call. New chat (Ctrl+N)
+  and New voice call find saved contacts by name or number, or take any phone number.
 - Settings (Ctrl+8) has "Check what works with WhatsApp now": it checks that everything the add-on uses
   in WhatsApp is still there, says which features WhatsApp broke, and can open a GitHub issue filled in
   with the versions and what is broken, for you to read and send.
