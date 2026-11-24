@@ -711,8 +711,8 @@ msgstr "Belum dibaca oleh {count}"
 msgid "Opening {link}"
 msgstr "Membuka {link}"
 
-msgid "Phone number, with country code, such as +62 812 3456 7890:"
-msgstr "Nomor telepon, dengan kode negara, misalnya +62 812 3456 7890:"
+msgid "&Search contacts, or type a phone number with country code:"
+msgstr "Ca&ri kontak, atau ketik nomor telepon dengan kode negara:"
 
 msgid "Played by"
 msgstr "Diputar oleh"
@@ -2827,8 +2827,8 @@ msgstr "Buka link WhatsApp"
 msgid "Opening link"
 msgstr "Membuka link"
 
-msgid "Call links cannot be joined from WhatsApp Access yet. Open it on your phone."
-msgstr "Link panggilan belum bisa dibuka dari WhatsApp Access. Buka di HP Anda."
+msgid "Join this call? Your microphone is on when you join; the camera stays off."
+msgstr "Gabung ke panggilan ini? Mikrofon Anda menyala saat bergabung; kamera tetap mati."
 
 msgid "WhatsApp Access cannot open this kind of link."
 msgstr "WhatsApp Access tidak bisa membuka link jenis ini."
@@ -3003,3 +3003,21 @@ msgstr "Pesan yang disematkan"
 
 msgid "Status update:"
 msgstr "Pembaruan status:"
+
+msgid "&New chat (Ctrl+N)"
+msgstr "Chat &baru (Ctrl+N)"
+
+msgid "C&ontacts:"
+msgstr "K&ontak:"
+
+msgid "&Chat"
+msgstr "&Chat"
+
+msgid "Join call"
+msgstr "Gabung panggilan"
+
+msgid "You are already in a call. Hang up first, then join."
+msgstr "Anda sedang dalam panggilan. Tutup dulu, lalu gabung."
+
+msgid "Could not join the call. It may have ended; try again, or join from WhatsApp on your phone."
+msgstr "Tidak bisa bergabung ke panggilan. Mungkin sudah selesai; coba lagi, atau gabung dari WhatsApp di HP Anda."

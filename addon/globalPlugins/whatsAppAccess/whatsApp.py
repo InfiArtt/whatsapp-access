@@ -116,6 +116,8 @@ def _codeFromPageError(description: str) -> WhatsAppError:
 		"aiTimeout",
 		"joinFailed",
 		"channelNotFound",
+		"callInProgress",
+		"callLinkFailed",
 	}
 	if code in known:
 		return WhatsAppError(code, detail)
@@ -907,6 +909,10 @@ class WhatsAppSession:
 
 	def joinGroupCall(self, chatId: str) -> None:
 		self._bridge("joinGroupCall", chatId, timeout=60)
+
+	def joinCallLink(self, token: str) -> None:
+		"""Joins a call from its call link's token, with the camera off."""
+		self._bridge("joinCallLink", token, timeout=60)
 
 	def setOnline(self, online: bool) -> None:
 		"""Online while the add-on's window is open, as WhatsApp Web is while it is in front."""
