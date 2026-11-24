@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import tempfile
 import threading
 import time
@@ -153,6 +154,29 @@ class HiddenOptions:
 	userAgent: str
 	userAgentMetadata: dict
 	url: str
+
+
+def bridgeReferences(source: str) -> tuple[list[str], list[list]]:
+	"""The WhatsApp code bundles pageBridge.js loads, and the WhatsApp modules and members each of its
+	functions uses: [function, module, [member, ...]]. For checking that WhatsApp still has them all.
+	"""
+	bundles = sorted(
+		set(re.findall(r'loadBundle\("([\w.]+)"\)', source))
+		| set(re.findall(r'JSResourceForInteraction"\)\("([\w.]+)"\)', source))
+	)
+	refs: dict[tuple[str, str], set[str]] = {}
+	function = ""
+	for line in source.splitlines():
+		found = re.match(r"	(?:async )?function (\w+)\(", line)
+		if found:
+			function = found.group(1)
+		for module, chain in re.findall(r'req\("(\w+)"\)((?:\.[A-Za-z_$][\w$]*){0,2})', line):
+			if module == "__debug":
+				continue
+			members = refs.setdefault((function, module), set())
+			if chain:
+				members.add(chain[1:])
+	return bundles, [[f, m, sorted(c)] for (f, m), c in sorted(refs.items())]
 
 
 def _createFreeFile(folder: str, name: str) -> str:
@@ -765,6 +789,15 @@ class WhatsAppSession:
 	def chatAbilities(self, chatId: str) -> dict:
 		"""What the user may do in a chat: admin, canAdd, favorite, ephemeral, blocked and so on."""
 		return self._bridge("chatAbilities", chatId)
+
+	def checkFeatures(self) -> dict:
+		"""Whether WhatsApp still has what each feature uses.
+
+		version: WhatsApp Web's version; results: [function, what, missing part, status] for each.
+		"""
+		with open(BRIDGE_PATH, encoding="utf-8") as file:
+			bundles, refs = bridgeReferences(file.read())
+		return self._bridge("checkFeatures", bundles, refs, timeout=120)
 
 	def contactChoices(self) -> list[dict]:
 		return self._bridge("contactChoices")

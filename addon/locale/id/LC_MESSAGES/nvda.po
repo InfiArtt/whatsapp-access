@@ -3021,3 +3021,33 @@ msgstr "Anda sedang dalam panggilan. Tutup dulu, lalu gabung."
 
 msgid "Could not join the call. It may have ended; try again, or join from WhatsApp on your phone."
 msgstr "Tidak bisa bergabung ke panggilan. Mungkin sudah selesai; coba lagi, atau gabung dari WhatsApp di HP Anda."
+
+msgid "Check what works with WhatsApp now"
+msgstr "Periksa apa yang berfungsi dengan WhatsApp sekarang"
+
+msgid "Checking…"
+msgstr "Memeriksa…"
+
+msgid "What works with WhatsApp now"
+msgstr "Yang berfungsi dengan WhatsApp sekarang"
+
+msgid "Nothing found broken. {count} things checked."
+msgstr "Tidak ada yang rusak. {count} hal diperiksa."
+
+msgid "{count} features do not work: WhatsApp changed what they use."
+msgstr "{count} fitur tidak berfungsi: WhatsApp mengubah yang dipakainya."
+
+msgid "Still there: {count} of {total}."
+msgstr "Masih ada: {count} dari {total}."
+
+msgid "Broken:"
+msgstr "Rusak:"
+
+msgid "Not found now; WhatsApp may load them only when used, or renamed them:"
+msgstr "Tidak ditemukan sekarang; mungkin WhatsApp baru memuatnya saat dipakai, atau mengganti namanya:"
+
+msgid "&Report issue on GitHub…"
+msgstr "&Laporkan masalah di GitHub…"
+
+msgid "Opened GitHub in your browser. Read the issue, add what you were doing, then submit it."
+msgstr "GitHub dibuka di browser Anda. Baca laporannya, tambahkan apa yang sedang Anda lakukan, lalu kirim."

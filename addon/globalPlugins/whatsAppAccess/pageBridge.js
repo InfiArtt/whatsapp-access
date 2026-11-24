@@ -4014,6 +4014,67 @@
 		handlers.push([collection, event, handler]);
 	}
 
+	// Checks, for the user's "Check what works" in Settings, that the WhatsApp modules and functions the
+	// bridge uses are still there. It only looks: it calls nothing but the loading of WhatsApp's own code.
+	// bundles: the code bundles the bridge loads before some features, loaded first so their modules exist.
+	// refs: [feature, module, [member, ...]], as the add-on reads them from this file.
+	const SOMETIMES_THERE = new Set(["activeCall", "pendingCallLink", "pendingOutgoingCall"]);
+
+	async function checkFeatures(bundles, refs) {
+		for (const name of bundles) {
+			await loadBundle(name);
+		}
+		let map = {};
+		try {
+			map = req("__debug").modulesMap || {};
+		} catch (e) {}
+		const results = [];
+		for (const [feature, module, members] of refs) {
+			let m = null;
+			try {
+				m = req(module);
+			} catch (e) {}
+			if (m == null) {
+				results.push([feature, module, "", module in map ? "notLoaded" : "notFound"]);
+				continue;
+			}
+			for (const chain of members) {
+				let v = m;
+				let broken = "";
+				for (const part of chain.split(".")) {
+					if (SOMETIMES_THERE.has(part)) {
+						// Only there while it is so, such as a call while one goes on: not a sign of a change.
+						break;
+					}
+					if (v == null || !(part in Object(v))) {
+						broken = part;
+						break;
+					}
+					try {
+						v = v[part];
+					} catch (e) {
+						break;
+					}
+				}
+				results.push([feature, module + "." + chain, broken, broken ? "missing" : "ok"]);
+			}
+			if (!members.length) {
+				results.push([feature, module, "", "ok"]);
+			}
+		}
+		let version = "";
+		try {
+			const B = req("WAWebBuildConstants");
+			version = String(B.VERSION_STR || B.VERSION_BASE || "");
+		} catch (e) {}
+		if (!version) {
+			try {
+				version = String(window.Debug.VERSION || "");
+			} catch (e) {}
+		}
+		return { version: version, results: results };
+	}
+
 	// What hook() could not set up because WhatsApp changed it, for the add-on to report once.
 	let missingFeatures = [];
 
@@ -4343,6 +4404,7 @@
 		ongoingGroupCall: ongoingGroupCall,
 		joinGroupCall: joinGroupCall,
 		joinCallLink: joinCallLink,
+		checkFeatures: checkFeatures,
 		connectionState: connectionState,
 		setOnline: setOnline,
 		raiseHand: raiseHand,

@@ -551,6 +551,9 @@ class ChatWindow(wx.Dialog):
 			(_("Blocked contacts"), self._showBlocked),
 			# Translators: An item in the Settings section: the add-on's own settings in NVDA.
 			(_("Add-on settings: sounds, volumes, microphone, notifications"), self._openAddonSettings),
+			# Translators: An item in the Settings section: checks whether WhatsApp still has everything the
+			# add-on uses, so a feature WhatsApp broke is known before it is needed, such as in a call.
+			(_("Check what works with WhatsApp now"), self._checkFeatures),
 		]
 		self.settingsList = wx.ListBox(panel, choices=[label for label, action in self._settingsItems])
 		self.settingsList.SetSelection(0)
@@ -801,6 +804,19 @@ class ChatWindow(wx.Dialog):
 		index = self.settingsList.GetSelection()
 		if 0 <= index < len(self._settingsItems):
 			self._settingsItems[index][1]()
+
+	def _checkFeatures(self) -> None:
+		# Translators: Said while the add-on checks what works with WhatsApp.
+		ui.message(_("Checking…"))
+
+		def show(check: dict) -> None:
+			dialog = FeatureCheckDialog(self, check, self.session.browserName or "")
+			try:
+				dialog.ShowModal()
+			finally:
+				dialog.Destroy()
+
+		self._run(self.session.checkFeatures, show)
 
 	def _openAddonSettings(self) -> None:
 		import gui
@@ -5430,6 +5446,59 @@ class TextDialog(wx.Dialog):
 		self.CentreOnParent()
 		box.SetFocus()
 		box.SetInsertionPoint(0)
+
+
+class FeatureCheckDialog(wx.Dialog):
+	"""The check of what works with WhatsApp now, with a button to report what is broken on GitHub."""
+
+	def __init__(self, parent: wx.Window, check: dict, browser: str) -> None:
+		super().__init__(
+			parent,
+			# Translators: The title of the window with the result of the check of what works.
+			title=_("What works with WhatsApp now"),
+			style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+		)
+		self.check = check
+		self.browser = browser
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		box = wx.TextCtrl(
+			self,
+			value=messageText.featureCheckText(check.get("results") or []),
+			style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2,
+			size=(560, 300),
+		)
+		sizer.Add(box, 1, wx.EXPAND | wx.ALL, 10)
+		buttons = wx.BoxSizer(wx.HORIZONTAL)
+		# Translators: A button in the check of what works: opens a new issue on GitHub in the browser, filled
+		# in with the versions and what is broken, for the user to read, add to and send.
+		report = wx.Button(self, label=_("&Report issue on GitHub…"))
+		report.Bind(wx.EVT_BUTTON, lambda evt: self._report())
+		buttons.Add(report, 0, wx.RIGHT, 6)
+		# Translators: The button that closes the check of what works.
+		buttons.Add(wx.Button(self, wx.ID_CANCEL, label=_("Close")))
+		sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.RIGHT | wx.BOTTOM, 10)
+		self.SetSizerAndFit(sizer)
+		self.CentreOnParent()
+		box.SetFocus()
+		box.SetInsertionPoint(0)
+
+	def _report(self) -> None:
+		import urllib.parse
+
+		import addonHandler
+		import buildVersion
+
+		from .updates import REPOSITORY
+
+		title, body = messageText.featureIssue(
+			self.check, addonHandler.getCodeAddon().version, buildVersion.version, self.browser
+		)
+		query = urllib.parse.urlencode({"title": title, "body": body})
+		webbrowser.open(f"https://github.com/{REPOSITORY}/issues/new?{query}")
+		ui.message(
+			# Translators: Said after opening the new issue page, which the user still has to send.
+			_("Opened GitHub in your browser. Read the issue, add what you were doing, then submit it.")
+		)
 
 
 class DeleteDialog(wx.Dialog):

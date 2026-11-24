@@ -3,6 +3,19 @@
 All notable changes to WhatsApp Access are listed here. Each release on GitHub uses its section as the
 notes the add-on shows before it installs an update.
 
+## [Unreleased]
+
+- Mute, Hang up and Return to call work again. WhatsApp moved a function the add-on used to tell the
+  call's state, so the add-on thought no call was going on: Ctrl+M did nothing and the call bar never
+  showed.
+- Join in the Calls tab joins calls started from a call link, and opening a call link from Options
+  joins its call, with the camera off.
+- Ctrl+N, and the new "New chat" button beside Options, find saved contacts by name or number, or take
+  any phone number.
+- Settings (Ctrl+8) has "Check what works with WhatsApp now": it checks that everything the add-on uses
+  in WhatsApp is still there, says which features WhatsApp broke, and can open a GitHub issue filled in
+  with the versions and what is broken, for you to read and send.
+
 ## [0.6.9]
 
 - WhatsApp starts in Microsoft Edge when nvda.exe is set to "Run this program as an administrator" or
